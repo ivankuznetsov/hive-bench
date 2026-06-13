@@ -29,7 +29,12 @@ module HiveBench
     # Phrases that assert the repo's current state at authoring time. Matched
     # case-insensitively against each line; a matching line gets an inline
     # annotation rather than removal.
-    STATE_ASSERTION = /\b(there (?:is|are) no\b|today\b|currently\b|as it stands\b|right now\b|does not (?:exist|yet)\b|no .{0,40} (?:exists?|yet)\b)/i
+    STATE_ASSERTION = /
+      \b(?:
+        there\s(?:is|are)\sno\b | today\b | currently\b | as\sit\sstands\b |
+        right\snow\b | does\snot\s(?:exist|yet)\b | no\s.{0,40}\s(?:exists?|yet)\b
+      )
+    /xi
 
     STATE_MARKER = " <!-- hive-bench: repo-state assertion, verify against the restored base -->"
 
