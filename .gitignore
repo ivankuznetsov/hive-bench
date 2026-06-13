@@ -1,0 +1,9 @@
+/tmp/
+/.bundle/
+/vendor/bundle/
+*.gem
+.DS_Store
+# Benchmark run artifacts (never commit raw run output / restored repos)
+/runs/
+/work/
+*.usage.db
