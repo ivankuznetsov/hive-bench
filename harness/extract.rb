@@ -26,10 +26,11 @@ module HiveBench
 
     class Error < StandardError; end
 
-    # reference_resolver: ->(repo_slug, pr_number) => { "base_commit" => sha, "patch" => diff, "merge_commit" => sha }
+    # reference_resolver: ->(repo_slug, pr_number) =>
+    #   { "base_commit" => sha, "patch" => diff, "merge_commit" => sha }
     #   The base_commit it returns is the commit the patch applies to (the merge
     #   commit's first parent), NOT the task's execute_base_head — the gold patch
-    #   is the PR's own net change `git diff base..merge`, which is apply-clean at
+    #   is the PR's own net change (`git diff base..merge`), apply-clean at
     #   `base` by construction. execute_base_head is kept only as provenance.
     # model_lookup: ->(task_slug) => String|nil (model string from hive UsageDb)
     def initialize(task_dir:, repo_slug:, out_dir:, repo_path: nil,
@@ -79,7 +80,7 @@ module HiveBench
 
       manifest = build_manifest(
         task_id: task_id, base_commit: base_commit, execute_base_head: execute_base_head,
-        merge_commit: ref["merge_commit"], pr: pr, spec_files: spec_files,
+        merge_commit: ref["merge_commit"], pr_meta: pr, spec_files: spec_files,
         norm_totals: norm_totals, patch: patch, model: @model_lookup.call(task_id)
       )
       File.write(File.join(entry_dir, "manifest.yml"), manifest.to_yaml)
@@ -88,7 +89,7 @@ module HiveBench
 
     private
 
-    def build_manifest(task_id:, base_commit:, execute_base_head:, merge_commit:, pr:, spec_files:, norm_totals:, patch:, model:)
+    def build_manifest(task_id:, base_commit:, execute_base_head:, merge_commit:, pr_meta:, spec_files:, norm_totals:, patch:, model:)
       {
         "schema" => SCHEMA,
         "schema_version" => SCHEMA_VERSION,
@@ -97,8 +98,8 @@ module HiveBench
           "repo" => @repo_slug,
           "base_commit" => base_commit,
           "merge_commit" => merge_commit,
-          "reference_pr" => pr["pr_number"],
-          "reference_pr_url" => pr["pr_url"]
+          "reference_pr" => pr_meta["pr_number"],
+          "reference_pr_url" => pr_meta["pr_url"]
         },
         "spec" => {
           "idea" => spec_files[:idea],
@@ -205,8 +206,8 @@ module HiveBench
       { "base_commit" => base, "merge_commit" => merge, "patch" => patch }
     end
 
-    def gh_json(repo_slug, pr_number, jq)
-      out, err, status = Open3.capture3("gh", "pr", "view", pr_number.to_s, "-R", repo_slug, "--json", "mergeCommit", "--jq", jq)
+    def gh_json(repo_slug, pr_number, jq_filter)
+      out, err, status = Open3.capture3("gh", "pr", "view", pr_number.to_s, "-R", repo_slug, "--json", "mergeCommit", "--jq", jq_filter)
       raise Error, "gh pr view failed for #{repo_slug}##{pr_number}: #{err.strip}" unless status.success?
 
       out.strip
