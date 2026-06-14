@@ -119,7 +119,7 @@ module HiveBench
       return "judged" if gate_spec.nil? || gate_spec["needs_curation"] || Array(gate_spec["fail_to_pass"]).empty?
 
       entry = manifest.merge("entry_dir" => entry_dir,
-                             "checkout_source" => manifest.dig("source", "repo"))
+                             "checkout_source" => clone_source(manifest.dig("source", "repo")))
       patch = File.read(File.join(entry_dir, "reference.patch"))
       res = @gate_runner.call(entry: entry, gate_spec: gate_spec, candidate_patch: patch, work_dir: work_dir)
       unless res.status == :pass
@@ -127,6 +127,16 @@ module HiveBench
                     "a gated entry's gold patch must pass its own gate"
       end
       "gated"
+    end
+
+    # GitRestore#restore runs `git clone <source>`; a bare "owner/repo" slug is
+    # treated by git as a local path and fails. Expand a slug to its public
+    # GitHub clone URL; pass through anything that's already a URL or local path.
+    def clone_source(repo)
+      r = repo.to_s
+      return r if r.empty? || r.include?("://") || r.start_with?("git@") || File.exist?(r)
+
+      "https://github.com/#{r}.git"
     end
 
     def reject(failures)

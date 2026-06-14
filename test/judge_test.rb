@@ -91,4 +91,16 @@ class JudgeTest < Minitest::Test
   def test_seeds_must_be_positive
     assert_raises(ArgumentError) { HiveBench::Judge.new(judge_fn: fixed(5), seeds: 0) }
   end
+
+  # A real diff carries backslashes (regex literals, escapes, Windows paths).
+  # The 2-arg gsub would interpret \0/\1/\\ as backreferences; block-form must not.
+  def test_render_preserves_backslash_sequences_in_diff_and_plan
+    diff = "+re = /\\d+\\s/\n+path = \"C:\\\\tmp\"\n+echo \\0 and \\1"
+    plan = "Match \\1 then \\\\."
+    prompt = HiveBench::Judge.new(judge_fn: fixed(5), seeds: 1).render(plan: plan, candidate_diff: diff, reference: nil)
+
+    assert_includes prompt, diff, "the candidate diff must reach the judge byte-for-byte"
+    assert_includes prompt, plan, "the plan must reach the judge byte-for-byte"
+    refute_includes prompt, "{{CANDIDATE}}", "no placeholder may survive (backreference \\0 must not re-inject it)"
+  end
 end

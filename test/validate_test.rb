@@ -111,4 +111,15 @@ class ValidateTest < Minitest::Test
     refute res.ok
     assert(res.failures.any? { |f| f.include?("manifest.yml missing") })
   end
+
+  # A bare "owner/repo" slug must become a clonable GitHub URL (git clone treats
+  # a slug as a local path and fails); URLs and local paths pass through.
+  def test_clone_source_expands_slug_but_passes_through_urls_and_paths
+    v = validator
+
+    assert_equal "https://github.com/owner/repo.git", v.send(:clone_source, "owner/repo")
+    assert_equal "https://example.com/x.git", v.send(:clone_source, "https://example.com/x.git")
+    assert_equal "git@github.com:o/r.git", v.send(:clone_source, "git@github.com:o/r.git")
+    assert_equal @root, v.send(:clone_source, @root), "an existing local path is used as-is"
+  end
 end

@@ -47,10 +47,14 @@ module HiveBench
                     else
                       "<reference>\n#{reference}\n</reference>"
                     end
+      # Block form (not the 2-arg string form): substituted diffs/plans routinely
+      # contain backslash sequences (regex literals, escapes, Windows paths), and
+      # the 2-arg gsub would interpret \0/\1/\\ as backreferences, silently
+      # mangling the candidate shown to the judge.
       @template
-        .gsub("{{PLAN}}", plan.to_s)
-        .gsub("{{REFERENCE_SECTION}}", ref_section)
-        .gsub("{{CANDIDATE}}", candidate_diff.to_s)
+        .gsub("{{PLAN}}") { plan.to_s }
+        .gsub("{{REFERENCE_SECTION}}") { ref_section }
+        .gsub("{{CANDIDATE}}") { candidate_diff.to_s }
     end
 
     private

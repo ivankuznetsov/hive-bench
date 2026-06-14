@@ -48,9 +48,10 @@ module HiveBench
       guard_target!(into)
       FileUtils.mkdir_p(File.dirname(into))
 
-      git!("clone", "--quiet", "--no-checkout", "--no-local", source.to_s, into)
-      # Detached checkout at the exact base — never the source tip.
-      out, ok, err = git("-C", into, "checkout", "--quiet", "--detach", base_commit.to_s)
+      git!(*HARDENED_CONFIG, "clone", "--quiet", "--no-checkout", "--no-local", source.to_s, into)
+      # Detached checkout at the exact base — never the source tip. Hardened so
+      # the freshly-cloned repo's own config can't fire fsmonitor/hooks here.
+      out, ok, err = git("-C", into, *HARDENED_CONFIG, "checkout", "--quiet", "--detach", base_commit.to_s)
       raise Error, "could not check out base commit #{short(base_commit)}: #{err.strip}#{out.strip}" unless ok
 
       into

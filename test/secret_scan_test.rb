@@ -20,6 +20,26 @@ class SecretScanTest < Minitest::Test
     assert(S.scan_text('password = "hunter2hunter2"').any? { |f| f.label.include?("generic") })
   end
 
+  def test_flags_anthropic_slack_and_google_keys
+    assert(S.scan_text("ANTHROPIC=sk-ant-#{"a" * 40}").any? { |f| f.label.include?("anthropic") })
+    assert(S.scan_text("slack: xoxb-#{"1" * 20}").any? { |f| f.label.include?("slack") })
+    assert(S.scan_text("g = AIza#{"B" * 35}").any? { |f| f.label.include?("google") })
+  end
+
+  def test_flags_real_private_hostnames_but_not_prose_words
+    assert(S.scan_text("api = db.internal:5432").any? { |f| f.label.include?("hostname") }, "db.internal is a private host")
+    assert(S.scan_text("printer.local").any? { |f| f.label.include?("hostname") }, "x.local is an mDNS host")
+    # Bare reserved words in ordinary plan prose must NOT trip the gate.
+    [
+      "run it on your local machine",
+      "this is an internal helper method",
+      "store the token in a local variable",
+      "corp-wide refactor of the intranet docs"
+    ].each do |prose|
+      assert_empty S.scan_text(prose), "ordinary prose should not match the hostname pattern: #{prose}"
+    end
+  end
+
   def test_clean_text_has_no_findings
     assert_empty S.scan_text("def greet = 'hello world'\nputs greet\n")
   end

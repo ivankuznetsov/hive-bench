@@ -2,10 +2,10 @@
 
 module HiveBench
   # Pattern-based secret/PII scan, the hard pre-merge gate (R20) that stops a
-  # corpus entry from carrying credentials into the public repo. Prefers a
-  # dedicated scanner (gitleaks) when present; otherwise this portable pattern
-  # set is the fallback so the gate ALWAYS runs — never silently skipped because
-  # a tool is missing.
+  # corpus entry from carrying credentials into the public repo. This portable
+  # pattern set has no external dependency, so the gate ALWAYS runs — never
+  # silently skipped because a tool is missing. (A dedicated scanner like
+  # gitleaks could be layered on top later; R20 names it only as an example.)
   #
   # Biased toward catching: a false positive is a one-line review; a missed
   # secret is published and must be rotated. Scans diffs, fixtures, specs, and
@@ -24,7 +24,10 @@ module HiveBench
       "slack token" => /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/,
       "google api key" => /\bAIza[0-9A-Za-z_-]{30,}\b/,
       "generic api key assignment" => /\b(?:api[_-]?key|secret|password|token)\b\s*[:=]\s*["'][^"'\s]{12,}["']/i,
-      "private hostname" => /\b(?:\w[\w.-]*\.)?(?:internal|corp|intranet|local)\b(?::\d+)?/i
+      # Require a real hostname shape (label + dot + reserved suffix), so prose
+      # words like "local", "internal", "corp" don't trip the gate — only
+      # `db.internal`, `printer.local:8080`, `host.corp` do.
+      "private hostname" => /\b[a-z0-9][\w-]*\.(?:internal|corp|intranet|local)\b(?::\d+)?/i
     }.freeze
 
     # Scan one string; returns an array of Finding.

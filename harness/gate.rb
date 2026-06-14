@@ -78,10 +78,13 @@ module HiveBench
       end
     end
 
-    def failure_reason(f2p_ok, p2p_ok)
+    # Only called when the run is not a pass, so at least one of the two is
+    # false. f2p failure takes precedence; otherwise it's a p2p regression.
+    # Total by construction — never returns nil.
+    def failure_reason(f2p_ok, _p2p_ok)
       return "FAIL_TO_PASS tests did not all pass" unless f2p_ok
 
-      "PASS_TO_PASS regression: a guard test broke" unless p2p_ok
+      "PASS_TO_PASS regression: a guard test broke"
     end
 
     def gated(status, reason)
