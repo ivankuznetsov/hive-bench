@@ -37,3 +37,30 @@ how it's balanced.
 
 _(Curation in progress — gates not yet filled, so both seeds are currently in
 the judged subset.)_
+
+## Open review findings — resolve before the first real gated pass
+
+A `/pr-review-toolkit:review-pr` pass (2026-06-14) drove a round of clear-cut
+fixes; these remain and matter for curation:
+
+1. **Gate must positively observe FAIL_TO_PASS (highest priority).** Today
+   `TestResultParser#test_outcome` treats a test name *absent* from the failure
+   list as passing — so a FAIL_TO_PASS test that never ran (typo, deleted, not
+   collected) is scored as a pass, and a green-but-empty run can clear the
+   objective floor. **Curation rule:** every gated `test_cmd` MUST emit per-test
+   results (run verbose, e.g. `rake test TESTOPTS=-v`), and the gate should be
+   hardened to require each F2P name to appear in the *passed* set, erroring
+   otherwise. Until that enforcement lands, a curator must manually confirm the
+   F2P test actually executes in the reference run.
+2. **CI trust boundary.** `validate-submission.yml` runs the *submission's*
+   validator/harness/Dockerfile on the runner host. Controls keep blast radius
+   to read-only compute (no secrets, `contents:read`, label gate), but before
+   relying on it, run the validator/harness from a trusted ref and apply only
+   the PR's `corpus/**`.
+3. **Leaderboard summary fields.** `_includes/bench/leaderboard.html` reads
+   top-level `status`/`gated_total`/`judged_total` that `Score#results` does not
+   emit — add them (or compute in Liquid) before the first real `results.json`.
+4. **`gen`-mode isolation fails open.** `harness/lib/isolation.sh` gen mode
+   applies no egress restriction and doesn't verify the CI firewall is present;
+   the CLI/auth bind-mount three comments describe isn't implemented. Make gen
+   refuse to run unless egress enforcement is explicitly signalled.
