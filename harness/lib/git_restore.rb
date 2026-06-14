@@ -65,6 +65,19 @@ module HiveBench
       out
     end
 
+    # Applies a candidate patch to a restored work tree (hardened: no ext-diff /
+    # textconv / hooks can fire during apply). Returns true on success, false if
+    # the patch does not apply cleanly — the caller records that as a gate error,
+    # not a test failure.
+    def apply(work_dir:, patch:)
+      patch_file = File.join(work_dir, ".hive-bench-candidate.patch")
+      File.write(patch_file, patch)
+      _out, ok, _err = git("-C", work_dir, *HARDENED_CONFIG, "apply", "--whitespace=nowarn", patch_file)
+      ok
+    ensure
+      FileUtils.rm_f(patch_file) if patch_file
+    end
+
     # Best-effort cleanup of the throwaway HOME.
     def close
       FileUtils.remove_entry(@empty_home) if @empty_home && File.directory?(@empty_home)
