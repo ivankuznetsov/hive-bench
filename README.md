@@ -55,6 +55,16 @@ Three tiers, per `(task, agent)` cell:
     validator/               reproducibility + secret-scan CI for submissions
     leaderboard/             results.json -> public /bench table
 
+## Running a pass
+
+    ruby harness/preflight.rb        # confirm the slate is installed + authed
+    ruby harness/run_all.rb          # corpus x slate -> results.json (see harness/run_all.rb)
+
+A pass reuses recorded claude/codex cells where possible and runs the rest
+fresh, scores each via the gate + blind judge, and writes `results.json` for the
+leaderboard. Cells that hit a provider limit are recorded `pending` for re-run,
+never scored as failures.
+
 ## Status
 
 Pre-1.0, under construction. Built from the plan in `hive-private`.
