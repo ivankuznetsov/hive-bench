@@ -1,0 +1,57 @@
+name: validate-submission
+
+# Untrusted-PR safe (R21): runs on `pull_request` (NOT pull_request_target), so
+# the GITHUB_TOKEN is read-only and fork PRs get NO repository secrets. The job
+# executes a contributor's declared build/test command to check reproducibility,
+# so it must be treated as running attacker-controlled code: no secrets, minimal
+# token, and gated behind a maintainer-applied `safe-to-validate` label. Result
+# posting (which needs write) is a separate workflow_run job that never checks
+# out fork code.
+on:
+  pull_request:
+    paths:
+      - "corpus/**"
+    types: [labeled, synchronize, reopened]
+
+permissions:
+  contents: read   # no write, no secrets reach this workflow
+
+concurrency:
+  group: validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # Only run once a maintainer has reviewed the diff and applied the label.
+    if: contains(github.event.pull_request.labels.*.name, 'safe-to-validate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out the PR head explicitly; no persisted credentials.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - name: Build the no-network runner image
+        run: docker build -f Dockerfile.runner -t hive-bench-runner:latest .
+      - name: Validate changed corpus entries
+        run: |
+          mkdir -p tmp
+          # Validate every entry touched by this PR.
+          git fetch origin "${{ github.event.pull_request.base.sha }}" --depth=1 || true
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD -- 'corpus/*/manifest.yml' | xargs -r -n1 dirname | sort -u)
+          [ -z "$changed" ] && { echo "no corpus entries changed"; exit 0; }
+          rc=0
+          for entry in $changed; do
+            echo "::group::validate $entry"
+            ruby validator/cli.rb "$entry" --result "tmp/result-$(basename "$entry").json" || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-results
+          path: tmp/result-*.json

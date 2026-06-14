@@ -1,0 +1,32 @@
+name: post-validation-results
+
+# Separated from validation (GitHub Security Lab two-workflow pattern): this is
+# the ONLY job with write access, and it NEVER checks out or executes fork code.
+# It just reads the validation artifact and posts a comment.
+on:
+  workflow_run:
+    workflows: ["validate-submission"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download validation results
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: results
+      - name: Summarize (no fork code executed)
+        run: |
+          echo "## hive-bench submission validation" >> "$GITHUB_STEP_SUMMARY"
+          for f in results/*.json; do
+            [ -f "$f" ] || continue
+            ruby -rjson -e 'd=JSON.parse(File.read(ARGV[0])); puts "- **#{d["entry"]}**: #{d["ok"] ? "ACCEPT (#{d["subset"]})" : "REJECT"}"; (d["failures"]||[]).each { |x| puts "  - #{x}" }' "$f" >> "$GITHUB_STEP_SUMMARY"
+          done
