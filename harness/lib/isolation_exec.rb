@@ -118,12 +118,17 @@ module HiveBench
     def gen_env(profile)
       env = { "HB_ALLOW_EGRESS" => "1" }
       env["HB_CLAUDE_AUTH"] = File.expand_path(profile.auth_path) if profile.harness == "claude" && profile.auth_path
+      env["HB_CODEX_AUTH"] = File.expand_path(profile.auth_path) if profile.harness == "codex" && profile.auth_path
       env
     end
 
     # Dispatch the agent's machine-readable output to its harness parser.
     def parse_stream(harness, out)
-      harness == "claude" ? parse_claude_result(out) : parse_pi_stream(out)
+      case harness
+      when "claude" then parse_claude_result(out)
+      when "codex" then parse_codex_stream(out)
+      else parse_pi_stream(out)
+      end
     end
 
     # Builds the in-container agent invocation. pi (open models) and claude are
@@ -135,6 +140,7 @@ module HiveBench
       case profile.harness
       when "pi" then pi_command(profile.model)
       when "claude" then claude_command(profile.model)
+      when "codex" then codex_command(profile.model)
       else
         raise UnsupportedHarness, "gen_exec has no wired command for #{profile.id} (#{profile.harness})"
       end
@@ -153,6 +159,18 @@ module HiveBench
     def claude_command(model)
       "cd /work && timeout #{agent_timeout} claude -p --model #{model} --dangerously-skip-permissions " \
         "--output-format json \"$(cat /work/#{PROMPT_FILE})\""
+    end
+
+    # codex exec headless: --json emits JSONL events (turn.completed carries usage);
+    # xhigh reasoning per the slate; bypass codex's own approvals/sandbox since we
+    # provide the isolation. OAuth creds are mounted by isolation.sh (see gen_env).
+    # codex runs as root (its app-server needs uid 0), so it chowns the work tree
+    # back to the host uid afterward — otherwise the host can't capture/clean it.
+    def codex_command(model)
+      "cd /work && timeout #{agent_timeout} codex exec --json -m #{model} " \
+        "-c 'model_reasoning_effort=\"xhigh\"' --dangerously-bypass-approvals-and-sandbox " \
+        "\"$(cat /work/#{PROMPT_FILE})\"; " \
+        "ec=$?; chown -R #{Process.uid}:#{Process.gid} /work 2>/dev/null; exit $ec"
     end
 
     # A malformed HB_AGENT_TIMEOUT override falls back to the default rather than
@@ -270,6 +288,41 @@ module HiveBench
 
     def claude_error_text(obj)
       (obj["result"] || obj["api_error_status"] || "claude error").to_s
+    end
+
+    # codex exec --json emits JSONL events; `turn.completed` carries per-turn usage
+    # (input/output/cached/reasoning tokens). Sum across turns. codex reports no
+    # dollar cost (subscription auth), so cost is left out. Same return shape as
+    # the others. reasoning tokens are billed as output, so they're counted there.
+    def parse_codex_stream(out)
+      input = output = cached = 0
+      seen = false
+      errors = []
+
+      out.to_s.each_line do |line|
+        obj = try_json(line)
+        next unless obj.is_a?(Hash)
+
+        if obj["type"] == "turn.completed" && obj["usage"].is_a?(Hash)
+          u = obj["usage"]
+          seen = true
+          input  += u["input_tokens"].to_i
+          output += u["output_tokens"].to_i + u["reasoning_output_tokens"].to_i
+          cached += u["cached_input_tokens"].to_i
+        end
+        errors << codex_error_text(obj) if codex_error?(obj)
+      end
+
+      usage = seen ? { input: input, output: output, cached: cached } : {}
+      { usage: usage, model: nil, errors: errors }
+    end
+
+    def codex_error?(obj)
+      obj["type"].to_s.include?("error") || obj.key?("error")
+    end
+
+    def codex_error_text(obj)
+      (obj["message"] || obj.dig("error", "message") || obj["error"] || "codex error").to_s
     end
 
     def try_json(text)

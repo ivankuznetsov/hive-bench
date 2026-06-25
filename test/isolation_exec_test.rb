@@ -99,11 +99,11 @@ class IsolationExecTest < Minitest::Test
   end
 
   def test_agent_command_rejects_an_unwired_harness
-    codex = HiveBench::Profile.new(id: "codex@x", harness: "codex", model: "gpt", bin: "codex",
+    other = HiveBench::Profile.new(id: "gemini@x", harness: "gemini", model: "g", bin: "gemini",
                                    headless_argv: ->(prompt:) { [prompt] })
-    err = assert_raises(HiveBench::IsolationExec::UnsupportedHarness) { IE.agent_command(codex) }
+    err = assert_raises(HiveBench::IsolationExec::UnsupportedHarness) { IE.agent_command(other) }
 
-    assert_match(/no wired command for codex@x/, err.message)
+    assert_match(/no wired command for gemini@x/, err.message)
   end
 
   def test_agent_command_builds_a_claude_invocation
@@ -126,6 +126,42 @@ class IsolationExecTest < Minitest::Test
     assert_equal 1200, parsed[:usage][:cached]
     assert_in_delta 0.1234, parsed[:usage][:cost], 1e-9
     assert_nil parsed[:model], "model is taken from the requested profile, not claude's mixed modelUsage"
+  end
+
+  def test_agent_command_builds_a_codex_invocation
+    codex = HiveBench::Profile.new(id: "codex@gpt-5.5-xhigh", harness: "codex", model: "gpt-5.5", bin: "codex",
+                                   auth_path: "~/.codex/auth.json", headless_argv: ->(prompt:) { [prompt] })
+    cmd = IE.agent_command(codex)
+
+    assert_includes cmd, "codex exec --json -m gpt-5.5"
+    assert_includes cmd, %(model_reasoning_effort="xhigh")
+    assert_includes cmd, "--dangerously-bypass-approvals-and-sandbox"
+    assert_includes cmd, %("$(cat /work/#{HiveBench::IsolationExec::PROMPT_FILE})")
+  end
+
+  def test_parse_codex_stream_sums_turn_usage
+    stream = [
+      { "type" => "turn.started" },
+      { "type" => "turn.completed", "usage" => { "input_tokens" => 1000, "output_tokens" => 50,
+                                                 "cached_input_tokens" => 200, "reasoning_output_tokens" => 30 } },
+      { "type" => "turn.completed", "usage" => { "input_tokens" => 1500, "output_tokens" => 80,
+                                                 "cached_input_tokens" => 300, "reasoning_output_tokens" => 20 } }
+    ].map { |o| JSON.generate(o) }.join("\n")
+    parsed = IE.parse_codex_stream(stream)
+
+    assert_equal 2500, parsed[:usage][:input]
+    assert_equal 180, parsed[:usage][:output], "reasoning tokens count toward output (they bill as output)"
+    assert_equal 500, parsed[:usage][:cached]
+  end
+
+  def test_gen_env_passes_codex_creds_path_only_for_codex_cells
+    codex = HiveBench::Profile.new(id: "codex@x", harness: "codex", model: "gpt-5.5", bin: "codex",
+                                   auth_path: "~/.codex/auth.json", headless_argv: ->(prompt:) { [prompt] })
+    env = IE.gen_env(codex)
+
+    assert_equal File.expand_path("~/.codex/auth.json"), env["HB_CODEX_AUTH"]
+    refute env.key?("HB_CLAUDE_AUTH")
+    refute IE.gen_env(pi_profile).key?("HB_CODEX_AUTH")
   end
 
   def test_parse_claude_result_surfaces_an_error_for_limit_detection

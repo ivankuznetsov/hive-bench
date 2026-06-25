@@ -18,6 +18,7 @@ FROM ruby:3.4-slim
 ARG NODE_VERSION=26.3.1
 ARG PI_VERSION=0.80.2
 ARG CLAUDE_VERSION=2.1.191
+ARG CODEX_VERSION=0.142.2
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates curl xz-utils libatomic1 \
@@ -35,7 +36,8 @@ RUN curl -fsSLo /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-
 # OAuth creds file bind-mounted read-only by harness/lib/isolation.sh).
 RUN npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}" \
   && npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" \
-  && pi --version && claude --version
+  && npm install -g "@openai/codex@${CODEX_VERSION}" \
+  && pi --version && claude --version && codex --version
 
 # Non-root: the candidate's code and the gate's tests run unprivileged. uid 1000
 # matches the typical host user so files written into the mounted /work keep
