@@ -42,6 +42,9 @@ module HiveBench
     # as a positional message via "$(cat ...)" — content is forwarded verbatim
     # (no shell re-expansion of backticks/$/quotes the plan may contain).
     PROMPT_FILE = ".hive-bench-prompt.md"
+    # In planner/executor pipeline mode the planner writes its plan to this file
+    # in the repo root; the pipeline reads it and feeds it to the executor.
+    PLAN_OUTPUT_FILE = "HIVE_BENCH_PLAN.md"
     # Wall-clock ceiling for a single candidate run (seconds); a wedged agent
     # exits the container instead of hanging the whole pass. Operator-overridable
     # via HB_AGENT_TIMEOUT. Set high (2h) because slower open models (glm) need
@@ -63,11 +66,13 @@ module HiveBench
     # The candidate agent runs inside isolation.sh gen mode; its JSON stream is
     # parsed for token usage + provider cost. Generation and scoring stay split:
     # this only produces the stream/usage — the diff is captured by the runner.
-    def gen_exec(script: SCRIPT)
+    # `frame` wraps the prompt before delivery — defaults to the executor framing;
+    # the pipeline passes an identity frame so it can supply a full planner prompt.
+    def gen_exec(script: SCRIPT, frame: method(:frame_prompt))
       lambda do |profile:, prompt:, cwd:|
         prompt_path = File.join(cwd, PROMPT_FILE)
         begin
-          File.write(prompt_path, frame_prompt(prompt))
+          File.write(prompt_path, frame.call(prompt))
           cmd = agent_command(profile)
           # HB_ALLOW_EGRESS acknowledges the run permits model-API egress; provider
           # keys are inherited from the driver's env, and a claude cell's OAuth
@@ -191,6 +196,27 @@ module HiveBench
         <plan>
         #{plan}
         </plan>
+      PROMPT
+    end
+
+    # Planner framing for pipeline mode: the planner explores the repo and writes
+    # an implementation plan to PLAN_OUTPUT_FILE — it must NOT implement the task.
+    def frame_plan_prompt(idea, brainstorm)
+      <<~PROMPT
+        You are a senior engineer writing an implementation plan for the task below.
+        Explore the repository to ground the plan in the real code, then write a
+        detailed, step-by-step implementation plan to the file `#{PLAN_OUTPUT_FILE}`
+        in the repository root. Do NOT implement the task — produce ONLY the plan
+        document, and make it complete enough that another engineer could execute
+        it without seeing this brief.
+
+        <idea>
+        #{idea}
+        </idea>
+
+        <brainstorm>
+        #{brainstorm}
+        </brainstorm>
       PROMPT
     end
 

@@ -28,6 +28,21 @@ module HiveBench
       profiles.find { |p| p.id == id }
     end
 
+    # Planner/executor pairs for pipeline mode: the planner authors the plan, the
+    # executor implements it. `id` is the agent_id recorded in results.json.
+    Pair = Data.define(:id, :planner, :executor)
+
+    def pipelines
+      [
+        Pair.new(id: "glm-5.2->kimi-k2.7", planner: by_id("pi@glm-5.2"), executor: by_id("pi@kimi-k2.7")),
+        Pair.new(id: "opus-4.8->codex", planner: by_id("claude@opus-4.8"), executor: by_id("codex@gpt-5.5-xhigh"))
+      ].freeze
+    end
+
+    def pipeline_by_id(id)
+      pipelines.find { |p| p.id == id }
+    end
+
     # The recorded incumbent: scored from claude-opus-4.7's RAW execute output
     # (reused — see lib/reuse.rb), never run fresh (we don't ship the 4.7 CLI).
     # headless_argv is unused for a reused cell but kept for shape/preflight.
@@ -72,7 +87,7 @@ module HiveBench
     # model=z-ai/glm-5.2); the other three still need their own smoke before a
     # run pins them (left as bare labels until verified).
     PI_MODELS = {
-      "kimi-k2.7" => "kimi-k2.7",
+      "kimi-k2.7" => "openrouter/moonshotai/kimi-k2.7-code",
       "minimax-3" => "minimax-3",
       "qwen-2.6-coder" => "qwen-2.6-coder",
       "glm-5.2" => "openrouter/z-ai/glm-5.2"
