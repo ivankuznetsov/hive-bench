@@ -43,9 +43,20 @@ module HiveBench
       info = bases.fetch(old["task_id"])
       diff = recover_diff(search_dirs, old, info[:base], restorer)
       plan = read_plan(info[:entry])
-      judged = diff.strip.empty? ? {} : judges.transform_values { |j| j.call(plan: plan, candidate_diff: diff, reference: nil) }
+      judged = diff.strip.empty? ? {} : judge_all(judges, plan, diff)
       warn "  judged #{old["agent_id"]} #{old["task_id"]} (#{diff.lines.size} diff lines): #{judged.transform_values(&:mean).inspect}"
       scorer.cell_record(cell: cell_meta(old), gate: NO_GATE, judges: judged)
+    end
+
+    # Fail soft per judge: a flaky/limited judge (e.g. an OpenRouter key-limit 403)
+    # is skipped with a warning rather than crashing the whole re-judge — the cell
+    # keeps the judges that succeeded, and the failed one can be re-run later.
+    def judge_all(judges, plan, diff)
+      judges.each_with_object({}) do |(name, judge), acc|
+        acc[name] = judge.call(plan: plan, candidate_diff: diff, reference: nil)
+      rescue StandardError => e
+        warn "  judge #{name} failed (#{e.class}: #{e.message.to_s[0, 80]}) — skipping this judge"
+      end
     end
 
     # Fresh cells: re-capture from the work tree (new-files fix). Reused/other:

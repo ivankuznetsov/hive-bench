@@ -27,6 +27,13 @@ class AgentLimitTest < Minitest::Test
     refute L.limit_hit?("the function returns 402 widgets after the loop"), "bare 402 unrelated to billing is not a limit"
   end
 
+  def test_detects_openrouter_403_key_limit_exceeded
+    # OpenRouter 403 once a key hits its spend cap.
+    assert L.limit_hit?('openrouter judge HTTP 403: {"error":{"message":"Key limit exceeded (total limit)","code":403}}')
+    assert L.limit_hit?("Error: spending limit exceeded")
+    refute L.limit_hit?("access forbidden: 403 you lack permission"), "a plain 403 auth error is not a spend limit"
+  end
+
   def test_ignores_benign_limit_chrome
     refute L.limit_hit?("Included in your plan limits until Jun 22")
     refute L.limit_hit?("Run /status to see usage limits and account info")

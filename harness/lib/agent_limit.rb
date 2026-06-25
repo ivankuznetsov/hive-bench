@@ -27,10 +27,13 @@ module HiveBench
       /(?:out of|no remaining|purchase(?:\s+more)?) usage credits/i,
       /insufficient[_\s-]*quota/i,
       # OpenRouter (and other pay-per-token providers Pi fronts) return a 402 with
-      # "Insufficient credits" on an empty balance. Without this, a credit-drained
+      # "Insufficient credits" on an empty balance, or a 403 "Key limit exceeded"
+      # once a key hits its spend cap. Without these, a credit/key-drained
       # open-model cell is misscored as a real failure instead of parked pending.
       /insufficient (?:credits?|balance|funds)/i,
       /\b402\b[^\n]{0,40}(?:credit|payment|insufficient)/i,
+      /(?:key|credit|spend(?:ing)?|usage|total|monthly|daily) limit exceeded/i,
+      /\b403\b[^\n]{0,40}limit exceeded/i,
       /quota (?:exhausted|exceeded|reached)/i,
       /rate limit (?:reached|exceeded|reset|hit)/i,
       /too many requests/i,
