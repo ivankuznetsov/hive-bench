@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require "open3"
+require "English"
 require "fileutils"
+require "tempfile"
 require "json"
 
 module HiveBench
@@ -77,7 +79,10 @@ module HiveBench
           # HB_ALLOW_EGRESS acknowledges the run permits model-API egress; provider
           # keys are inherited from the driver's env, and a claude cell's OAuth
           # creds path is passed so isolation.sh mounts it read-only.
-          out, err, status = Open3.capture3(gen_env(profile), "bash", script, "gen", cwd, cmd)
+          # Capture to files, not pipes: agent JSON streams reach many MB and
+          # Open3.capture3's reader threads race ("stream closed in another
+          # thread") on that volume — file redirection sidesteps it entirely.
+          out, err, status = run_to_files(gen_env(profile), script, cwd, cmd)
           fail_closed!(status, err, phase: "gen")
           parsed = parse_stream(profile.harness, out)
           # A clean exit that yielded no parseable usage usually means the agent's
@@ -125,6 +130,20 @@ module HiveBench
       env["HB_CLAUDE_AUTH"] = File.expand_path(profile.auth_path) if profile.harness == "claude" && profile.auth_path
       env["HB_CODEX_AUTH"] = File.expand_path(profile.auth_path) if profile.harness == "codex" && profile.auth_path
       env
+    end
+
+    # Runs the isolated gen command, capturing stdout/stderr to temp files rather
+    # than pipes — robust for the multi-MB agent JSON streams that race Open3's
+    # reader threads. Returns [out, err, Process::Status].
+    def run_to_files(env, script, cwd, cmd)
+      out_file = Tempfile.new("hb-gen-out")
+      err_file = Tempfile.new("hb-gen-err")
+      system(env, "bash", script, "gen", cwd, cmd, out: out_file.path, err: err_file.path)
+      status = $CHILD_STATUS
+      [File.read(out_file.path), File.read(err_file.path), status]
+    ensure
+      out_file&.close!
+      err_file&.close!
     end
 
     # Dispatch the agent's machine-readable output to its harness parser.
