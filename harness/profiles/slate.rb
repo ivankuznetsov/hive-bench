@@ -33,10 +33,27 @@ module HiveBench
     Pair = Data.define(:id, :planner, :executor)
 
     def pipelines
+      [*self_plan_pipelines, *cross_pipelines].freeze
+    end
+
+    # Self-plan pipelines (X plans + X executes) = each agent's FULL capability —
+    # the meaningful "fresh X" run, vs the frozen-plan executor (which only tests
+    # executing someone else's already-refined plan).
+    def self_plan_pipelines
+      {
+        "codex-selfplan" => "codex@gpt-5.5-xhigh",
+        "opus-4.8-selfplan" => "claude@opus-4.8",
+        "kimi-selfplan" => "pi@kimi-k2.7",
+        "glm-selfplan" => "pi@glm-5.2"
+      }.map { |id, agent| Pair.new(id: id, planner: by_id(agent), executor: by_id(agent)) }
+    end
+
+    # Cross pipelines: planner-A hands its plan to executor-B.
+    def cross_pipelines
       [
         Pair.new(id: "glm-5.2->kimi-k2.7", planner: by_id("pi@glm-5.2"), executor: by_id("pi@kimi-k2.7")),
         Pair.new(id: "opus-4.8->codex", planner: by_id("claude@opus-4.8"), executor: by_id("codex@gpt-5.5-xhigh"))
-      ].freeze
+      ]
     end
 
     def pipeline_by_id(id)

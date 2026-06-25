@@ -218,24 +218,24 @@ module HiveBench
       PROMPT
     end
 
-    # Planner framing for pipeline mode: the planner explores the repo and writes
-    # an implementation plan to PLAN_OUTPUT_FILE — it must NOT implement the task.
-    def frame_plan_prompt(idea, brainstorm)
+    # Planner framing for the e2e pipeline: the planner starts from the bare IDEA
+    # (no frozen brainstorm), thinks through the requirements ITSELF, explores the
+    # repo, and writes an implementation plan to PLAN_OUTPUT_FILE — it must NOT
+    # implement the task. Starting from the idea is what makes this a real e2e
+    # workflow: the agent does the brainstorm+plan, not just execute a given plan.
+    def frame_plan_prompt(idea)
       <<~PROMPT
-        You are a senior engineer writing an implementation plan for the task below.
-        Explore the repository to ground the plan in the real code, then write a
-        detailed, step-by-step implementation plan to the file `#{PLAN_OUTPUT_FILE}`
-        in the repository root. Do NOT implement the task — produce ONLY the plan
-        document, and make it complete enough that another engineer could execute
-        it without seeing this brief.
+        You are a senior engineer. Below is a feature idea / request. Work out the
+        requirements and design yourself (brainstorm the approach, edge cases, and
+        decisions), explore the repository to ground your thinking in the real
+        code, then write a detailed, step-by-step implementation plan to the file
+        `#{PLAN_OUTPUT_FILE}` in the repository root. Do NOT implement the task —
+        produce ONLY the plan, complete enough that another engineer could execute
+        it without seeing this idea.
 
         <idea>
         #{idea}
         </idea>
-
-        <brainstorm>
-        #{brainstorm}
-        </brainstorm>
       PROMPT
     end
 

@@ -55,7 +55,7 @@ class PipelineTest < Minitest::Test
       "source" => { "base_commit" => @base }, "spec" => { "idea" => "spec/idea.md", "brainstorm" => "spec/brainstorm.md" } }
   end
 
-  # Planner stub: writes the plan file (proving it saw idea+brainstorm in the prompt).
+  # Planner stub: writes the plan file (proving it saw the bare idea in the prompt).
   def planner_spawn(writes_plan: true, status: :ok, usage: { input: 100, output: 20, cost: 0.01 }, stream: "")
     lambda do |profile:, prompt:, cwd:|
       _ = profile

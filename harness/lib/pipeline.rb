@@ -6,11 +6,13 @@ require "lib/isolation_exec"
 require "lib/agent_limit"
 
 module HiveBench
-  # Planner/executor pipeline: a planner agent authors the plan (from idea +
-  # brainstorm, exploring the repo), then an executor agent implements THAT plan
-  # in a fresh checkout. The pair is one contestant cell, judged on the executor's
-  # final diff. This is hive's plan->execute split (the frozen-plan Run is
-  # execute-only); here the plan is the planner's, not the corpus's frozen one.
+  # Planner/executor pipeline: a planner agent authors the plan from the bare
+  # IDEA (it does the brainstorm+plan itself, exploring the repo), then an
+  # executor agent implements THAT plan in a fresh checkout. The pair is one
+  # contestant cell, judged on the executor's final diff. This is the real e2e
+  # workflow (idea -> plan -> execute); the frozen-plan Run is execute-only.
+  # When planner == executor (self-plan), the cell measures one agent's FULL
+  # capability from idea to diff — e.g. codex-only means codex writes the plan.
   #
   #   plan_spawn / exec_spawn: Run-style spawn seams. plan_spawn must use an
   #   identity prompt frame (the pipeline supplies the full planner prompt);
@@ -52,8 +54,7 @@ module HiveBench
       work = File.join(out_dir, "plan_work")
       @restorer.restore(source: source, base_commit: base, into: work)
       idea = read_entry(entry, entry.dig("spec", "idea"))
-      brainstorm = read_entry(entry, entry.dig("spec", "brainstorm"))
-      prompt = IsolationExec.frame_plan_prompt(idea, brainstorm)
+      prompt = IsolationExec.frame_plan_prompt(idea)
       started = @clock.call
       result = @plan_spawn.call(profile: planner, prompt: prompt, cwd: work)
       tel = phase_telemetry("planner", result, started, @clock.call)
