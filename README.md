@@ -57,13 +57,32 @@ Three tiers, per `(task, agent)` cell:
 
 ## Running a pass
 
-    ruby harness/preflight.rb        # confirm the slate is installed + authed
-    ruby harness/run_all.rb          # corpus x slate -> results.json (see harness/run_all.rb)
+    ruby harness/preflight.rb              # confirm the slate is installed + authed
+    docker build -f Dockerfile.runner -t hive-bench-runner:latest .   # one-time
 
-A pass reuses recorded claude/codex cells where possible and runs the rest
-fresh, scores each via the gate + blind judge, and writes `results.json` for the
-leaderboard. Cells that hit a provider limit are recorded `pending` for re-run,
-never scored as failures.
+    # corpus x slate -> runs/results.json. Generation runs each candidate inside
+    # the isolated runner; the blind judge is the local claude CLI.
+    OPENROUTER_API_KEY=sk-or-... \
+      ruby harness/run_all.rb --source <local-clone-of-source-repo> [--agent pi@glm-5.2]
+
+Runner knobs (env): `HB_AGENT_TIMEOUT` (per-cell seconds, default 7200 — slower
+open models need the room), `HB_RUNNER_IMAGE` (default `hive-bench-runner:latest`),
+`HB_CPUS`/`HB_MEMORY`/`HB_PIDS` (container caps, default 8 / 16g / 4096). A cell
+whose agent runs past the ceiling is recorded `run_status: timed_out` (its partial
+diff is still judged, but it is never counted as a clean completion). The driver
+exits `2` if any cell could not be isolated, `1` on a usage/validation error, `0`
+otherwise (pending provider-limit cells are not an error).
+
+`--source` is a local clone restored at each task's `base_commit` (offline, so a
+hostile repo never runs code on the host). `--agent` narrows the slate to one
+cell — currently only the `pi@…` open-model cells have a wired generation path,
+so `--agent pi@glm-5.2` is the verified invocation; the `claude@…`/`codex@…`
+cells (fresh generation and recorded-cell reuse) are not wired yet and are
+parked as `failed` if a pass reaches them. A pass scores each fresh cell via the
+gate + blind judge and writes `runs/results.json`. Cells that hit a provider
+limit (including an OpenRouter `402 Insufficient credits`) are recorded
+`pending` for re-run, never scored as failures; cells whose isolation could not
+be enforced are parked as `failed`, never scored.
 
 ## Status
 

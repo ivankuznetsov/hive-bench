@@ -29,6 +29,15 @@ module HiveBench
 
     HARDENED_CONFIG = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"].freeze
     DIFF_SAFETY = ["--no-ext-diff", "--no-textconv"].freeze
+    # Trees an agent may create as a build side-effect (gem/npm install) — not part
+    # of the candidate solution, and enormous. Excluded from the captured diff so a
+    # vendored `.gems/` can't bury the real changes or blow up the judge's tokens.
+    VENDORED_EXCLUDES = [
+      ":(exclude,glob).gems/**", ":(exclude).gems",
+      ":(exclude,glob)**/node_modules/**",
+      ":(exclude,glob)vendor/bundle/**", ":(exclude,glob).bundle/**",
+      ":(exclude).hive-bench-prompt.md"
+    ].freeze
 
     def initialize
       # A throwaway empty HOME so no real user git config is ever consulted.
@@ -46,6 +55,10 @@ module HiveBench
     # inside its declared parent (no traversal). Raises Error on any failure.
     def restore(source:, base_commit:, into:)
       guard_target!(into)
+      # Idempotent: a prior crashed/killed run can leave a populated `into`, which
+      # would make `git clone` fail ("destination exists"). Re-cloning is the
+      # correct behavior for re-running a cell whose generation was incomplete.
+      FileUtils.rm_rf(into)
       FileUtils.mkdir_p(File.dirname(into))
 
       git!(*HARDENED_CONFIG, "clone", "--quiet", "--no-checkout", "--no-local", source.to_s, into)
@@ -60,8 +73,24 @@ module HiveBench
     # Unified diff of the working tree against `base_commit`, hardened so no
     # repo-controlled driver executes. Returns the patch string (possibly empty).
     def diff(work_dir:, base_commit:)
-      out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "diff", *DIFF_SAFETY, base_commit.to_s, "--")
+      # Record intent-to-add so NEW files appear in the diff — `git diff <commit>`
+      # omits untracked files, which would silently drop a candidate that solves a
+      # task mostly by ADDING files (install scripts, new modules, …). Vendored
+      # trees are excluded so they neither bury the solution nor explode the diff.
+      git("-C", work_dir, *HARDENED_CONFIG, "add", "--intent-to-add", "--", ".", *VENDORED_EXCLUDES)
+      out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "diff", *DIFF_SAFETY,
+                         base_commit.to_s, "--", ".", *VENDORED_EXCLUDES)
       raise Error, "git diff failed: #{err.strip}" unless ok
+
+      out
+    end
+
+    # Hardened diff of `base..head` inside an existing repo (no checkout). Used to
+    # recover a recorded agent's RAW execute output (provenance.execute_base_head)
+    # for a reused incumbent cell — never the merged reference, which is the gold.
+    def range_diff(repo:, base:, head:)
+      out, ok, err = git("-C", repo.to_s, *HARDENED_CONFIG, "diff", *DIFF_SAFETY, "#{base}..#{head}", "--")
+      raise Error, "git range diff #{short(base)}..#{short(head)} failed: #{err.strip}" unless ok
 
       out
     end

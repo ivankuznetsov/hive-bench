@@ -14,20 +14,22 @@ module HiveBench
   class Score
     PRELIMINARY_MIN_CELLS = 10
 
-    # cell: { task_id, agent_id, mode, model_version, telemetry }
-    # gate: HiveBench::Gate::Result ; judge: HiveBench::Judge::Result | nil
-    def cell_record(cell:, gate:, judge:)
+    # cell: { task_id, agent_id, mode, model_version, run_status, telemetry }
+    # gate: HiveBench::Gate::Result
+    # judges: { "<judge-name>" => HiveBench::Judge::Result } (empty when no diff)
+    def cell_record(cell:, gate:, judges:)
       {
         "task_id" => cell.fetch(:task_id),
         "agent_id" => cell.fetch(:agent_id),
         "mode" => cell.fetch(:mode),
         "model_version" => cell[:model_version],
+        # The generation outcome (generated / empty_diff / timed_out / agent_failed)
+        # so a truncated or failed run is never mistaken for a clean completion.
+        "run_status" => cell[:run_status],
         "subset" => gate.subset,
         "gate" => { "status" => gate.status.to_s, "reason" => gate.reason },
-        "judge" => judge && {
-          "mean" => judge.mean, "interval" => judge.interval,
-          "reference_withheld" => judge.reference_withheld
-        },
+        # One entry per independent judge (e.g. opus-4.8 + gpt-5.5-pro).
+        "judges" => judge_records(judges),
         "efficiency" => cell[:telemetry] || {}
       }
     end
@@ -48,14 +50,24 @@ module HiveBench
 
     private
 
+    def judge_records(judges)
+      (judges || {}).transform_values do |j|
+        { "mean" => j.mean, "interval" => j.interval, "reference_withheld" => j.reference_withheld }
+      end
+    end
+
     def agent_summary(records, min_cells)
       gated = records.select { |r| r["subset"] == "gated" }
-      judged_scored = records.select { |r| r.dig("judge", "mean") }
+      judged_scored = records.select { |r| (r["judges"] || {}).any? }
       passed = gated.count { |r| r.dig("gate", "status") == "pass" }
 
       {
         "cells" => records.size,
         "preliminary" => records.size < min_cells,
+        # How many cells actually finished cleanly vs were truncated/failed — so a
+        # mean_quality built partly on timed-out partial diffs is never read as if
+        # every cell completed.
+        "generation" => records.each_with_object(Hash.new(0)) { |r, h| h[r["run_status"] || "unknown"] += 1 },
         "gated" => {
           "total" => gated.size,
           "passed" => passed,
@@ -63,7 +75,8 @@ module HiveBench
         },
         "judged" => {
           "scored_cells" => judged_scored.size,
-          "mean_quality" => mean_of(judged_scored.map { |r| r.dig("judge", "mean") })
+          # One mean per judge, so two independent judges are never collapsed.
+          "mean_quality" => mean_quality_by_judge(records)
         },
         "efficiency" => efficiency_summary(records),
         "provenance" => {
@@ -71,6 +84,12 @@ module HiveBench
           "fresh" => records.count { |r| r["mode"] == "fresh" }
         }
       }
+    end
+
+    # { "<judge>" => mean across the cells that judge scored }.
+    def mean_quality_by_judge(records)
+      names = records.flat_map { |r| (r["judges"] || {}).keys }.uniq
+      names.to_h { |name| [name, mean_of(records.filter_map { |r| r.dig("judges", name, "mean") })] }
     end
 
     def efficiency_summary(records)

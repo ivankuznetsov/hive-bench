@@ -21,19 +21,32 @@ module HiveBench
     PI_AUTH = "~/.pi/agent/auth.json"
 
     def profiles
-      [claude_opus, codex_gpt, *pi_open_models].freeze
+      [claude_opus47, claude_opus, codex_gpt, *pi_open_models].freeze
     end
 
     def by_id(id)
       profiles.find { |p| p.id == id }
     end
 
-    def claude_opus
+    # The recorded incumbent: scored from claude-opus-4.7's RAW execute output
+    # (reused — see lib/reuse.rb), never run fresh (we don't ship the 4.7 CLI).
+    # headless_argv is unused for a reused cell but kept for shape/preflight.
+    def claude_opus47
       Profile.new(
-        id: "claude@opus-4.8", harness: "claude", model: "opus-4.8", bin: "claude",
+        id: "claude@opus-4.7", harness: "claude", model: "claude-opus-4-7", bin: "claude",
         min_version: "2.1.118", auth_path: CLAUDE_AUTH,
         headless_argv: lambda do |prompt:|
-          ["claude", "-p", "--model", "opus-4.8", "--dangerously-skip-permissions", prompt]
+          ["claude", "-p", "--model", "claude-opus-4-7", "--dangerously-skip-permissions", prompt]
+        end
+      )
+    end
+
+    def claude_opus
+      Profile.new(
+        id: "claude@opus-4.8", harness: "claude", model: "claude-opus-4-8", bin: "claude",
+        min_version: "2.1.118", auth_path: CLAUDE_AUTH,
+        headless_argv: lambda do |prompt:|
+          ["claude", "-p", "--model", "claude-opus-4-8", "--dangerously-skip-permissions", prompt]
         end
       )
     end
@@ -53,14 +66,23 @@ module HiveBench
 
     # Each open model is `pi --model <pattern> -p`. Patterns are pi provider/id
     # forms; adjust to match the local Pi provider config if a smoke run reports
-    # an unresolved pattern.
+    # an unresolved pattern. The bench runs these via OpenRouter (OPENROUTER_API_KEY
+    # passed into the runner), so the pattern is the `openrouter/<id>` form Pi
+    # resolves. glm-5.2 is verified live (U8 smoke: provider=openrouter,
+    # model=z-ai/glm-5.2); the other three still need their own smoke before a
+    # run pins them (left as bare labels until verified).
     PI_MODELS = {
       "kimi-k2.7" => "kimi-k2.7",
       "minimax-3" => "minimax-3",
       "qwen-2.6-coder" => "qwen-2.6-coder",
-      "glm-5.2" => "glm-5.2"
+      "glm-5.2" => "openrouter/z-ai/glm-5.2"
     }.freeze
 
+    # NOTE: the production gen path (IsolationExec#agent_command) builds pi's
+    # invocation from `model` directly so it can add the runner-specific flags
+    # (--mode json, --no-session, --offline, timeout) and read the plan from a
+    # /work file — it does NOT call this `headless_argv`. The lambda stays as the
+    # documented host-equivalent invocation and is what preflight/tests exercise.
     def pi_open_models
       PI_MODELS.map do |label, pattern|
         Profile.new(

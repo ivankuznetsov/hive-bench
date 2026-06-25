@@ -90,6 +90,43 @@ class RunTest < Minitest::Test
     assert_includes diff, "-puts 'v1'"
     assert_operator cell.telemetry["wall_clock_sec"], :>, 0, "fresh runs are timed"
     assert_equal 120, cell.telemetry["input_tokens"]
+    refute cell.telemetry.key?("cost_usd"), "a spawn that reports no cost leaves cost_usd absent (not 0)"
+  end
+
+  def test_agent_failure_reason_falls_back_to_stdout_when_stderr_empty
+    failing = lambda do |profile:, prompt:, cwd:|
+      _ = [profile, prompt, cwd]
+      { stdout: "fatal: could not resolve model", stderr: "", status: :error, model: "opus-4.8", usage: {} }
+    end
+    cell = run_cell(spawn: failing)
+
+    assert_match(/could not resolve model/, cell.reason, "stdout is the fallback diagnostic when stderr is empty")
+  end
+
+  # The focused limit signal: when a spawn supplies provider_errors, the agent's
+  # own solution prose must NOT be scanned (or a throttling-themed task would
+  # false-positive into limit_hit and wrongly park a success).
+  def test_provider_errors_channel_focuses_limit_detection
+    prose_only = lambda do |profile:, prompt:, cwd:|
+      _ = [profile, prompt]
+      File.write(File.join(cwd, "app.rb"), "puts 'done'\n")
+      { stdout: %({"text":"I made it raise when the rate limit is reached, returning HTTP 429"}),
+        stderr: "", status: :ok, model: "opus-4.8", usage: { input: 10 }, provider_errors: "" }
+    end
+    cell = run_cell(spawn: prose_only)
+
+    refute_equal "limit_hit", cell.status, "limit prose in the solution must not park the cell"
+  end
+
+  def test_provider_errors_still_detects_a_real_limit
+    real_limit = lambda do |profile:, prompt:, cwd:|
+      _ = [profile, prompt, cwd]
+      { stdout: "", stderr: "", status: :error, model: "opus-4.8", usage: {},
+        provider_errors: "402 Insufficient credits" }
+    end
+    cell = run_cell(spawn: real_limit)
+
+    assert_equal "limit_hit", cell.status, "a real provider error in the focused channel is still caught"
   end
 
   def test_empty_diff_when_candidate_changes_nothing
@@ -102,6 +139,37 @@ class RunTest < Minitest::Test
     cell = run_cell(spawn: editing_spawn(status: :error))
 
     assert_equal "agent_failed", cell.status
+  end
+
+  def test_timeout_kill_is_recorded_as_timed_out_with_partial_diff_kept
+    cell = run_cell(spawn: editing_spawn(status: :timeout))
+
+    assert_equal "timed_out", cell.status, "a wall-clock kill is distinct from a clean run"
+    assert_includes File.read(cell.diff_path), "+puts 'done'", "the partial diff is still captured and judged"
+    assert_match(/HB_AGENT_TIMEOUT/, cell.reason)
+  end
+
+  def test_agent_failure_reason_captures_a_diagnostic_snippet
+    failing = lambda do |profile:, prompt:, cwd:|
+      _ = [profile, prompt, cwd]
+      { stdout: "", stderr: "pi: model handshake failed", status: :error, model: "opus-4.8", usage: {} }
+    end
+    cell = run_cell(spawn: failing)
+
+    assert_equal "agent_failed", cell.status
+    assert_match(/model handshake failed/, cell.reason, "agent_failed cells stay debuggable")
+  end
+
+  def test_fresh_run_records_provider_cost_when_the_spawn_reports_it
+    paid = lambda do |profile:, prompt:, cwd:|
+      _ = [profile, prompt]
+      File.write(File.join(cwd, "app.rb"), "puts 'done'\n")
+      { stdout: "ok", stderr: "", status: :ok, model: "opus-4.8",
+        usage: { input: 120, output: 40, cached: 10, cost: 0.0031 } }
+    end
+    cell = run_cell(spawn: paid)
+
+    assert_in_delta 0.0031, cell.telemetry["cost_usd"], 1e-9, "real provider cost is threaded into telemetry"
   end
 
   # --- usage limit -> re-run later, never scored ---

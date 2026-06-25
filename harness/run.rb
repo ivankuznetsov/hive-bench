@@ -23,9 +23,11 @@ module HiveBench
   #
   # External effects are seams:
   #   restorer:       GitRestore (real git, hardened)
-  #   spawn:          ->(profile:, prompt:, cwd:) => { stdout:, status:, started_at:, ended_at:, usage: }
-  #                   (in production: runs profile.command inside the isolated,
-  #                    egress-allowlisted runner container — see Dockerfile.runner)
+  #   spawn:          ->(profile:, prompt:, cwd:) => { stdout:, stderr:, status:, model:, usage: }
+  #                   (in production: IsolationExec.gen_exec runs the candidate
+  #                    inside isolation.sh `gen` mode — --read-only + caps, with
+  #                    default-bridge egress gated on HB_ALLOW_EGRESS=1 and
+  #                    allowlisted by the CI firewall layer; see Dockerfile.runner)
   #   reuse_resolver: ->(entry, profile) => { diff:, model_version:, telemetry: }|nil
   class Run
     Cell = Data.define(:task_id, :agent_id, :mode, :model_version, :status, :diff_path, :telemetry, :reason)
@@ -76,7 +78,11 @@ module HiveBench
       result = @spawn.call(profile: profile, prompt: prompt, cwd: work)
       ended = @clock.call
 
-      stream = "#{result[:stdout]}\n#{result[:stderr]}"
+      # Prefer a focused provider-error signal when the spawn isolates one (pi
+      # gen_exec does): scanning the agent's full solution prose would let a
+      # throttling-themed task false-positive into limit_hit and park a success.
+      # Fall back to the whole stream for spawns that report no structured errors.
+      stream = result.key?(:provider_errors) ? result[:provider_errors].to_s : "#{result[:stdout]}\n#{result[:stderr]}"
       if AgentLimit.limit_hit?(stream)
         return cell(task_id, profile, mode: "fresh", status: "limit_hit",
                                       model_version: result[:model] || profile.model, diff_path: nil,
@@ -88,14 +94,36 @@ module HiveBench
       diff_path = File.join(out_dir, "candidate.patch")
       File.write(diff_path, diff)
 
-      status = result[:status] == :ok ? generation_status(diff) : "agent_failed"
+      status = generation_status(result[:status], diff)
       cell(task_id, profile, mode: "fresh", status: status,
                              model_version: result[:model] || profile.model, diff_path: diff_path,
-                             telemetry: fresh_telemetry(result, started, ended), reason: nil)
+                             telemetry: fresh_telemetry(result, started, ended),
+                             reason: failure_reason(status, result))
     end
 
-    def generation_status(diff)
-      diff.strip.empty? ? "empty_diff" : "generated"
+    # Clean exit -> empty_diff/generated; a timeout-kill or a non-zero exit keep
+    # the partial diff but carry a distinct status so a truncated run is never
+    # recorded as if it finished.
+    def generation_status(spawn_status, diff)
+      case spawn_status
+      when :ok then diff.strip.empty? ? "empty_diff" : "generated"
+      when :timeout then "timed_out"
+      else "agent_failed"
+      end
+    end
+
+    # A short, debuggable trace of WHY a fresh run did not finish cleanly.
+    def failure_reason(status, result)
+      case status
+      when "timed_out" then "agent did not finish within HB_AGENT_TIMEOUT (partial diff kept)"
+      when "agent_failed" then failure_snippet(result)
+      end
+    end
+
+    def failure_snippet(result)
+      diag = result[:stderr].to_s.strip
+      diag = result[:stdout].to_s.strip if diag.empty?
+      "agent exited non-zero: #{diag[0, 300]}"
     end
 
     def fresh_telemetry(result, started, ended)
@@ -104,9 +132,12 @@ module HiveBench
         "wall_clock_sec" => (ended - started).round(2),
         "input_tokens" => usage[:input],
         "output_tokens" => usage[:output],
-        "cached_tokens" => usage[:cached]
-        # cost ($) is derived in U4 from a versioned price table — not here.
-      }
+        "cached_tokens" => usage[:cached],
+        # Pay-per-token providers (OpenRouter, via pi) report the run's real cost
+        # in the usage stream — ground truth, so we record it directly. Subscription
+        # agents that report no cost leave this nil (a price table can fill it later).
+        "cost_usd" => usage[:cost]
+      }.compact
     end
 
     def base_commit(entry)

@@ -6,11 +6,11 @@ require "profiles/slate"
 class SlateTest < Minitest::Test
   def profiles = HiveBench::Slate.profiles
 
-  def test_slate_has_the_six_v1_cells
+  def test_slate_has_the_v1_cells_including_the_reused_4_7_incumbent
     ids = profiles.map(&:id)
 
     assert_equal(
-      ["claude@opus-4.8", "codex@gpt-5.5-xhigh",
+      ["claude@opus-4.7", "claude@opus-4.8", "codex@gpt-5.5-xhigh",
        "pi@kimi-k2.7", "pi@minimax-3", "pi@qwen-2.6-coder", "pi@glm-5.2"].sort,
       ids.sort
     )

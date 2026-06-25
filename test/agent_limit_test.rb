@@ -16,6 +16,15 @@ class AgentLimitTest < Minitest::Test
     assert L.limit_hit?("HTTP 429 Too Many Requests")
     assert L.limit_hit?("RESOURCE_EXHAUSTED: quota exceeded")
     assert L.limit_hit?("insufficient_quota")
+    assert L.limit_hit?("rate limit reached"), "OpenRouter phrases throttling as 'rate limit reached'"
+    assert L.limit_hit?("Error: rate limit exceeded")
+  end
+
+  def test_detects_openrouter_402_insufficient_credits
+    # The exact string Pi surfaces on a drained OpenRouter balance.
+    assert L.limit_hit?('"errorMessage":"402 Insufficient credits. Add more using https://openrouter.ai/settings/credits"')
+    assert L.limit_hit?("Error 402: insufficient balance")
+    refute L.limit_hit?("the function returns 402 widgets after the loop"), "bare 402 unrelated to billing is not a limit"
   end
 
   def test_ignores_benign_limit_chrome

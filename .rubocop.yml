@@ -3,6 +3,12 @@ AllCops:
   TargetRubyVersion: 3.4
   NewCops: enable
   SuggestExtensions: false
+  # Run artifacts hold restored candidate repos with their own (foreign) rubocop
+  # configs/plugins — never lint them; they are gitignored generated output.
+  Exclude:
+    - "runs/**/*"
+    - "work/**/*"
+    - "vendor/**/*"
 
 plugins:
   - rubocop-minitest

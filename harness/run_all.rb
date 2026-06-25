@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Make the harness dir importable when this file is run directly
+# (`ruby harness/run_all.rb`); harmless when it is already on the path (tests).
+$LOAD_PATH.unshift(__dir__) unless $LOAD_PATH.include?(__dir__)
+
 require "yaml"
 require "json"
 require "run"
@@ -21,13 +25,17 @@ module HiveBench
   # is collected as `pending` for a later re-run, never recorded as a failure.
   # All components are injected so a pass can be driven offline in tests.
   class RunAll
-    Outcome = Data.define(:results, :pending)
+    Outcome = Data.define(:results, :pending, :failed)
 
-    def initialize(runner:, gate:, judge:, scorer: Score.new, clock: -> { Time.now.utc })
+    # judges: { "<name>" => HiveBench::Judge } — every cell is scored by each.
+    # withhold_reference: grade on plan+diff alone for ALL cells (de-anchoring +
+    # cheaper); reused incumbent cells are always reference-withheld regardless.
+    def initialize(runner:, gate:, judges:, scorer: Score.new, withhold_reference: false, clock: -> { Time.now.utc })
       @runner = runner
       @gate = gate
-      @judge = judge
+      @judges = judges
       @scorer = scorer
+      @withhold_reference = withhold_reference
       @clock = clock
     end
 
@@ -36,28 +44,56 @@ module HiveBench
     def call(entries:, profiles:, out_root:, corpus_version:)
       records = []
       pending = []
+      failed = []
 
       entries.each do |entry|
         profiles.each do |profile|
           out_dir = File.join(out_root, entry.fetch("task_id"), cell_dir(profile))
-          cell = @runner.call(entry: entry, profile: profile, out_dir: out_dir)
-
-          if cell.status == "limit_hit"
-            pending << { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => cell.reason }
-            next
-          end
-
-          records << score_cell(entry, profile, cell, out_dir)
+          run_cell(entry, profile, out_dir, records, pending, failed)
         end
       end
 
       results = @scorer.results(records: records, corpus_version: corpus_version,
                                 generated_at: @clock.call.iso8601)
       results["pending"] = pending
-      Outcome.new(results: results, pending: pending)
+      results["failed"] = failed
+      Outcome.new(results: results, pending: pending, failed: failed)
     end
 
     private
+
+    # One matrix cell. ANY failure — an isolation refusal, an unwired harness, a
+    # flaky judge, a git/restore error, a malformed gate spec — parks that cell in
+    # `failed` and lets the pass keep the cells already produced (one bad cell must
+    # not discard expensive prior work, and a score is never emitted from a failed
+    # cell). A provider limit is parked in `pending` for re-run. The catch-all is
+    # deliberate and loud (it warns), not silent: this is a long, expensive matrix.
+    def run_cell(entry, profile, out_dir, records, pending, failed)
+      cell = @runner.call(entry: entry, profile: profile, out_dir: out_dir)
+
+      if cell.status == "limit_hit"
+        pending << park(entry, profile, cell.reason)
+        return
+      end
+
+      records << score_cell(entry, profile, cell, out_dir)
+    rescue StandardError => e
+      reason = "#{e.class}: #{e.message}"
+      warn "hive-bench: parked failed — #{profile.id} #{entry["task_id"]}: #{redact(reason)}"
+      failed << park(entry, profile, reason)
+    end
+
+    def park(entry, profile, reason)
+      { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => redact(reason) }
+    end
+
+    # Strip provider-secret shapes from any text persisted into results.json —
+    # failed[].reason can carry container stderr, and results.json is shareable.
+    def redact(text)
+      text.to_s
+          .gsub(/sk-[a-z]+-[A-Za-z0-9._-]{6,}/, "[REDACTED]")
+          .gsub(/\b[A-Z0-9_]*API_KEY=\S+/, "[REDACTED]")
+    end
 
     def score_cell(entry, _profile, cell, out_dir)
       gate_spec = load_gate(entry)
@@ -71,21 +107,24 @@ module HiveBench
           Gate::Result.new(status: :no_gate, subset: "judged", reason: "no diff or no gate", details: {})
         end
 
-      judge_res = judge_cell(entry, candidate_patch)
+      judges_res = judge_cell(entry, candidate_patch, withhold_reference: @withhold_reference || cell.mode == "reused")
       @scorer.cell_record(
         cell: { task_id: cell.task_id, agent_id: cell.agent_id, mode: cell.mode,
-                model_version: cell.model_version, telemetry: cell.telemetry },
-        gate: gate_res, judge: judge_res
+                model_version: cell.model_version, run_status: cell.status, telemetry: cell.telemetry },
+        gate: gate_res, judges: judges_res
       )
     end
 
-    # Judge only a non-empty diff; reference + plan come from the entry.
-    def judge_cell(entry, candidate_patch)
-      return nil if candidate_patch.strip.empty?
+    # Judge a non-empty diff with EVERY judge. reference + plan come from the entry.
+    # A reused cell's diff IS the reference, so judging it against the reference
+    # would be circular incumbent-anchoring — grade it on the task alone (R24).
+    # Returns { name => Judge::Result } (empty when there's no diff).
+    def judge_cell(entry, candidate_patch, withhold_reference:)
+      return {} if candidate_patch.strip.empty?
 
       plan = read_entry_file(entry, entry.dig("spec", "plan"))
-      reference = read_entry_file(entry, "reference.patch")
-      @judge.call(plan: plan, candidate_diff: candidate_patch, reference: reference)
+      reference = withhold_reference ? nil : read_entry_file(entry, "reference.patch")
+      @judges.transform_values { |judge| judge.call(plan: plan, candidate_diff: candidate_patch, reference: reference) }
     end
 
     def load_gate(entry)
@@ -104,4 +143,129 @@ module HiveBench
       profile.id.gsub(/[^a-z0-9]+/i, "_")
     end
   end
+
+  # Wires the production seams (real GitRestore, the isolated gen/gate runners,
+  # the local-claude judge) and drives a pass. Kept here so `ruby harness/run_all.rb`
+  # is the single entrypoint the README documents.
+  module Driver
+    module_function
+
+    def main(argv)
+      require "optparse"
+      require "fileutils"
+      require "profiles/slate"
+      require "lib/corpus"
+      require "lib/git_restore"
+      require "lib/isolation_exec"
+      require "lib/claude_judge"
+      require "lib/openrouter_judge"
+      require "lib/reuse"
+
+      opts = parse(argv)
+      validate!(opts)
+
+      entries = Corpus.load(root: opts[:corpus], checkout_source: opts[:source])
+      abort("no corpus entries under #{opts[:corpus]}") if entries.empty?
+      profiles = select_profiles(opts[:agent])
+
+      outcome = build(opts).call(entries: entries, profiles: profiles,
+                                 out_root: opts[:out], corpus_version: opts[:corpus_version])
+      write_and_report(outcome, opts)
+    end
+
+    def parse(argv)
+      opts = { corpus: "corpus", out: "runs", source: nil, agent: nil,
+               seeds: 1, corpus_version: "v1", withhold_reference: true,
+               claude_judge: true, judge_bin: "claude", judge_model: nil,
+               openrouter_judge: true, openrouter_judge_model: "openai/gpt-5.5-pro" }
+      OptionParser.new do |o|
+        o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/run_all.rb --source <clone> [opts]"
+        o.on("--corpus DIR", "corpus root (default: corpus)") { |v| opts[:corpus] = v }
+        o.on("--out DIR", "output root (default: runs)") { |v| opts[:out] = v }
+        o.on("--source PATH", "local clone restored at base_commit (required)") { |v| opts[:source] = v }
+        o.on("--agent ID", "run only this slate cell, e.g. pi@glm-5.2") { |v| opts[:agent] = v }
+        o.on("--seeds N", Integer, "judge seeds per judge (default: 1)") { |v| opts[:seeds] = v }
+        o.on("--corpus-version V", "recorded in results.json (default: v1)") { |v| opts[:corpus_version] = v }
+        o.on("--[no-]withhold-reference", "judge on plan+diff alone (default: on)") { |v| opts[:withhold_reference] = v }
+        o.on("--[no-]claude-judge", "score with the local claude judge (default: on)") { |v| opts[:claude_judge] = v }
+        o.on("--judge-bin BIN", "claude judge CLI binary (default: claude)") { |v| opts[:judge_bin] = v }
+        o.on("--judge-model M", "claude judge model (default: CLI default)") { |v| opts[:judge_model] = v }
+        o.on("--[no-]openrouter-judge", "score with the OpenRouter judge (default: on)") { |v| opts[:openrouter_judge] = v }
+        o.on("--openrouter-judge-model M", "default: openai/gpt-5.5-pro") { |v| opts[:openrouter_judge_model] = v }
+        o.separator ""
+        o.separator "Env: OPENROUTER_API_KEY (required) · HB_AGENT_TIMEOUT=7200 · HB_RUNNER_IMAGE"
+        o.separator "     HB_CPUS=8 · HB_MEMORY=16g · HB_PIDS=4096"
+        o.separator "Exit: 0=all cells scored/pending · 1=usage/validation error · 2=one or more cells failed isolation"
+      end.parse!(argv)
+      opts
+    rescue OptionParser::ParseError => e
+      abort(e.message)
+    end
+
+    def validate!(opts)
+      abort("--source <local clone path> is required") unless opts[:source]
+      abort("--source path #{opts[:source]} is not a directory") unless File.directory?(opts[:source])
+      abort("OPENROUTER_API_KEY must be set (passed into the runner for generation)") if ENV["OPENROUTER_API_KEY"].to_s.empty?
+    end
+
+    def select_profiles(agent)
+      profiles = Slate.profiles
+      return profiles unless agent
+
+      picked = profiles.select { |p| p.id == agent }
+      abort("unknown agent #{agent}; slate is #{profiles.map(&:id).join(", ")}") if picked.empty?
+      picked
+    end
+
+    def build(opts)
+      RunAll.new(
+        runner: Run.new(restorer: GitRestore.new, spawn: IsolationExec.gen_exec,
+                        reuse_resolver: Reuse.resolver),
+        gate: Gate.new(exec: IsolationExec.gate_exec),
+        judges: judges(opts),
+        withhold_reference: opts[:withhold_reference]
+      )
+    end
+
+    # The independent judges, keyed by the name recorded in results.json. Both on
+    # by default: opus-4.8 (local, a second opinion) + gpt-5.5-pro (family-disjoint,
+    # the publishable number).
+    def judges(opts)
+      j = {}
+      if opts[:claude_judge]
+        j["opus-4.8"] = Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: opts[:judge_model]),
+                                  seeds: opts[:seeds])
+      end
+      if opts[:openrouter_judge]
+        j[opts[:openrouter_judge_model].split("/").last] =
+          Judge.new(judge_fn: OpenRouterJudge.judge_fn(model: opts[:openrouter_judge_model]), seeds: opts[:seeds])
+      end
+      abort("no judges enabled (need --claude-judge and/or --openrouter-judge)") if j.empty?
+      j
+    end
+
+    def write_and_report(outcome, opts)
+      FileUtils.mkdir_p(opts[:out])
+      path = File.join(opts[:out], "results.json")
+      File.write(path, "#{JSON.pretty_generate(outcome.results)}\n")
+      report(outcome, path)
+      # Non-zero so CI / an agent caller notices cells that could not be isolated.
+      # Pending (provider-limit) cells are an expected re-run state, not an error.
+      exit(2) unless outcome.failed.empty?
+    end
+
+    def report(outcome, path)
+      cells = outcome.results["cells"]
+      warn "wrote #{path}: #{cells.size} scored cell(s), #{outcome.pending.size} pending, #{outcome.failed.size} failed"
+      outcome.pending.each { |p| warn "  pending  #{p["agent_id"]}  #{p["task_id"]}  (#{p["reason"]})" }
+      outcome.failed.each { |f| warn "  FAILED   #{f["agent_id"]}  #{f["task_id"]}  (#{f["reason"]})" }
+      cells.each do |c|
+        judges = (c["judges"] || {}).map { |name, j| "#{name}=#{j["mean"]}" }.join(" ")
+        warn "  #{c["subset"]}  #{c["agent_id"]}  #{c["task_id"]}  gen=#{c["run_status"]}  " \
+             "gate=#{c.dig("gate", "status")}  judge[#{judges.empty? ? "—" : judges}]"
+      end
+    end
+  end
 end
+
+HiveBench::Driver.main(ARGV) if $PROGRAM_NAME == __FILE__

@@ -26,6 +26,11 @@ module HiveBench
       /stop and wait for limit to reset/i,
       /(?:out of|no remaining|purchase(?:\s+more)?) usage credits/i,
       /insufficient[_\s-]*quota/i,
+      # OpenRouter (and other pay-per-token providers Pi fronts) return a 402 with
+      # "Insufficient credits" on an empty balance. Without this, a credit-drained
+      # open-model cell is misscored as a real failure instead of parked pending.
+      /insufficient (?:credits?|balance|funds)/i,
+      /\b402\b[^\n]{0,40}(?:credit|payment|insufficient)/i,
       /quota (?:exhausted|exceeded|reached)/i,
       /rate limit (?:reached|exceeded|reset|hit)/i,
       /too many requests/i,

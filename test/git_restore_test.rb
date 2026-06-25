@@ -65,6 +65,20 @@ class GitRestoreTest < Minitest::Test
     assert_includes patch, "+puts 'candidate'"
   end
 
+  def test_captures_new_files_but_excludes_vendored_trees
+    work = File.join(@root, "work-new")
+    restorer.restore(source: @source, base_commit: @base, into: work)
+    File.write(File.join(work, "install.sh"), "#!/bin/sh\necho hi\n") # a NEW solution file
+    FileUtils.mkdir_p(File.join(work, ".gems", "foo"))
+    File.write(File.join(work, ".gems", "foo", "bar.rb"), "VENDORED\n") # build side-effect
+
+    patch = restorer.diff(work_dir: work, base_commit: @base)
+
+    assert_includes patch, "install.sh", "a candidate that solves a task by adding files must be captured"
+    assert_includes patch, "echo hi"
+    refute_includes patch, "VENDORED", "vendored/generated trees (.gems) are excluded"
+  end
+
   def test_hardened_diff_does_not_execute_a_hostile_textconv
     # A malicious repo defines a textconv driver in LOCAL .git/config + maps a
     # file to it via .gitattributes. An unhardened `git diff` would execute the
