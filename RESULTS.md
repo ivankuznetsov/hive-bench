@@ -42,42 +42,54 @@ as the signal and within-band agent ordering as suggestive, not settled.** See
 ## Leaderboard
 
 Per-task scores are `opus-4.8 / gpt-5.5-pro`. **gpt-5.5-pro is the cross-family
-headline.** Cost is real OpenRouter spend for open models; closed models run on
-**subscription** (no per-run billing), so wall-clock is the comparable effort metric.
+headline.** **Cost is API-equivalent**, computed from each run's recorded token
+counts (uncached-in / cached-in / output) × **OpenRouter standard rates** — gpt-5.5
+`$5 / $30 / $0.50` per M, opus-4.8 `$5 / $25 / $0.50`, glm-5.2 `$0.95 / $3 / $0.18`,
+kimi `$0.74 / $3.50 / $0.15`. These are the **usual** (standard) tiers, not the
+priced-up "fast" tiers. For the open models this *equals* the actual billed spend;
+for the closed models it is what those tokens *would* cost at API rates (they ran
+flat-rate on subscription). Note the Claude CLI self-reports a higher per-run cost
+because it accounts at the fast tier — we ignore that and price tokens at the usual
+tier. `wall` is end-to-end wall-clock.
 
 ### Frozen-plan execution
 
-| Agent | add-i-key | install | mean (o / g) | cost | wall |
+| Agent | add-i-key | install | mean (o / g) | API-equiv $ | wall |
 |---|---|---|---|---|---|
-| **codex** (gpt-5.5-xhigh) | 9.0 / 8.0 | 8.0 / 5.0 | **8.5 / 6.5** | sub | 19 m |
-| **claude-4.8** | 9.0 / 8.0 | 8.0 / 4.0 | **8.5 / 6.0** | sub | 29 m |
+| **codex** (gpt-5.5-xhigh) | 9.0 / 8.0 | 8.0 / 5.0 | **8.5 / 6.5** | $10.1 | 19 m |
+| **claude-4.8** | 9.0 / 8.0 | 8.0 / 4.0 | **8.5 / 6.0** | $7.3 | 29 m |
 | **kimi-k2.7** | 8.0 / 8.0 | 7.0 / 2.0 | **7.5 / 5.0** | $3.63 | 21 m |
 
 ### From-idea self-plan (e2e — agent plans *and* executes)
 
-| Agent | add-i-key | install | mean (o / g) | cost | wall |
+| Agent | add-i-key | install | mean (o / g) | API-equiv $ | wall |
 |---|---|---|---|---|---|
-| **codex-selfplan** | 8.0 / 5.0 | 8.0 / 3.0 | **8.0 / 4.0** | sub | ~40 m\* |
-| **opus-4.8-selfplan** | 8.0 / 4.0 | 8.0 / 3.0 | **8.0 / 3.5** | sub | ~35 m\* |
+| **codex-selfplan** | 8.0 / 5.0 | 8.0 / 3.0 | **8.0 / 4.0** | n/a\* | ~40 m\* |
+| **opus-4.8-selfplan** | 8.0 / 4.0 | 8.0 / 3.0 | **8.0 / 3.5** | n/a\* | ~35 m\* |
 | **glm-selfplan** | 8.0 / 4.0 | 7.0 / 2.0 | **7.5 / 3.0** | $3.47† | 32 m |
 | **kimi-selfplan** | 8.0 / 4.0 | 4.0 / 2.0 | **6.0 / 3.0** | $3.97 | 29 m |
 
 ### Handoff (planner → executor)
 
-| Pair | add-i-key | install | mean (o / g) | cost | wall |
+| Pair | add-i-key | install | mean (o / g) | API-equiv $ | wall |
 |---|---|---|---|---|---|
-| **opus-4.8 → codex** (prod) | 8.0 / 4.0 | 8.0 / 2.0 | **8.0 / 3.0** | sub | 36 m |
+| **opus-4.8 → codex** (prod) | 8.0 / 4.0 | 8.0 / 2.0 | **8.0 / 3.0** | ≈$10§ | 36 m |
 | **glm-5.2 → kimi-k2.7** | 8.0 / 4.0 | 5.0 / 2.0 | **6.5 / 3.0** | $6.58 | 69 m |
 
 ### Raw incumbent
 
-| Agent | add-i-key | install | mean (o / g) | cost | wall |
+| Agent | add-i-key | install | mean (o / g) | API-equiv $ | wall |
 |---|---|---|---|---|---|
-| **claude-4.7** (recorded prod) | excluded‡ | 8.0 / 5.0 | **(8.0 / 5.0)** | sub | — |
+| **claude-4.7** (recorded prod) | excluded‡ | 8.0 / 5.0 | **(8.0 / 5.0)** | n/a | — |
 
-\* codex/opus self-plan wall is approximate (per-cell telemetry was lost when the
-inline gpt-judge hit a billing wall mid-run; generation is subscription, unbilled).
+\* codex/opus self-plan: per-cell telemetry was lost when the inline gpt-judge hit a
+billing wall mid-run (generation is subscription, unbilled). By comparison to their
+frozen-execute cost plus a planning pass, expect roughly **$11–15** (codex) and
+**$8–12** (opus) API-equivalent per task. Wall is approximate, from the run log.
 † glm-selfplan cost is the add-i-key cell only; its install telemetry was lost.
+§ opus→codex is estimated: the planner (opus) + executor (codex) tokens are
+recorded, but the pipeline did not retain the per-phase cached split, so the
+codex executor's cache ratio is assumed at its observed ~98%.
 ‡ claude-4.7 add-i-key is excluded: the reused-incumbent range diff
 (`base..execute_base_head`) swept in 166 unrelated files / 22.5k lines of repo-wide
 history — a capture artifact, not the agent's work on the task.
@@ -114,11 +126,17 @@ history — a capture artifact, not the agent's work on the task.
    (3.0–6.5). They **agree on the cross-band ordering** (frozen > from-idea), which is
    why we trust that ordering and report both columns.
 
-6. **Cost & effort:** open models cost real money per run — **$3.5–4/task** standalone,
-   up to **$6.6/task** for the glm→kimi handoff (two long sessions back-to-back, ~69
-   min). Closed models are flat-rate subscription. Fastest end-to-end: **codex-frozen
-   (~19 min)**. The whole benchmark — all open-model generation plus every
-   gpt-5.5-pro judgement — cost **$44.78** of OpenRouter credit to produce.
+6. **Cost inverts the intuition — at API rates the *closed* models are the expensive
+   ones.** Priced from tokens at standard rates: **codex-frozen ≈ $10/task**,
+   **claude-4.8 ≈ $7/task**, vs the open models at **$3.5–4/task**. The closed agents
+   burn 10–17M *cached* input tokens per task re-reading context (≈$5–8.5/task in
+   cache reads alone); the open models are simply cheaper per token. Subscription
+   hides this — you pay flat — but the API-equivalent column shows what the compute
+   actually costs. The one genuinely pricey *billed* run is the **glm→kimi handoff
+   ($6.6/task, ~69 min)** — two slow open-model sessions back-to-back. Fastest
+   end-to-end: **codex-frozen (~19 min)**. Producing the whole benchmark (all
+   open-model generation + every gpt-5.5-pro judgement) cost **$44.78** of OpenRouter
+   credit.
 
 ---
 
