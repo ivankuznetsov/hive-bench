@@ -55,11 +55,12 @@ class PipelineTest < Minitest::Test
       "source" => { "base_commit" => @base }, "spec" => { "idea" => "spec/idea.md", "brainstorm" => "spec/brainstorm.md" } }
   end
 
-  # Planner stub: writes the plan file (proving it saw the bare idea in the prompt).
+  # Planner stub: writes the plan file (proving it saw idea + brainstorm in the prompt).
   def planner_spawn(writes_plan: true, status: :ok, usage: { input: 100, output: 20, cost: 0.01 }, stream: "")
     lambda do |profile:, prompt:, cwd:|
       _ = profile
       raise "planner did not get idea" unless prompt.include?("Make app print done")
+      raise "planner did not get brainstorm" unless prompt.include?("No edge cases")
 
       File.write(File.join(cwd, HiveBench::IsolationExec::PLAN_OUTPUT_FILE), "STEP 1: edit app.rb\n") if writes_plan
       { stdout: stream, stderr: "", status: status, model: "glm", usage: usage, provider_errors: stream }
@@ -128,5 +129,27 @@ class PipelineTest < Minitest::Test
 
     assert_equal "limit_hit", cell.status
     assert_match(/planner/, cell.reason)
+  end
+
+  # The planner must receive the spec screenshots a human had: each is staged into
+  # the planner's checkout (so `assets/<file>` refs resolve) and named in the prompt.
+  def test_planner_receives_staged_screenshot_assets
+    asset_dir = File.join(@entry["entry_dir"], "spec", "assets")
+    FileUtils.mkdir_p(asset_dir)
+    File.write(File.join(asset_dir, "shot.png"), "PNGDATA")
+
+    captured = {}
+    plan = lambda do |profile:, prompt:, cwd:|
+      _ = profile
+      captured[:prompt] = prompt
+      captured[:staged] = File.read(File.join(cwd, "assets", "shot.png"))
+      File.write(File.join(cwd, HiveBench::IsolationExec::PLAN_OUTPUT_FILE), "STEP 1: edit app.rb\n")
+      { stdout: "", stderr: "", status: :ok, model: "glm", usage: {}, provider_errors: "" }
+    end
+
+    run_cell(plan: plan)
+
+    assert_equal "PNGDATA", captured[:staged], "screenshot must be copied into the planner checkout"
+    assert_includes captured[:prompt], "assets/shot.png", "prompt must point the planner at the screenshot"
   end
 end

@@ -218,25 +218,41 @@ module HiveBench
       PROMPT
     end
 
-    # Planner framing for the e2e pipeline: the planner starts from the bare IDEA
-    # (no frozen brainstorm), thinks through the requirements ITSELF, explores the
-    # repo, and writes an implementation plan to PLAN_OUTPUT_FILE — it must NOT
-    # implement the task. Starting from the idea is what makes this a real e2e
-    # workflow: the agent does the brainstorm+plan, not just execute a given plan.
-    def frame_plan_prompt(idea)
+    # Planner framing for the e2e pipeline. The planner gets the SAME ideation
+    # context a hive planning agent has — the idea, the brainstorm (the clarifying
+    # Q&A that pinned down the requirements), any referenced screenshots, and the
+    # full repo — and writes its OWN implementation plan to PLAN_OUTPUT_FILE. It is
+    # "from idea" in that it is NOT handed the frozen plan; it must produce the plan
+    # itself. It must NOT implement the task. `assets` are in-repo relative paths to
+    # screenshots staged into the checkout so the idea's image references resolve.
+    def frame_plan_prompt(idea, brainstorm, assets: [])
       <<~PROMPT
-        You are a senior engineer. Below is a feature idea / request. Work out the
-        requirements and design yourself (brainstorm the approach, edge cases, and
-        decisions), explore the repository to ground your thinking in the real
-        code, then write a detailed, step-by-step implementation plan to the file
-        `#{PLAN_OUTPUT_FILE}` in the repository root. Do NOT implement the task —
-        produce ONLY the plan, complete enough that another engineer could execute
-        it without seeing this idea.
+        You are a senior engineer planning a feature for THIS repository. You are
+        given the original idea and the brainstorm (the clarifying Q&A that pinned
+        down the requirements) — the same context a hive planning agent receives.
+        #{asset_instructions(assets)}Explore the repository to ground the plan in the real code, then write a
+        detailed, step-by-step implementation plan to the file `#{PLAN_OUTPUT_FILE}`
+        in the repository root. Do NOT implement the task — produce ONLY the plan,
+        complete enough that another engineer could execute it without further context.
 
         <idea>
         #{idea}
         </idea>
+
+        <brainstorm>
+        #{brainstorm}
+        </brainstorm>
       PROMPT
+    end
+
+    # A prompt fragment pointing the planner at staged screenshots (empty when the
+    # task ships none). Trailing newline so it slots cleanly before "Explore…".
+    def asset_instructions(assets)
+      return "" if assets.empty?
+
+      "The idea references screenshot(s) checked out in this repository — OPEN AND " \
+        "STUDY each one; they convey the desired UI/behavior and are essential to " \
+        "scoping the work correctly:\n#{assets.map { |a| "  - #{a}" }.join("\n")}\n"
     end
 
     # Parses pi's `--mode json` stream. Token usage and provider cost accumulate

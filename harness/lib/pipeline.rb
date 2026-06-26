@@ -6,13 +6,15 @@ require "lib/isolation_exec"
 require "lib/agent_limit"
 
 module HiveBench
-  # Planner/executor pipeline: a planner agent authors the plan from the bare
-  # IDEA (it does the brainstorm+plan itself, exploring the repo), then an
-  # executor agent implements THAT plan in a fresh checkout. The pair is one
-  # contestant cell, judged on the executor's final diff. This is the real e2e
-  # workflow (idea -> plan -> execute); the frozen-plan Run is execute-only.
-  # When planner == executor (self-plan), the cell measures one agent's FULL
-  # capability from idea to diff — e.g. codex-only means codex writes the plan.
+  # Planner/executor pipeline: a planner agent authors the plan from the full
+  # hive ideation context (idea + brainstorm + any screenshots + the repo) — it
+  # is NOT handed the frozen plan, it must write its own — then an executor agent
+  # implements THAT plan in a fresh checkout. The pair is one contestant cell,
+  # judged on the executor's final diff. This is the real e2e workflow (idea ->
+  # plan -> execute); the frozen-plan Run is execute-only. The executor gets the
+  # plan only (same framing as the frozen-plan executor), so the sole variable vs
+  # a frozen-plan run is WHOSE plan. When planner == executor (self-plan), the
+  # cell measures one agent's full capability — e.g. codex-only = codex plans too.
   #
   #   plan_spawn / exec_spawn: Run-style spawn seams. plan_spawn must use an
   #   identity prompt frame (the pipeline supplies the full planner prompt);
@@ -54,7 +56,9 @@ module HiveBench
       work = File.join(out_dir, "plan_work")
       @restorer.restore(source: source, base_commit: base, into: work)
       idea = read_entry(entry, entry.dig("spec", "idea"))
-      prompt = IsolationExec.frame_plan_prompt(idea)
+      brainstorm = read_entry(entry, entry.dig("spec", "brainstorm"))
+      assets = stage_assets(entry, work)
+      prompt = IsolationExec.frame_plan_prompt(idea, brainstorm, assets: assets)
       started = @clock.call
       result = @plan_spawn.call(profile: planner, prompt: prompt, cwd: work)
       tel = phase_telemetry("planner", result, started, @clock.call)
@@ -121,6 +125,25 @@ module HiveBench
 
       path = File.join(entry.fetch("entry_dir"), rel)
       File.file?(path) ? File.read(path) : ""
+    end
+
+    # Copy the task's spec screenshots into the planner's checkout so the idea's
+    # `assets/<file>` references resolve and the agent can open them — the visual
+    # half of the spec a human had. Staged only in plan_work (the planner's tree),
+    # never in the executor's, so the scored diff stays clean. Returns the in-repo
+    # relative paths for the prompt. No-op when the task ships no assets.
+    def stage_assets(entry, work)
+      src = File.join(entry.fetch("entry_dir"), "spec", "assets")
+      return [] unless File.directory?(src)
+
+      dest = File.join(work, "assets")
+      FileUtils.mkdir_p(dest)
+      Dir.children(src).sort.filter_map do |f|
+        next unless File.file?(File.join(src, f))
+
+        FileUtils.cp(File.join(src, f), File.join(dest, f))
+        "assets/#{f}"
+      end
     end
   end
 end
