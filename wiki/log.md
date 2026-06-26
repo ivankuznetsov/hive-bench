@@ -1,6 +1,9 @@
-# Log
+# Wiki Changelog
 
-Reverse-chronological work log. Add fragments under `wiki/log.d/` and compile here.
+Append-only log of all wiki operations.
+
+<!-- BEGIN GENERATED WIKI LOG FRAGMENTS -->
+<!-- END GENERATED WIKI LOG FRAGMENTS -->
 
 ## 2026-06-27 — v2: drive real hive
 
