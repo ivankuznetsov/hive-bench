@@ -24,4 +24,21 @@ class OpenRouterJudgeTest < Minitest::Test
     assert_equal 7, HiveBench::JudgeOutput.parse_score(%({"score": 7, "reason": "ok"}))[:score]
     assert_raises(HiveBench::JudgeOutput::Error) { HiveBench::JudgeOutput.parse_score(%({"score": null})) }
   end
+
+  # The request body must always cap max_tokens so OpenRouter reserves only that
+  # much output cost — leaving it unset reserves the model's full ceiling (~$11.8
+  # for gpt-5.5-pro) and trips a 402 reservation on a low balance.
+  def test_body_caps_max_tokens_to_bound_reserved_cost
+    body = HiveBench::OpenRouterJudge.build_body("openai/gpt-5.5-pro", 1, "judge this", 32_768)
+
+    assert_equal 32_768, body["max_tokens"]
+    assert_operator body["max_tokens"], :<, 65_536, "must be below the model's full output ceiling"
+    assert_equal "judge this", body.dig("messages", 0, "content")
+  end
+
+  def test_default_max_output_tokens_is_a_sane_cap
+    assert_operator HiveBench::OpenRouterJudge::MAX_OUTPUT_TOKENS, :<=, 32_768, "keep the reservation bounded"
+    assert_operator HiveBench::OpenRouterJudge::MAX_OUTPUT_TOKENS, :>=, 8_192,
+                    "leave headroom for reasoning + the verdict so it isn't truncated"
+  end
 end
