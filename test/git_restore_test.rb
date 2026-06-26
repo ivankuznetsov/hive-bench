@@ -69,14 +69,21 @@ class GitRestoreTest < Minitest::Test
     work = File.join(@root, "work-new")
     restorer.restore(source: @source, base_commit: @base, into: work)
     File.write(File.join(work, "install.sh"), "#!/bin/sh\necho hi\n") # a NEW solution file
-    FileUtils.mkdir_p(File.join(work, ".gems", "foo"))
-    File.write(File.join(work, ".gems", "foo", "bar.rb"), "VENDORED\n") # build side-effect
+    # Build side-effects across the bundler/npm vendoring targets an agent might pick.
+    { ".gems/foo" => "GEMSCACHE", "vendor/bundle/ruby/gems" => "BUNDLEPATH",
+      "vendor/gems/gems/thor-1.0" => "GEMSPATH", "vendor/cache" => "BUNDLECACHE",
+      "node_modules/leftpad" => "NPMTREE" }.each do |rel, marker|
+      FileUtils.mkdir_p(File.join(work, rel))
+      File.write(File.join(work, rel, "x.rb"), "#{marker}\n")
+    end
 
     patch = restorer.diff(work_dir: work, base_commit: @base)
 
     assert_includes patch, "install.sh", "a candidate that solves a task by adding files must be captured"
     assert_includes patch, "echo hi"
-    refute_includes patch, "VENDORED", "vendored/generated trees (.gems) are excluded"
+    %w[GEMSCACHE BUNDLEPATH GEMSPATH BUNDLECACHE NPMTREE].each do |marker|
+      refute_includes patch, marker, "vendored/generated tree (#{marker}) must be excluded from the diff"
+    end
   end
 
   def test_hardened_diff_does_not_execute_a_hostile_textconv

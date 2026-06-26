@@ -31,11 +31,17 @@ module HiveBench
     DIFF_SAFETY = ["--no-ext-diff", "--no-textconv"].freeze
     # Trees an agent may create as a build side-effect (gem/npm install) — not part
     # of the candidate solution, and enormous. Excluded from the captured diff so a
-    # vendored `.gems/` can't bury the real changes or blow up the judge's tokens.
+    # vendored gem/node tree can't bury the real changes or blow up the judge's
+    # tokens. Bundler vendors to `vendor/bundle` by default but also commonly to
+    # `vendor/gems` (`bundle install --path vendor/gems`) and `vendor/cache`
+    # (`bundle cache`) — all three are build output, never a deliverable. (Observed:
+    # glm vendored 1217 gem files into vendor/gems on the install task → a 160k-line
+    # diff that overflowed both judges.)
     VENDORED_EXCLUDES = [
       ":(exclude,glob).gems/**", ":(exclude).gems",
       ":(exclude,glob)**/node_modules/**",
-      ":(exclude,glob)vendor/bundle/**", ":(exclude,glob).bundle/**",
+      ":(exclude,glob)vendor/bundle/**", ":(exclude,glob)vendor/gems/**",
+      ":(exclude,glob)vendor/cache/**", ":(exclude,glob).bundle/**",
       ":(exclude).hive-bench-prompt.md"
     ].freeze
 
