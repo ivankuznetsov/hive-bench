@@ -7,3 +7,4 @@
 /runs/
 /work/
 *.usage.db
+/.hive-state/
