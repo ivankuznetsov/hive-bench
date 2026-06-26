@@ -206,4 +206,45 @@ class RunAllTest < Minitest::Test
     refute_match(/sk-or-v1-deadbeef/, reasons, "the key must never reach results.json")
     assert_match(/REDACTED/, reasons)
   end
+
+  # A judge that raises (its plain `call`).
+  def raising_judge(error:)
+    j = Object.new
+    j.define_singleton_method(:call) { |**| raise(error) }
+    j
+  end
+
+  # One flaky/limited judge must NOT discard a successfully-generated cell or the
+  # other judges' scores — it's skipped, the cell keeps the survivors, backfill later.
+  def test_one_failing_judge_is_skipped_and_cell_keeps_the_others
+    out = run_matrix(judges: { "good" => judge(score: 7.0),
+                               "bad" => raising_judge(error: RuntimeError.new("judge HTTP 500")) })
+
+    assert_equal 4, out.results["cells"].size, "every cell still scored by the surviving judge"
+    assert_empty out.failed, "a partial-judge cell is not a failure"
+    cell = out.results["cells"].first
+
+    assert_in_delta 7.0, cell.dig("judges", "good", "mean")
+    assert_nil cell.dig("judges", "bad"), "the failed judge is absent, not recorded as zero"
+  end
+
+  # If the ONLY judge is credit-limited (OpenRouter 402), the generated cell is
+  # parked PENDING (re-judge after billing), never scored and never a hard failure.
+  def test_all_judges_credit_limited_parks_pending
+    err = RuntimeError.new('openrouter judge HTTP 402: {"error":{"message":"Insufficient credits"}}')
+    out = run_matrix(judges: { "or" => raising_judge(error: err) })
+
+    assert_equal 4, out.pending.size, "credit-limited judging parks the cell pending"
+    assert_empty out.failed, "a billing wall is not a failure"
+    assert_empty out.results["cells"], "nothing is scored when no judge succeeded"
+  end
+
+  # When every judge fails for a NON-limit reason, the cell is a genuine failure.
+  def test_all_judges_failing_non_limit_parks_failed
+    out = run_matrix(judges: { "j" => raising_judge(error: RuntimeError.new("judge handshake exploded")) })
+
+    assert_equal 4, out.failed.size, "no judge could score → failed"
+    assert_empty out.pending
+    assert(out.failed.all? { |f| f["reason"].include?("judge handshake exploded") })
+  end
 end

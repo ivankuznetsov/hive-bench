@@ -10,6 +10,7 @@ require "run"
 require "gate"
 require "judge"
 require "score"
+require "lib/agent_limit"
 
 module HiveBench
   # The benchmark-pass driver (plan U8): runs the full corpus × slate matrix and
@@ -26,6 +27,18 @@ module HiveBench
   # All components are injected so a pass can be driven offline in tests.
   class RunAll
     Outcome = Data.define(:results, :pending, :failed)
+
+    # Raised when EVERY judge failed on a generated cell (nothing to score). Carries
+    # whether the wall was a provider usage/credit limit, so the caller can park the
+    # cell as pending (re-judge after billing) rather than as a hard failure.
+    class JudgesExhausted < StandardError
+      attr_reader :limit
+
+      def initialize(message, limit:)
+        super(message)
+        @limit = limit
+      end
+    end
 
     # judges: { "<name>" => HiveBench::Judge } — every cell is scored by each.
     # withhold_reference: grade on plan+diff alone for ALL cells (de-anchoring +
@@ -77,6 +90,13 @@ module HiveBench
       end
 
       records << score_cell(entry, profile, cell, out_dir)
+    rescue JudgesExhausted => e
+      # The diff generated fine but no judge could score it. A provider limit
+      # (drained OpenRouter balance, 429) is transient billing — park pending so a
+      # re-judge picks it up; anything else is a genuine failure.
+      bucket, label = e.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
+      warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(e.message)}"
+      bucket << park(entry, profile, e.message)
     rescue StandardError => e
       reason = "#{e.class}: #{e.message}"
       warn "hive-bench: parked failed — #{profile.id} #{entry["task_id"]}: #{redact(reason)}"
@@ -115,16 +135,32 @@ module HiveBench
       )
     end
 
-    # Judge a non-empty diff with EVERY judge. reference + plan come from the entry.
-    # A reused cell's diff IS the reference, so judging it against the reference
-    # would be circular incumbent-anchoring — grade it on the task alone (R24).
+    # Judge a non-empty diff with EVERY judge, FAIL-SOFT per judge: a flaky or
+    # usage-limited judge (e.g. an OpenRouter 402/403) is skipped with a warning so
+    # its failure can't discard a successfully-generated cell or the OTHER judges'
+    # scores — the missing judge is backfilled later (harness/rejudge.rb). reference
+    # + plan come from the entry; a reused cell's diff IS the reference, so judging
+    # it against the reference would be circular incumbent-anchoring — grade it on
+    # the task alone (R24). Raises JudgesExhausted only when EVERY judge failed.
     # Returns { name => Judge::Result } (empty when there's no diff).
     def judge_cell(entry, candidate_patch, withhold_reference:)
       return {} if candidate_patch.strip.empty?
 
       plan = read_entry_file(entry, entry.dig("spec", "plan"))
       reference = withhold_reference ? nil : read_entry_file(entry, "reference.patch")
-      @judges.transform_values { |judge| judge.call(plan: plan, candidate_diff: candidate_patch, reference: reference) }
+      results = {}
+      failures = []
+      @judges.each do |name, judge|
+        results[name] = judge.call(plan: plan, candidate_diff: candidate_patch, reference: reference)
+      rescue StandardError => e
+        failures << "#{name}: #{e.class}: #{e.message}"
+        warn "hive-bench: judge #{name} skipped — #{redact("#{e.class}: #{e.message}")[0, 140]} (backfill later)"
+      end
+      if results.empty? && !@judges.empty?
+        raise JudgesExhausted.new(failures.join(" | "), limit: failures.any? { |f| AgentLimit.limit_hit?(f) })
+      end
+
+      results
     end
 
     def load_gate(entry)
