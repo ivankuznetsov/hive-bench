@@ -44,4 +44,35 @@ class MergeResultsTest < Minitest::Test
     assert_equal 1, out["cells"].size
     assert_empty out["pending"]
   end
+
+  # The same cell split across files (opus inline, gpt-5.5-pro backfilled later)
+  # merges into ONE dual-judged cell — not two rows.
+  def test_unions_judges_for_the_same_cell_across_files
+    inline = file([cell(agent: "codex-selfplan", task: "t1", judge_mean: 8.0)])
+    gpt = { "cells" => [{ "task_id" => "t1", "agent_id" => "codex-selfplan", "mode" => "fresh",
+                          "run_status" => "generated",
+                          "judges" => { "gpt-5.5-pro" => { "mean" => 4.0, "interval" => [4.0, 4.0] } },
+                          "efficiency" => {} }] }
+    out = HiveBench::Merge.combine([inline, gpt], corpus_version: "v1", generated_at: "t")
+
+    assert_equal 1, out["cells"].size, "the split cell is unioned, not duplicated"
+    judges = out["cells"].first["judges"]
+
+    assert_in_delta 8.0, judges.dig("opus-4.8", "mean")
+    assert_in_delta 4.0, judges.dig("gpt-5.5-pro", "mean")
+  end
+
+  # A judge-only backfill carries no telemetry; the union must keep the run's cost.
+  def test_judge_only_backfill_does_not_erase_generation_cost
+    run = file([cell(agent: "pi@kimi-k2.7", task: "t1", judge_mean: 6.0)]) # efficiency cost_usd 0.5
+    backfill = { "cells" => [{ "task_id" => "t1", "agent_id" => "pi@kimi-k2.7", "mode" => "fresh",
+                               "run_status" => "generated",
+                               "judges" => { "gpt-5.5-pro" => { "mean" => 3.0, "interval" => [3.0, 3.0] } },
+                               "efficiency" => {} }] }
+    out = HiveBench::Merge.combine([run, backfill], corpus_version: "v1", generated_at: "t")
+    cell = out["cells"].first
+
+    assert_in_delta 0.5, cell.dig("efficiency", "cost_usd"), 1e-9, "generation cost survives the judge backfill"
+    assert_in_delta 3.0, cell.dig("judges", "gpt-5.5-pro", "mean")
+  end
 end
