@@ -39,6 +39,30 @@ RUN npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}" \
   && npm install -g "@openai/codex@${CODEX_VERSION}" \
   && pi --version && claude --version && codex --version
 
+# --- Real hive CLI (v2 drives ACTUAL hive stages, not a reimplementation) ---
+# Build deps for hive's native gems: bigdecimal compiles from source; sqlite3 and
+# the Charm bindings (lipgloss/bubbletea) ship precompiled x86_64-linux-gnu. Kept
+# in the final image because the TARGET repo's own `bundle install` / CI (run by
+# the review stage) may also need to compile native gems.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential libsqlite3-dev pkg-config \
+  && rm -rf /var/lib/apt/lists/*
+
+# Pinned hive source: a clean `git archive HEAD` of the hive repo, dropped into
+# the build context by harness/build_runner.sh. Installed as a GEM (not via a
+# mounted bundle) so hive's deps resolve through rubygems and never leak a
+# BUNDLE_GEMFILE into the target repo's CI (the hive tool and the target repo are
+# independent checkouts of the same project).
+COPY hive-src.tar /tmp/hive-src.tar
+RUN mkdir -p /tmp/hive-build \
+  && tar xf /tmp/hive-src.tar -C /tmp/hive-build \
+  && cd /tmp/hive-build \
+  && gem build hive.gemspec \
+  && gem install ./hive-cli-*.gem --no-document \
+  && ln -sf /usr/local/bundle/bin/hive /usr/local/bin/hive \
+  && hive --version \
+  && rm -rf /tmp/hive-build /tmp/hive-src.tar
+
 # Non-root: the candidate's code and the gate's tests run unprivileged. uid 1000
 # matches the typical host user so files written into the mounted /work keep
 # host ownership (no root-owned artifacts left behind).
