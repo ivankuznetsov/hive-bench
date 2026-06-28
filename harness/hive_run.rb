@@ -15,7 +15,6 @@ require "fileutils"
 require "json"
 require "run_all"
 require "gate"
-require "lib/isolation_exec"
 require "lib/hive_driver"
 require "lib/corpus"
 require "lib/claude_judge"
@@ -34,11 +33,20 @@ module HiveBench
       abort("no corpus entries under #{opts[:corpus]}") if entries.empty?
       candidates = select_candidates(opts[:candidate])
 
-      outcome = RunAll.new(runner: hive_runner, gate: Gate.new(exec: IsolationExec.gate_exec),
+      outcome = RunAll.new(runner: hive_runner, gate: no_op_gate,
                            judges: Driver.judges(opts), withhold_reference: opts[:withhold_reference])
                       .call(entries: entries, profiles: candidates, out_root: opts[:out],
                             corpus_version: opts[:corpus_version])
       write_and_report(outcome, opts)
+    end
+
+    # v2 is judge-scored: the corpus is mostly uncurated (no objective test floor),
+    # so the gate is a no-op (the dual judge vs the reference PR is the score).
+    def no_op_gate
+      lambda do |entry:, gate_spec:, candidate_patch:, work_dir:|
+        _ = [entry, gate_spec, candidate_patch, work_dir]
+        Gate::Result.new(status: :no_gate, subset: "judged", reason: "v2: judge-scored", details: {})
+      end
     end
 
     # RunAll calls runner(entry:, profile:, out_dir:); here `profile` is a candidate.
