@@ -26,8 +26,9 @@ module HiveBench
       "generic api key assignment" => /\b(?:api[_-]?key|secret|password|token)\b\s*[:=]\s*["'][^"'\s]{12,}["']/i,
       # Require a real hostname shape (label + dot + reserved suffix), so prose
       # words like "local", "internal", "corp" don't trip the gate — only
-      # `db.internal`, `printer.local:8080`, `host.corp` do.
-      "private hostname" => /\b[a-z0-9][\w-]*\.(?:internal|corp|intranet|local)\b(?::\d+)?/i
+      # `db.internal`, `printer.local:8080`, `host.corp` do. The (?!\?) keeps
+      # Ruby predicate calls (`Rails.env.local?`) from reading as hostnames.
+      "private hostname" => /\b[a-z0-9][\w-]*\.(?:internal|corp|intranet|local)(?!\?)\b(?::\d+)?/i
     }.freeze
 
     # Scan one string; returns an array of Finding.

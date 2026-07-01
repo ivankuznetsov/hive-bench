@@ -1,0 +1,34 @@
+---
+schema: hive-bench-corpus-entry
+schema_version: 1
+task_id: fix-review-stage-claude-stop-260629-26ed
+source:
+  repo: ivankuznetsov/hive
+  base_commit: 901532223bf34420c1085d23549035175d3c67b4
+  merge_commit: 07ef43d5d145c767999ab3e0197627018df03d55
+  reference_pr: 625
+  reference_pr_url: https://github.com/ivankuznetsov/hive/pull/625
+spec:
+  idea: spec/idea.md
+  brainstorm: spec/brainstorm.md
+  plan: spec/plan.md
+  normalized: true
+  normalization:
+    rewritten_paths: 1
+    flagged_assertions: 6
+reference:
+  patch: reference.patch
+  sha256: 9d7a9ae89ecdc315c11361f5ffd3847d008f26ebba255ed6408b4cd84b49f8dc
+  held_out: true
+gate:
+  spec: gate/gate.yml
+provenance:
+  extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/fix-review-stage-claude-stop-260629-26ed"
+  extracted_at: '2026-07-01T22:03:48Z'
+  execute_base_head: c96df9414d9887281a9b905cec11ce285d39137c
+  original_model: claude-haiku-4-5-20251001
+  plan_authorship: claude
+  attestation: Extracted by the maintainer from a repo they have the right to publish.
+publish:
+  include_diff: true
+  include_spec: true

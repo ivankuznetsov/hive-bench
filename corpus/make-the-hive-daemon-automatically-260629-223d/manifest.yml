@@ -1,0 +1,34 @@
+---
+schema: hive-bench-corpus-entry
+schema_version: 1
+task_id: make-the-hive-daemon-automatically-260629-223d
+source:
+  repo: ivankuznetsov/hive
+  base_commit: 43f19ee26d678e7ecc6f398af29a70df84ef4d80
+  merge_commit: fc0f7620ff8c17828a7d594df2cdb156dff1953d
+  reference_pr: 624
+  reference_pr_url: https://github.com/ivankuznetsov/hive/pull/624
+spec:
+  idea: spec/idea.md
+  brainstorm: spec/brainstorm.md
+  plan: spec/plan.md
+  normalized: true
+  normalization:
+    rewritten_paths: 3
+    flagged_assertions: 2
+reference:
+  patch: reference.patch
+  sha256: 5bef3c9d46def9dfdea20bc1924248ae88a1b711915aec44cba019b2ab221607
+  held_out: true
+gate:
+  spec: gate/gate.yml
+provenance:
+  extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/make-the-hive-daemon-automatically-260629-223d"
+  extracted_at: '2026-07-01T22:03:49Z'
+  execute_base_head: c96df9414d9887281a9b905cec11ce285d39137c
+  original_model: claude-haiku-4-5-20251001
+  plan_authorship: claude
+  attestation: Extracted by the maintainer from a repo they have the right to publish.
+publish:
+  include_diff: true
+  include_spec: true

@@ -28,6 +28,27 @@ for each corpus task T, for each candidate C:
   (`claude-opus-4-8`); codex/pi take no model flag.
 - **`hive_run.rb`** — the CLI: corpus × candidates via `RunAll`, judged vs the gold
   (`withhold_reference: false`), no-op gate (the corpus is mostly uncurated).
+  `--seeds N` controls judge samples per judge (default 1; ≥3 for published cells —
+  one seed collapses the tie interval).
+- **`lib/model_family.rb` / `lib/pricing.rb`** — family mapping for the
+  `same_family` judge flag + cross-family aggregate, and the versioned usual-tier
+  price table (canonical `cost_usd` = tokens × table; the CLI's self-reported
+  figure is kept as `cost_usd_reported`).
+
+## Driver hardening (2026-07-01)
+
+- The gen container is **resource-capped** (`HB_CPUS`/`HB_MEMORY`/`HB_PIDS`,
+  default 4 / 8g / 4096) and can attach an egress-allowlisted docker network via
+  `HB_GEN_NETWORK` (generation can't run `--network none` — the agent needs its
+  model API).
+- The stage command appends `HB_EXIT rc=$?`: rc=124 classifies as **`timed_out`**
+  (a slow candidate), no longer misread as `plan_failed`.
+- `HB_NOTE plan_forced_complete` is surfaced into cell telemetry
+  (`plan_forced_complete: true`) — the covariate of the `/ce-plan` scope-fork
+  variance.
+- Every cell is scanned for **answer-key access** (repo-qualified reference-PR
+  URL or `gh pr view/diff/checkout <n>` in the agent stream logs); a hit lands in
+  telemetry as `answer_key_access_suspect` and warns loudly.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD`).
 

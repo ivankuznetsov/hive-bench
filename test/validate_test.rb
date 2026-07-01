@@ -26,13 +26,14 @@ class ValidateTest < Minitest::Test
     patch = overrides[:patch] || PATCH
     File.write(File.join(@entry, "reference.patch"), patch)
     File.write(File.join(@entry, "spec", "plan.md"), overrides[:plan] || "# Plan\nMake greet return fixed.\n")
+    File.write(File.join(@entry, "spec", "brainstorm.md"), overrides[:brainstorm] || "# Brainstorm\nQ&A rounds.\n")
     File.write(File.join(@entry, "gate", "gate.yml"),
                (overrides[:gate] || { "needs_curation" => false, "test_cmd" => "rake test",
                                       "fail_to_pass" => ["GreetTest#test_fixed"], "pass_to_pass" => [] }).to_yaml)
     manifest = {
       "schema" => "hive-bench-corpus-entry", "schema_version" => 1, "task_id" => "demo",
       "source" => { "repo" => "owner/demo", "base_commit" => "abc123" },
-      "spec" => { "plan" => "spec/plan.md" },
+      "spec" => { "plan" => "spec/plan.md", "brainstorm" => "spec/brainstorm.md" },
       "reference" => { "patch" => "reference.patch", "sha256" => Digest::SHA256.hexdigest(patch), "held_out" => true },
       "provenance" => { "attestation" => "I have the right to publish this." }
     }.merge(overrides[:manifest] || {})
@@ -86,14 +87,27 @@ class ValidateTest < Minitest::Test
     assert(res.failures.any? { |f| f.include?("secret") })
   end
 
-  def test_rejects_reference_leak_into_spec
-    leak_lines = (1..4).map { |i| "+added unique reference line number #{i} here" }.join("\n")
-    patch = "--- a/x\n+++ b/x\n@@ -0,0 +1,4 @@\n#{leak_lines}\n"
-    leaked_plan = "#{(1..3).map { |i| "added unique reference line number #{i} here" }.join("\n")}\n"
-    write_valid_entry(overrides: { patch: patch, plan: leaked_plan })
+  LEAK_PATCH = "--- a/x\n+++ b/x\n@@ -0,0 +1,4 @@\n" \
+               "#{(1..4).map { |i| "+added unique reference line number #{i} here" }.join("\n")}\n".freeze
+  LEAK_TEXT = "#{(1..3).map { |i| "added unique reference line number #{i} here" }.join("\n")}\n".freeze
+
+  def test_rejects_reference_leak_into_candidate_visible_spec
+    write_valid_entry(overrides: { patch: LEAK_PATCH, brainstorm: LEAK_TEXT })
     res = call
 
-    assert(res.failures.any? { |f| f.include?("leaks into") })
+    refute res.ok
+    assert(res.failures.any? { |f| f.include?("leaks into brainstorm.md") })
+  end
+
+  # plan.md is judge context, not candidate input (v2: hive re-plans from
+  # idea+brainstorm) — and a detailed plan legitimately quotes the code it
+  # prescribes. Overlap there warns but does not reject.
+  def test_reference_overlap_with_plan_only_warns
+    write_valid_entry(overrides: { patch: LEAK_PATCH, plan: LEAK_TEXT })
+    res = call
+
+    assert res.ok, "plan-only overlap must not reject; got: #{res.failures.inspect}"
+    assert(res.warnings.any? { |w| w.include?("plan.md") })
   end
 
   def test_no_gate_entry_is_judged_and_skips_reproducibility

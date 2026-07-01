@@ -14,9 +14,10 @@ module HiveBench
   # The gate run is a seam so the same logic runs in the validator CI (inside the
   # isolated runner) and in tests (offline).
   class Validator
-    Result = Data.define(:ok, :subset, :failures) do
+    Result = Data.define(:ok, :subset, :failures, :warnings) do
       def to_s
-        ok ? "ACCEPT (#{subset})" : "REJECT:\n#{failures.map { |f| "  - #{f}" }.join("\n")}"
+        head = ok ? "ACCEPT (#{subset})" : "REJECT:\n#{failures.map { |f| "  - #{f}" }.join("\n")}"
+        warnings.empty? ? head : "#{head}\n#{warnings.map { |w| "  ~ #{w}" }.join("\n")}"
       end
     end
 
@@ -28,18 +29,19 @@ module HiveBench
 
     def call(entry_dir:, work_dir:)
       failures = []
+      warnings = []
       manifest = load_manifest(entry_dir, failures)
       return reject(failures) unless manifest
 
       structural(entry_dir, manifest, failures)
       reference_integrity(entry_dir, manifest, failures)
-      no_leak(entry_dir, manifest, failures)
+      no_leak(entry_dir, manifest, failures, warnings)
       provenance(manifest, failures)
       secrets(entry_dir, manifest, failures)
       gate_spec = load_gate(entry_dir, failures)
 
       subset = reproducibility(entry_dir, manifest, gate_spec, work_dir, failures)
-      Result.new(ok: failures.empty?, subset: subset, failures: failures)
+      Result.new(ok: failures.empty?, subset: subset, failures: failures, warnings: warnings)
     end
 
     private
@@ -73,8 +75,13 @@ module HiveBench
       failures << "reference.patch sha256 mismatch (manifest says #{declared}, file is #{actual})" if declared && declared != actual
     end
 
-    # The reference solution must never appear in the candidate-visible spec/.
-    def no_leak(entry_dir, _manifest, failures)
+    # The reference solution must never appear in the CANDIDATE-VISIBLE spec —
+    # under v2 that is idea + brainstorm (+assets): hive re-plans from there, so
+    # a leak in them hands the candidate the answer -> REJECT. plan.md is judge
+    # context only (the candidate never sees it), and a detailed plan
+    # legitimately quotes the code it prescribes — overlap there is a WARNING
+    # (it matters again if a frozen-plan replay mode returns).
+    def no_leak(entry_dir, manifest, failures, warnings)
       patch_path = File.join(entry_dir, "reference.patch")
       return unless File.file?(patch_path)
 
@@ -82,10 +89,20 @@ module HiveBench
                                              .map { |l| l[1..].strip }.reject { |l| l.length < 12 }
       return if added.empty?
 
+      visible = %w[idea brainstorm].filter_map { |k| manifest.dig("spec", k) }
+                                   .map { |rel| File.expand_path(File.join(entry_dir, rel)) }
       Dir.glob(File.join(entry_dir, "spec", "*")).each do |f|
-        spec = File.read(f)
-        leaked = added.count { |line| spec.include?(line) }
-        failures << "reference solution leaks into #{File.basename(f)} (#{leaked} added lines present)" if leaked >= 3
+        next unless File.file?(f)
+
+        leaked = added.count { |line| File.read(f).include?(line) }
+        next if leaked < 3
+
+        if visible.include?(File.expand_path(f))
+          failures << "reference solution leaks into #{File.basename(f)} (#{leaked} added lines present)"
+        else
+          warnings << "reference overlaps judge-only #{File.basename(f)} (#{leaked} added lines — " \
+                      "fine for v2 self-plan; blocks any frozen-plan replay)"
+        end
       end
     end
 
@@ -140,7 +157,7 @@ module HiveBench
     end
 
     def reject(failures)
-      Result.new(ok: false, subset: nil, failures: failures)
+      Result.new(ok: false, subset: nil, failures: failures, warnings: [])
     end
   end
 end

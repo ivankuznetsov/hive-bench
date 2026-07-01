@@ -32,6 +32,24 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   in `lib/isolation_exec.rb`, and the v1 `RESULTS.md` (→ `RESULTS-v1-deprecated.md`).
 - Publish a v2 `RESULTS.md` framed as "real hive, judged vs the merged PR."
 
+## Integrity round leftovers (2026-07-01)
+
+- **Egress allowlist proxy for generation** — `HB_GEN_NETWORK` accepts a proxied docker
+  network, but nothing builds one yet. Until then answer-key leakage is detected
+  (`answer_key_access_suspect` scan), not prevented.
+- **Mixed-family cost attribution** — `opus-plan→codex-exec` tokens span two price rows;
+  needs per-stage token attribution (stage → agent from the log filename) before
+  `cost_usd` can be estimated for mixed candidates. Currently nil by design.
+- **Model self-verification** — `model_version` is asserted by the candidate config, not
+  verified. The stream logs carry model ids; parse and cross-check, flag mismatched cells.
+- **Gate curation is still the biggest lever** — v2 runs a no-op gate; the objective floor
+  returns only when tasks carry curated verbose gates. Corpus is now 6 accepted tasks
+  (2026-07-01 extraction round); PRs #623/#624/#625 ship unit tests → best F2P candidates.
+- **Fable judge model id unverified** — the claude judge now defaults to `claude-fable-5`
+  (maintainer picked fable + gpt-5.5-pro as the full judge slate). If the CLI rejects that
+  id, the judge fails loudly (fail-soft parks the cell); verify on the first judged pass or
+  pin with `--judge-model`.
+
 ## Known open questions
 
 - **`/ce-plan` variance** is 2/3-good but real. For a publishable single-seed leaderboard,

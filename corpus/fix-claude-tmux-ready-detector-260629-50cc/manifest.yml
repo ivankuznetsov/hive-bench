@@ -1,0 +1,34 @@
+---
+schema: hive-bench-corpus-entry
+schema_version: 1
+task_id: fix-claude-tmux-ready-detector-260629-50cc
+source:
+  repo: ivankuznetsov/hive
+  base_commit: 262299fa1b8390eea986c475f72f06af16542f4c
+  merge_commit: 901532223bf34420c1085d23549035175d3c67b4
+  reference_pr: 623
+  reference_pr_url: https://github.com/ivankuznetsov/hive/pull/623
+spec:
+  idea: spec/idea.md
+  brainstorm: spec/brainstorm.md
+  plan: spec/plan.md
+  normalized: true
+  normalization:
+    rewritten_paths: 5
+    flagged_assertions: 2
+reference:
+  patch: reference.patch
+  sha256: 26f6ee4be675ee81568892dab7824364b6d6529b0e63adfe4d7dca2f7ac3df33
+  held_out: true
+gate:
+  spec: gate/gate.yml
+provenance:
+  extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/fix-claude-tmux-ready-detector-260629-50cc"
+  extracted_at: '2026-07-01T22:03:48Z'
+  execute_base_head: ee9bb36a652115bb3817175019db290d6ac02db7
+  original_model: claude-haiku-4-5-20251001
+  plan_authorship: claude
+  attestation: Extracted by the maintainer from a repo they have the right to publish.
+publish:
+  include_diff: true
+  include_spec: true

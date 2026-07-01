@@ -34,9 +34,22 @@ how it's balanced.
 |---------|------|------|------|-------|
 | add-i-key-with-legend-260522-ca28 | ivankuznetsov/hive | feature | needs curation | seed; reference verified to apply at base |
 | figure-out-way-to-install-260513-4a0a | ivankuznetsov/hive | feature | needs curation | seed; reference verified to apply at base |
+| add-local-hive-web-install-260629-f4ca | ivankuznetsov/hive | feature | needs curation | PR #622; validator ACCEPT (judged) |
+| fix-claude-tmux-ready-detector-260629-50cc | ivankuznetsov/hive | bugfix | needs curation | PR #623; validator ACCEPT (judged) |
+| fix-review-stage-claude-stop-260629-26ed | ivankuznetsov/hive | bugfix | needs curation | PR #625; validator ACCEPT (judged) |
+| make-the-hive-daemon-automatically-260629-223d | ivankuznetsov/hive | feature | needs curation | PR #624; validator ACCEPT (judged) |
 
-_(Curation in progress — gates not yet filled, so both seeds are currently in
-the judged subset.)_
+_(Curation in progress — gates not yet filled, so all entries are currently in
+the judged subset. PRs #623/#624/#625 add unit tests, so they are the best
+F2P-gate candidates.)_
+
+**Extracted but rejected (2026-07-01):** the three `update-the-openclaw-hive-skill-260630-*`
+tasks (PRs #632/#633/#635). Their brainstorms quote the exact guidance lines the
+reference PR adds — a candidate-visible answer leak (inherent to
+content-specified docs tasks: the spec IS the content, so execution collapses to
+transcription). The validator rejects them; revisit only if a docs-task policy
+with disclosure is written. Older done tasks predating the 2026-06-26
+`.hive-state` re-bootstrap are unrecoverable (state history was reset).
 
 ## Open review findings — resolve before the first real gated pass
 

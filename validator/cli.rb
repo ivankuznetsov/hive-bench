@@ -28,7 +28,8 @@ res = HiveBench::Validator.new(gate_runner: gate_runner).call(entry_dir: entry_d
 warn res
 if result_path
   File.write(result_path, JSON.pretty_generate(
-                            "entry" => entry_dir, "ok" => res.ok, "subset" => res.subset, "failures" => res.failures
+                            "entry" => entry_dir, "ok" => res.ok, "subset" => res.subset,
+                            "failures" => res.failures, "warnings" => res.warnings
                           ))
 end
 exit(res.ok ? 0 : 1)

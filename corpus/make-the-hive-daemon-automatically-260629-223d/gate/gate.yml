@@ -1,0 +1,6 @@
+---
+needs_curation: true
+install_cmd:
+test_cmd:
+fail_to_pass: []
+pass_to_pass: []

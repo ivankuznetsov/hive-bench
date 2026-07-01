@@ -34,7 +34,9 @@ class SecretScanTest < Minitest::Test
       "run it on your local machine",
       "this is an internal helper method",
       "store the token in a local variable",
-      "corp-wide refactor of the intranet docs"
+      "corp-wide refactor of the intranet docs",
+      # Ruby predicate methods look like *.local hostnames but aren't.
+      "`Rails.env.local?` already has a tokenless exemption seam"
     ].each do |prose|
       assert_empty S.scan_text(prose), "ordinary prose should not match the hostname pattern: #{prose}"
     end
