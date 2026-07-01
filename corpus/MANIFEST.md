@@ -48,8 +48,15 @@ tasks (PRs #632/#633/#635). Their brainstorms quote the exact guidance lines the
 reference PR adds — a candidate-visible answer leak (inherent to
 content-specified docs tasks: the spec IS the content, so execution collapses to
 transcription). The validator rejects them; revisit only if a docs-task policy
-with disclosure is written. Older done tasks predating the 2026-06-26
-`.hive-state` re-bootstrap are unrecoverable (state history was reset).
+with disclosure is written.
+
+**Recovering older tasks:** hive stores task state on the `hive/state` branch
+(the `.hive-state` worktree), so done tasks are branch-recoverable in general.
+This clone's `hive/state` starts at a 2026-06-26 bootstrap and the branch is not
+on origin — tasks older than that (e.g. the two original seeds' cohort) are
+recoverable only from another clone/backup carrying the pre-bootstrap
+`hive/state`. Back that branch up (private remote — it holds ideas/brainstorms)
+so future curation never loses tasks.
 
 ## Open review findings — resolve before the first real gated pass
 
