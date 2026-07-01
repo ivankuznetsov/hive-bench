@@ -78,3 +78,9 @@ pass_to_pass: []                 # regression guard: must stay green
 A task with `needs_curation: true` or empty `fail_to_pass` is **gate-ineligible**
 and scored judge-only (the "judged" subset). Curation either fills the gate
 (moves it to the "gated" subset) or leaves it judged.
+
+**Gate contract:** `test_cmd` MUST emit per-test results (minitest: run verbose,
+e.g. `rake test TESTOPTS=-v`). The gate requires every `fail_to_pass` and
+`pass_to_pass` name to be *positively observed* in the run — a test absent from
+the output (typo, deleted guard, not collected) errors the cell rather than
+counting as a pass.

@@ -96,13 +96,19 @@ module HiveBench
 
     # { "<judge>" => mean across the cells that judge scored }. With
     # cross_family_only, same-family scores are excluded (nil mean when a judge
-    # only ever scored its own family).
+    # only ever scored its own family). Family is RECOMPUTED from the record's
+    # own fields, not read from the stored per-judge flag: merged/legacy records
+    # (harness/merge_results.rb unions stored judge hashes) may predate the flag,
+    # and a missing flag must never smuggle a same-family score into the headline.
     def mean_quality_by_judge(records, cross_family_only: false)
       names = records.flat_map { |r| (r["judges"] || {}).keys }.uniq
       names.to_h do |name|
         scores = records.filter_map do |r|
           j = r.dig("judges", name)
-          j["mean"] if j && !(cross_family_only && j["same_family"])
+          next unless j
+          next if cross_family_only && ModelFamily.same_family?(name, r["agent_id"], r["model_version"])
+
+          j["mean"]
         end
         [name, mean_of(scores)]
       end

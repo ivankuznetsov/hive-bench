@@ -203,8 +203,10 @@ module HiveBench
       return nil unless repo && pr
 
       pattern = %r{#{Regexp.escape(repo)}/pulls?/#{pr}\b|\bgh\s+pr\s+(?:view|diff|checkout)\s+#{pr}\b}
+      # Logs + captured stage stdout/stderr — a fetch attempt often surfaces only
+      # in stderr (curl/gh error output lands in .hb/stage.err).
       haystacks = Dir.glob(File.join(work, ".hive-state", "logs", "**", "*.log")) +
-                  Dir.glob(File.join(work, ".hb", "*.json"))
+                  Dir.glob(File.join(work, ".hb", "*"))
       haystacks.each do |f|
         File.foreach(f) { |line| return line.strip[0, 200] if line.match?(pattern) }
       end
@@ -221,11 +223,17 @@ module HiveBench
     # family candidates get no estimate (needs per-stage attribution): reported
     # stands alone and the leaderboard sees the gap instead of a wrong number.
     def price_telemetry(tel, candidate)
-      est = Pricing.estimate_usd(model_strings: [candidate.id, candidate.model_version],
-                                 input: tel["input_tokens"], output: tel["output_tokens"],
-                                 cached: tel["cached_tokens"])
       reported = tel.delete("cost_usd")
       tel["cost_usd_reported"] = reported if reported
+      # No token telemetry at all -> no estimate. An absent cost means "unknown";
+      # writing a computed $0.00 would make a telemetry gap look like a free run.
+      return tel unless tel.values_at("input_tokens", "output_tokens", "cached_tokens",
+                                      "cache_creation_tokens").any?
+
+      est = Pricing.estimate_usd(model_strings: [candidate.id, candidate.model_version],
+                                 input: tel["input_tokens"], output: tel["output_tokens"],
+                                 cached: tel["cached_tokens"],
+                                 cache_creation: tel["cache_creation_tokens"])
       tel["cost_usd"] = est if est
       tel
     end
@@ -234,7 +242,7 @@ module HiveBench
     # (.hive-state/logs/<slug>/<stage>-*.log, lines prefixed `[stream] <ts> `).
     def telemetry(work)
       logs = Dir.glob(File.join(work, ".hive-state", "logs", "**", "*.log"))
-      input = output = cached = 0
+      input = output = cached = cache_creation = 0
       cost = 0.0
       logs.each do |log|
         File.foreach(log) do |line|
@@ -244,11 +252,15 @@ module HiveBench
             input += u["input_tokens"].to_i
             output += u["output_tokens"].to_i
             cached += u["cache_read_input_tokens"].to_i
+            # Cache WRITES are billed too (claude: ~1.25x input rate) — dropping
+            # them systematically understated the API-equivalent cost.
+            cache_creation += u["cache_creation_input_tokens"].to_i
           end
           cost += obj["total_cost_usd"].to_f if obj["type"] == "result"
         end
       end
       { "input_tokens" => input, "output_tokens" => output, "cached_tokens" => cached,
+        "cache_creation_tokens" => cache_creation,
         "cost_usd" => cost.round(6) }.reject { |_, v| v.zero? }
     end
 

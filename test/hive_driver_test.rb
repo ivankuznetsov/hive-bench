@@ -70,15 +70,24 @@ class HiveDriverTest < Minitest::Test
 
   def test_generated_cell_with_api_equivalent_cost
     usage = '[stream] 2026-01-01T00:00:00Z {"message":{"usage":{"input_tokens":1000,' \
-            '"output_tokens":2000,"cache_read_input_tokens":1000000}}}'
+            '"output_tokens":2000,"cache_read_input_tokens":1000000,"cache_creation_input_tokens":500}}}'
     reported = '[stream] 2026-01-01T00:00:01Z {"type":"result","total_cost_usd":9.99}'
     cell = driver(log_lines: [usage, reported]).call(entry: entry, candidate: candidate, out_dir: @out)
 
     assert_equal "generated", cell.status
     assert_equal 1000, cell.telemetry["input_tokens"]
-    # tokens x usual-tier anthropic rates, NOT the CLI's self-reported figure
-    assert_in_delta ((1000 * 5) + (2000 * 25) + (1_000_000 * 0.5)) / 1_000_000.0, cell.telemetry["cost_usd"], 0.0001
+    # tokens x usual-tier anthropic rates, NOT the CLI's self-reported figure;
+    # cache WRITES count as input-rate tokens (dropping them undercosts claude).
+    expected = (((1000 + 500) * 5) + (2000 * 25) + (1_000_000 * 0.5)) / 1_000_000.0
+
+    assert_in_delta expected, cell.telemetry["cost_usd"], 0.0001
     assert_in_delta 9.99, cell.telemetry["cost_usd_reported"], 0.001
+  end
+
+  def test_no_token_telemetry_means_no_cost_not_zero_cost
+    cell = driver.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    refute cell.telemetry.key?("cost_usd"), "a telemetry gap must read as unknown, not as a $0 run"
   end
 
   def test_timeout_is_timed_out_not_plan_failed

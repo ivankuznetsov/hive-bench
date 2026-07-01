@@ -94,7 +94,8 @@ module HiveBench
       Dir.glob(File.join(entry_dir, "spec", "*")).each do |f|
         next unless File.file?(f)
 
-        leaked = added.count { |line| File.read(f).include?(line) }
+        spec_text = File.read(f)
+        leaked = added.count { |line| spec_text.include?(line) }
         next if leaked < 3
 
         if visible.include?(File.expand_path(f))

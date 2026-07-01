@@ -26,12 +26,14 @@ module HiveBench
     # Price a token bundle for a single-family candidate. Returns nil when the
     # family is ambiguous (mixed candidates need per-stage token attribution —
     # not implemented) or unpriced — a nil is honest; a wrong-rate number is not.
-    def estimate_usd(model_strings:, input: 0, output: 0, cached: 0)
+    # cache_creation (cache WRITES) is priced at the plain input rate — a slight
+    # undercount for claude (bills ~1.25x input) but far closer than dropping it.
+    def estimate_usd(model_strings:, input: 0, output: 0, cached: 0, cache_creation: 0)
       families = ModelFamily.families(*model_strings)
       return nil unless families.size == 1
 
       rates = RATES[families.first] or return nil
-      (((input.to_i * rates["input"]) +
+      ((((input.to_i + cache_creation.to_i) * rates["input"]) +
         (output.to_i * rates["output"]) +
         (cached.to_i * rates["cached"])) / 1_000_000.0).round(4)
     end
