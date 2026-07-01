@@ -88,11 +88,22 @@ if [ "${HB_REVIEW:-1}" = "1" ] && [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]
   cat >/work/.hb/bin/gh <<'GH'
 #!/usr/bin/env bash
 # bench gh shim: enough of gh for hive's open-pr/review in an offline container.
+# Contract (lib/hive/gh.rb): `pr list --head <branch> --state all --json
+# url,number,state,isDraft,headRefName,headRefOid` must return an ARRAY of PRs
+# whose headRefOid hive may compare against the pushed branch.
+branch=""; prev=""
+for a in "$@"; do [ "$prev" = "--head" ] && branch="$a"; prev="$a"; done
+URL="https://github.com/bench/target/pull/1"
 case "$1 ${2:-}" in
-  "pr create"*) echo "https://github.com/bench/target/pull/1" ;;
-  "pr view"*)   echo '{"state":"OPEN","number":1,"url":"https://github.com/bench/target/pull/1","statusCheckRollup":[]}' ;;
+  "pr create"*) echo "$URL" ;;
+  "pr list"*)
+    oid="$(git rev-parse "$branch" 2>/dev/null || echo "")"
+    printf '[{"url":"%s","number":1,"state":"OPEN","isDraft":false,"headRefName":"%s","headRefOid":"%s"}]\n' \
+      "$URL" "$branch" "$oid" ;;
+  "pr view"*)   echo "{\"state\":\"OPEN\",\"number\":1,\"url\":\"$URL\",\"statusCheckRollup\":[]}" ;;
   "pr checks"*) echo "no checks reported" ;;
   "auth status"*) echo "Logged in (bench shim)" ;;
+  *" list"*|"pr list") echo "[]" ;;
   *) echo "{}" ;;
 esac
 exit 0

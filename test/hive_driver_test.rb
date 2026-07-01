@@ -58,6 +58,9 @@ class HiveDriverTest < Minitest::Test
     runner = lambda do |cmd|
       seen.concat(cmd)
       File.write(File.join(work, "candidate.patch"), patch) if patch
+      # .hb always contains DIRECTORIES too (bin/ for the gh shim, origin.git/)
+      # — the answer-key scan must skip them (regression: EISDIR).
+      FileUtils.mkdir_p(File.join(work, ".hb", "bin"))
       unless log_lines.empty?
         dir = File.join(work, ".hive-state", "logs", "add-i-key")
         FileUtils.mkdir_p(dir)

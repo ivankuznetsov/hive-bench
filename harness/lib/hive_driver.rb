@@ -120,8 +120,11 @@ module HiveBench
              *auth_mounts(candidate),
              *env_args(candidate),
              IMAGE,
-             # HB_EXIT lets classify() tell a timeout (rc=124) from a stage failure.
-             "timeout #{PLAN_TIMEOUT} bash /hive_stages.sh #{slug} #{base}; echo HB_EXIT rc=$?"]
+             # HB_EXIT lets classify() tell a timeout (rc=124) from a stage
+             # failure; tee persists the markers so a driver crash after the
+             # (expensive) container run can never lose the classification.
+             "mkdir -p /work/.hb; { timeout #{PLAN_TIMEOUT} bash /hive_stages.sh #{slug} #{base}; " \
+             "echo HB_EXIT rc=$?; } | tee /work/.hb/stages.out"]
       (@runner || method(:capture)).call(cmd)
     end
 
@@ -145,7 +148,14 @@ module HiveBench
                    "-v", "#{CLAUDE_DIR}/plugins:#{HOME}/.claude/plugins:ro"]
       end
       codex = File.expand_path("~/.codex/auth.json")
-      mounts += ["-v", "#{codex}:#{HOME}/.codex/auth.json:ro"] if uses?(candidate, "codex") && File.file?(codex)
+      if uses?(candidate, "codex") && File.file?(codex)
+        # Same trap as claude's .claude: a ro bind-mount's parent dir is created
+        # root-owned inside the HOME tmpfs, and codex dies at startup unable to
+        # write beside it ("failed to initialize in-process app-server client:
+        # Permission denied"). tmpfs the dir; bind the auth ro within it.
+        mounts += ["--tmpfs", "#{HOME}/.codex:exec,mode=1777",
+                   "-v", "#{codex}:#{HOME}/.codex/auth.json:ro"]
+      end
       mounts
     end
 
@@ -228,9 +238,10 @@ module HiveBench
 
       pattern = %r{#{Regexp.escape(repo)}/pulls?/#{pr}\b|\bgh\s+pr\s+(?:view|diff|checkout)\s+#{pr}\b}
       # Logs + captured stage stdout/stderr — a fetch attempt often surfaces only
-      # in stderr (curl/gh error output lands in .hb/stage.err).
-      haystacks = Dir.glob(File.join(work, ".hive-state", "logs", "**", "*.log")) +
-                  Dir.glob(File.join(work, ".hb", "*"))
+      # in stderr (curl/gh error output lands in .hb/stage.err). .hb also holds
+      # directories (bin/, origin.git/) — files only.
+      haystacks = (Dir.glob(File.join(work, ".hive-state", "logs", "**", "*.log")) +
+                   Dir.glob(File.join(work, ".hb", "*"))).select { |f| File.file?(f) }
       haystacks.each do |f|
         File.foreach(f) { |line| return line.strip[0, 200] if line.match?(pattern) }
       end
