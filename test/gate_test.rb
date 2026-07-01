@@ -68,18 +68,39 @@ class GateTest < Minitest::Test
     }
   end
 
-  GREEN = "2 runs, 2 assertions, 0 failures, 0 errors, 0 skips\n"
+  # Gate fixtures are VERBOSE (per-test lines): the gate requires every declared
+  # gate test to be positively observed — a bare summary line is not enough.
+  GREEN = <<~OUT
+    GreetTest#test_fixed = 0.00 s = .
+    GreetTest#test_exists = 0.00 s = .
+
+    2 runs, 2 assertions, 0 failures, 0 errors, 0 skips
+  OUT
   F2P_STILL_FAILS = <<~OUT
+    GreetTest#test_fixed = 0.00 s = F
+    GreetTest#test_exists = 0.00 s = .
+
     1) Failure:
     GreetTest#test_fixed [test/x.rb:1]:
     not fixed
     2 runs, 2 assertions, 1 failures, 0 errors, 0 skips
   OUT
   P2P_BROKE = <<~OUT
+    GreetTest#test_fixed = 0.00 s = .
+    GreetTest#test_exists = 0.00 s = F
+
     1) Failure:
     GreetTest#test_exists [test/x.rb:1]:
     regressed
     2 runs, 2 assertions, 1 failures, 0 errors, 0 skips
+  OUT
+  # A green-looking run in which the gate tests never executed (empty suite,
+  # renamed test, deleted guard) — must be an error, never a pass.
+  GREEN_BUT_UNOBSERVED = "2 runs, 2 assertions, 0 failures, 0 errors, 0 skips\n"
+  P2P_GUARD_DELETED = <<~OUT
+    GreetTest#test_fixed = 0.00 s = .
+
+    1 runs, 1 assertions, 0 failures, 0 errors, 0 skips
   OUT
 
   # --- Covers AE3 ---
@@ -121,6 +142,25 @@ class GateTest < Minitest::Test
                                                  work_dir: work)
 
     assert_equal :no_gate, res.status
+  end
+
+  # --- positive observation (a gate test that never ran is never a pass) ---
+
+  def test_green_run_without_observed_gate_tests_is_an_error
+    res = gate(exec: exec_returning(GREEN_BUT_UNOBSERVED)).call(entry: entry, gate_spec: gate_spec,
+                                                                candidate_patch: @patch, work_dir: work)
+
+    assert_equal :error, res.status
+    assert_match(/not observed/, res.reason)
+    assert_match(/GreetTest#test_fixed/, res.reason)
+  end
+
+  def test_deleted_p2p_guard_is_an_error_not_a_pass
+    res = gate(exec: exec_returning(P2P_GUARD_DELETED)).call(entry: entry, gate_spec: gate_spec,
+                                                             candidate_patch: @patch, work_dir: work)
+
+    assert_equal :error, res.status
+    assert_match(/GreetTest#test_exists/, res.reason)
   end
 
   # --- error paths ---

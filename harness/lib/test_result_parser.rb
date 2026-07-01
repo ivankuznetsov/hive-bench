@@ -23,6 +23,11 @@ module HiveBench
     # Per-failure header minitest prints, e.g. "  1) Failure:\nFooTest#test_bar".
     FAILURE_BLOCK = /^\s*\d+\)\s+(?:Failure|Error):\s*\n\s*([A-Za-z0-9_:]+#[A-Za-z0-9_?!]+)/
 
+    # Verbose per-test line (TESTOPTS=-v), e.g. "FooTest#test_bar = 0.01 s = .".
+    # This is the POSITIVE observation channel: a gate test must appear here (or
+    # in a failure block) to count as run at all — absence is never a pass.
+    VERBOSE_LINE = /^([A-Za-z0-9_:]+#[A-Za-z0-9_?!]+)\s*=\s*[\d.]+\s*s\s*=\s*([.FES])\s*$/
+
     def parse(output)
       text = output.to_s
       m = text.match(SUMMARY)
@@ -35,17 +40,28 @@ module HiveBench
       runs = m[1].to_i
       failures = m[2].to_i
       errors = m[3].to_i
-      failed_names = text.scan(FAILURE_BLOCK).flatten
       by_name = {}
-      failed_names.each { |n| by_name[n] = false }
+      # Verbose lines first ("." passed; F/E/S did not), then failure blocks —
+      # a name in a failure block is false even if its verbose line said ".".
+      text.scan(VERBOSE_LINE) { |name, mark| by_name[name] = (mark == ".") }
+      text.scan(FAILURE_BLOCK).flatten.each { |n| by_name[n] = false }
 
       Result.new(ran: true, passed: runs - failures - errors, failed: failures,
                  errored: errors, by_name: by_name)
     end
 
+    # Was this named test positively observed (verbose line or failure block)?
+    # The gate requires this for every declared gate test: a test that never ran
+    # (typo, deleted, not collected) must never be scored as a pass.
+    def observed?(result, name)
+      result.ran && result.by_name.key?(name)
+    end
+
     # Did a specific named test pass? Known failures are recorded false; a name
     # not in the failure list is treated as passed when the suite ran. Returns
     # nil when we have no per-name signal at all (caller falls back to suite-level).
+    # NOTE: the gate must guard with `observed?` first — the implicit-true branch
+    # exists only for suites without verbose output, which are not gate-eligible.
     def test_outcome(result, name)
       return nil unless result.ran
 

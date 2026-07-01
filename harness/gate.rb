@@ -62,14 +62,19 @@ module HiveBench
     end
 
     def classify(parsed, f2p, p2p)
+      # Every declared gate test must be POSITIVELY observed in the run (verbose
+      # per-test line or failure block). Absence is never a pass: a FAIL_TO_PASS
+      # test that never ran (typo, deleted, not collected) or a PASS_TO_PASS
+      # guard the candidate deleted must error the cell, not clear the floor.
+      # Curation rule: every gated test_cmd emits per-test results (TESTOPTS=-v).
+      unobserved = (f2p + p2p).reject { |name| @parser.observed?(parsed, name) }
+      unless unobserved.empty?
+        return error("gate tests not observed in run (test_cmd must emit per-test " \
+                     "results, e.g. TESTOPTS=-v): #{unobserved.join(", ")}")
+      end
+
       f2p_ok = f2p.all? { |name| @parser.test_outcome(parsed, name) }
-      # PASS_TO_PASS: each named regression test must still pass; if no per-name
-      # signal exists, fall back to the whole suite being green.
-      p2p_ok = if parsed.by_name.empty?
-                 parsed.suite_green?
-               else
-                 p2p.all? { |name| @parser.test_outcome(parsed, name) }
-               end
+      p2p_ok = p2p.all? { |name| @parser.test_outcome(parsed, name) }
 
       if f2p_ok && p2p_ok
         gated(:pass, "FAIL_TO_PASS flipped and PASS_TO_PASS held")

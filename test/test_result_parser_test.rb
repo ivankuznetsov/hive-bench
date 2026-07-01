@@ -60,6 +60,46 @@ class TestResultParserTest < Minitest::Test
     assert P.test_outcome(r, "InfoPanelTest#test_some_other"), "a test not in the failure list passed"
   end
 
+  VERBOSE = <<~OUT
+    Run options: -v --seed 123
+
+    # Running:
+
+    InfoPanelTest#test_renders_key = 0.01 s = .
+    InfoPanelTest#test_opens_panel = 0.02 s = F
+    InfoPanelTest#test_skipped = 0.00 s = S
+
+    1) Failure:
+    InfoPanelTest#test_opens_panel [test/tui_test.rb:9]:
+    nope
+
+    3 runs, 5 assertions, 1 failures, 0 errors, 1 skips
+  OUT
+
+  def test_verbose_lines_positively_observe_passes
+    r = P.parse(VERBOSE)
+
+    assert P.observed?(r, "InfoPanelTest#test_renders_key")
+    assert P.test_outcome(r, "InfoPanelTest#test_renders_key")
+    assert P.observed?(r, "InfoPanelTest#test_opens_panel")
+    refute P.test_outcome(r, "InfoPanelTest#test_opens_panel")
+  end
+
+  def test_skipped_test_is_observed_but_not_passed
+    r = P.parse(VERBOSE)
+
+    assert P.observed?(r, "InfoPanelTest#test_skipped")
+    refute P.test_outcome(r, "InfoPanelTest#test_skipped"), "a skipped gate test must not count as a pass"
+  end
+
+  def test_absent_test_is_not_observed
+    r = P.parse(VERBOSE)
+
+    refute P.observed?(r, "InfoPanelTest#test_never_ran")
+    refute P.observed?(P.parse(GREEN), "InfoPanelTest#test_renders_key"),
+           "a non-verbose run observes nothing"
+  end
+
   def test_unparseable_output_is_not_run
     r = P.parse("compilation error: cannot load such file")
 
