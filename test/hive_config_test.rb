@@ -44,14 +44,49 @@ class HiveConfigTest < Minitest::Test
 
     assert_equal 2, h.dig("review", "max_passes")
     assert_equal 7200, h.dig("review", "max_wall_clock_sec")
-    assert_empty h.dig("review", "reviewers"), "v2 runs no reviewers (review phase adds the hash shape)"
     assert_equal "bundle exec rake test", h.dig("review", "ci", "command")
   end
 
-  def test_uncurated_task_omits_the_ci_command
+  # The review section mirrors PROD hive defaults with the candidate's agent
+  # substituted everywhere, github_publish forced off (offline container), and
+  # the claude-plugin reviewer included only for claude candidates.
+  def test_review_mirrors_prod_defaults_with_candidate_agents
+    h = HiveBench::HiveConfig.to_h(candidate)
+    r = h["review"]
+
+    assert r.dig("triage", "enabled")
+    assert_equal "courageous", r.dig("triage", "bias")
+    assert_equal "claude", r.dig("fix", "agent")
+    assert_equal "inherit", r.dig("fix", "auto_commit", "sign_policy")
+    refute r.dig("browser_test", "enabled")
+    refute r.dig("github_publish", "enabled"), "no real GitHub in the container"
+    names = r["reviewers"].map { |rev| rev["skill"] }
+
+    assert_includes names, "ce-code-review"
+    assert_includes names, "pr-review-toolkit:review-pr"
+  end
+
+  def test_codex_candidate_gets_codex_reviewers_without_claude_plugins
+    h = HiveBench::HiveConfig.to_h(candidate(plan: "codex", execute: "codex", review: "codex", claude_model: nil))
+    reviewers = h.dig("review", "reviewers")
+
+    assert_equal ["codex"], reviewers.map { |r| r["agent"] }.uniq
+    refute(reviewers.any? { |r| r["skill"].include?("pr-review-toolkit") },
+           "pr-review-toolkit is a claude plugin — codex candidates can't run it")
+    assert_equal "reviewer_codex_ce_code_review.md.erb", reviewers.first["prompt_template"]
+  end
+
+  def test_explicit_reviewers_override_the_derived_set
+    custom = [{ "name" => "x", "kind" => "agent", "agent" => "claude", "skill" => "ce-code-review" }]
+    h = HiveBench::HiveConfig.to_h(candidate(reviewers: custom))
+
+    assert_equal custom, h.dig("review", "reviewers")
+  end
+
+  def test_uncurated_task_keeps_ci_command_null_like_prod
     h = HiveBench::HiveConfig.to_h(candidate(ci_command: nil))
 
-    refute h.dig("review", "ci").key?("command"), "an uncurated gate (no test_cmd) leaves ci.command unset"
+    assert_nil h.dig("review", "ci", "command"), "prod hive uses ci.command: null to skip the CI-fix phase"
   end
 
   def test_worktree_root_under_work_and_main_branch

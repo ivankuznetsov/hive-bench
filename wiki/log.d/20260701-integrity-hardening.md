@@ -30,3 +30,10 @@ Second round (same day):
   anthropic.
 
 Pages touched: [[architecture]], [[decisions]], [[gaps]].
+
+Third round (same day): full hive cycle. `hive_stages.sh` runs open-pr + review
+after execute (bench-local bare origin + gh shim; HB_REVIEW=0 opts out),
+`hive_config.rb` emits the prod-default review section with candidate-agent
+substitution (github_publish off; pr-review-toolkit only for claude), dual diff
+capture (execute vs final) gives the review-lift signal, `hive_run --task`
+filters the corpus for smoke runs.

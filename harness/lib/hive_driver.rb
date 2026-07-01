@@ -100,6 +100,9 @@ module HiveBench
     def run_container(slug, base, work, candidate)
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
+             # Full-cycle by default (plan->execute->open-pr->review, the real
+             # hive pipeline); HB_REVIEW=0 falls back to plan+execute only.
+             "-e", "HB_REVIEW=#{ENV.fetch("HB_REVIEW", "1")}",
              # Resource caps: comparability (wall-clock cells shouldn't vary with
              # host contention) as much as containment. Generous — hive runs a
              # full plan+execute agent session in here.
@@ -167,6 +170,7 @@ module HiveBench
       # The plan ended WAITING (open questions) and the bench force-completed it —
       # a covariate of the known scope-fork variance; surfaced so it's analyzable.
       tel["plan_forced_complete"] = true if stdout&.match?(/^HB_NOTE plan_forced_complete$/)
+      review_telemetry(tel, work, stdout)
       if (hit = answer_key_suspect(entry, work, stdout))
         # The agent appears to have touched the held-out reference PR — the score
         # would measure retrieval, not skill. Flag loudly; a curator adjudicates.
@@ -175,6 +179,26 @@ module HiveBench
       end
       status, reason = classify(stdout, work, diff)
       cell(entry, candidate, status, status == "generated" ? diff_path : nil, tel, reason)
+    end
+
+    # Review-cycle telemetry. Review failing must NOT lose a generated cell —
+    # the final diff falls back to the execute diff (hive_stages.sh copies it),
+    # and the outcome is recorded so a "generated" cell whose review died is
+    # never mistaken for a reviewed one. review_changed records whether review
+    # actually altered the diff (the review-lift signal).
+    def review_telemetry(tel, work, stdout)
+      %w[open-pr review].each do |st|
+        m = stdout.to_s[/^HB_STAGE #{st} rc=(\d+)$/, 1] or next
+        tel["#{st.tr("-", "_")}_ok"] = m == "0"
+      end
+      if (status = stdout.to_s[/^HB_NOTE review_status=(\w+)$/, 1])
+        tel["review_status"] = status
+      end
+      exec_patch = File.join(work, "candidate-execute.patch")
+      final_patch = File.join(work, "candidate.patch")
+      return unless File.file?(exec_patch) && File.file?(final_patch) && tel.key?("review_ok")
+
+      tel["review_changed_diff"] = File.read(exec_patch) != File.read(final_patch)
     end
 
     # run_status from the stage markers + the captured diff. limit_hit (a provider

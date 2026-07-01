@@ -35,6 +35,21 @@ for each corpus task T, for each candidate C:
   price table (canonical `cost_usd` = tokens × table; the CLI's self-reported
   figure is kept as `cost_usd_reported`).
 
+## Full cycle (2026-07-01)
+
+v2 now runs the COMPLETE hive pipeline per cell: plan → execute → **open-pr →
+review** → capture (HB_REVIEW=0 falls back to plan+execute). The review section
+of the generated config mirrors PROD hive defaults (triage courageous, fix
+agent, ci.max_attempts 3, max_passes 2) with the candidate's agent substituted
+everywhere; `github_publish` is disabled and open-pr lands on a bench-local
+bare origin with a minimal `gh` shim on PATH (`hive_stages.sh` writes both).
+The pr-review-toolkit reviewer runs only for claude candidates (claude plugin).
+TWO diffs are captured: `candidate-execute.patch` (post-execute) and
+`candidate.patch` (final, post-review — the scored one; falls back to the
+execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
+`review_status` (REVIEW_COMPLETE/WAITING/STALE) and `review_changed_diff`
+(the review-lift signal).
+
 ## Driver hardening (2026-07-01)
 
 - The gen container is **resource-capped** (`HB_CPUS`/`HB_MEMORY`/`HB_PIDS`,

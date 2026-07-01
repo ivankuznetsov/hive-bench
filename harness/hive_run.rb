@@ -30,6 +30,10 @@ module HiveBench
       opts = parse(argv)
       validate!(opts)
       entries = Corpus.load(root: opts[:corpus], checkout_source: opts[:source])
+      if opts[:task]
+        entries = entries.select { |e| e["task_id"] == opts[:task] }
+        abort("no corpus task #{opts[:task]}") if entries.empty?
+      end
       abort("no corpus entries under #{opts[:corpus]}") if entries.empty?
       candidates = select_candidates(opts[:candidate])
 
@@ -67,6 +71,7 @@ module HiveBench
         o.on("--corpus DIR") { |v| opts[:corpus] = v }
         o.on("--out DIR") { |v| opts[:out] = v }
         o.on("--candidate ID", "run only this candidate, e.g. all-opus-4.8") { |v| opts[:candidate] = v }
+        o.on("--task SLUG", "run only this corpus task") { |v| opts[:task] = v }
         o.on("--corpus-version V") { |v| opts[:corpus_version] = v }
         o.on("--seeds N", Integer, "judge samples per judge (default 1; use >=3 for " \
                                    "published cells — 1 seed collapses the tie interval") { |v| opts[:seeds] = v }
