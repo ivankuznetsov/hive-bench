@@ -68,6 +68,8 @@ module HiveBench
         o.on("--out DIR") { |v| opts[:out] = v }
         o.on("--candidate ID", "run only this candidate, e.g. all-opus-4.8") { |v| opts[:candidate] = v }
         o.on("--corpus-version V") { |v| opts[:corpus_version] = v }
+        o.on("--seeds N", Integer, "judge samples per judge (default 1; use >=3 for " \
+                                   "published cells — 1 seed collapses the tie interval") { |v| opts[:seeds] = v }
         o.on("--[no-]withhold-reference", "default off: judge vs the reference PR") { |v| opts[:withhold_reference] = v }
         o.on("--[no-]openrouter-judge") { |v| opts[:openrouter_judge] = v }
       end.parse!(argv)

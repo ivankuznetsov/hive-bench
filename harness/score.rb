@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "lib/model_family"
 
 module HiveBench
   # Scoring tier 3 + assembly. Combines a cell's gate verdict, judge result, and
@@ -28,8 +29,10 @@ module HiveBench
         "run_status" => cell[:run_status],
         "subset" => gate.subset,
         "gate" => { "status" => gate.status.to_s, "reason" => gate.reason },
-        # One entry per independent judge (e.g. opus-4.8 + gpt-5.5-pro).
-        "judges" => judge_records(judges),
+        # One entry per independent judge (e.g. opus-4.8 + gpt-5.5-pro). A judge
+        # sharing a model family with the candidate is flagged `same_family` —
+        # self-preference bias means those scores can't headline a leaderboard.
+        "judges" => judge_records(judges, cell),
         "efficiency" => cell[:telemetry] || {}
       }
     end
@@ -50,9 +53,11 @@ module HiveBench
 
     private
 
-    def judge_records(judges)
-      (judges || {}).transform_values do |j|
-        { "mean" => j.mean, "interval" => j.interval, "reference_withheld" => j.reference_withheld }
+    def judge_records(judges, cell)
+      (judges || {}).to_h do |name, j|
+        [name, { "mean" => j.mean, "interval" => j.interval,
+                 "reference_withheld" => j.reference_withheld,
+                 "same_family" => ModelFamily.same_family?(name, cell[:agent_id], cell[:model_version]) }]
       end
     end
 
@@ -76,7 +81,10 @@ module HiveBench
         "judged" => {
           "scored_cells" => judged_scored.size,
           # One mean per judge, so two independent judges are never collapsed.
-          "mean_quality" => mean_quality_by_judge(records)
+          "mean_quality" => mean_quality_by_judge(records),
+          # Same, restricted to judges family-disjoint from this candidate — the
+          # only mean fit to headline (self-family scores carry preference bias).
+          "mean_quality_cross_family" => mean_quality_by_judge(records, cross_family_only: true)
         },
         "efficiency" => efficiency_summary(records),
         "provenance" => {
@@ -86,10 +94,18 @@ module HiveBench
       }
     end
 
-    # { "<judge>" => mean across the cells that judge scored }.
-    def mean_quality_by_judge(records)
+    # { "<judge>" => mean across the cells that judge scored }. With
+    # cross_family_only, same-family scores are excluded (nil mean when a judge
+    # only ever scored its own family).
+    def mean_quality_by_judge(records, cross_family_only: false)
       names = records.flat_map { |r| (r["judges"] || {}).keys }.uniq
-      names.to_h { |name| [name, mean_of(records.filter_map { |r| r.dig("judges", name, "mean") })] }
+      names.to_h do |name|
+        scores = records.filter_map do |r|
+          j = r.dig("judges", name)
+          j["mean"] if j && !(cross_family_only && j["same_family"])
+        end
+        [name, mean_of(scores)]
+      end
     end
 
     def efficiency_summary(records)

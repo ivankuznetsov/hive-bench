@@ -23,16 +23,29 @@ incumbent-anchoring ablation so you can see exactly what the number means. See
 
 Like its sibling, integrity here is **structural, not requested**:
 
-- The candidate agent sees only the **frozen spec** (`idea` + `brainstorm` +
-  `plan`). It never sees the reference solution (`reference.patch`) or the
-  grading tests — they are held out of the agent-visible inputs.
-- Candidate execution and the test gate run in an **isolated, no-network,
-  resource-capped container**, with git hardened against hostile-repo
-  `.git/config` code execution. A candidate cannot fetch the answer key.
-- The judge is **blind** (identities stripped, length-normalized) and from a
-  model **family disjoint from every contestant**.
-- The harness **fails closed**: a score is never published from a run whose
-  isolation could not be enforced.
+- The candidate agent sees only the **frozen task inputs** (`idea` +
+  `brainstorm` + `plan`). It is never handed the reference solution
+  (`reference.patch`) or the grading tests — they are held out of the
+  agent-visible inputs.
+- The **test gate** runs in an isolated, `--network none`, resource-capped
+  container, with git hardened against hostile-repo `.git/config` code
+  execution — and it requires every gate test to be **positively observed**
+  in the run (verbose per-test output): a test that never executed is never
+  scored as a pass.
+- **Generation** needs model-API egress, so it cannot run `--network none`.
+  The container is resource-capped; an egress-allowlisted docker network can
+  be attached via `HB_GEN_NETWORK`, and every cell is **scanned for
+  answer-key access** (the public reference PR) — a flagged cell is invalid
+  until adjudicated. Until an egress proxy is standing, that scan is
+  detection, not prevention; stated here so the guarantee is never overstated.
+- Judging is **blind** (identities stripped, length-normalized) and **dual**
+  (opus-4.8 + gpt-5.5-pro). Full judge/contestant family-disjointness is
+  impossible when both judge families also compete, so every judge score
+  carries a `same_family` flag and the headline aggregate
+  (`mean_quality_cross_family`) uses cross-family scores only.
+- The harness **fails closed** where isolation is enforceable, and flags
+  loudly where it is not: a score is never published from a run whose posture
+  is unknown.
 
 ## How scoring works
 

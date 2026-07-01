@@ -225,7 +225,7 @@ module HiveBench
         o.on("--[no-]withhold-reference", "judge on plan+diff alone (default: on)") { |v| opts[:withhold_reference] = v }
         o.on("--[no-]claude-judge", "score with the local claude judge (default: on)") { |v| opts[:claude_judge] = v }
         o.on("--judge-bin BIN", "claude judge CLI binary (default: claude)") { |v| opts[:judge_bin] = v }
-        o.on("--judge-model M", "claude judge model (default: CLI default)") { |v| opts[:judge_model] = v }
+        o.on("--judge-model M", "claude judge model (default: claude-fable-5)") { |v| opts[:judge_model] = v }
         o.on("--[no-]openrouter-judge", "score with the OpenRouter judge (default: on)") { |v| opts[:openrouter_judge] = v }
         o.on("--openrouter-judge-model M", "default: openai/gpt-5.5-pro") { |v| opts[:openrouter_judge_model] = v }
         o.separator ""
@@ -264,13 +264,16 @@ module HiveBench
     end
 
     # The independent judges, keyed by the name recorded in results.json. Both on
-    # by default: opus-4.8 (local, a second opinion) + gpt-5.5-pro (family-disjoint,
-    # the publishable number).
+    # by default — the dual-judge slate (maintainer decision, 2026-07-01):
+    # fable-5 (local claude CLI, anthropic-family) + gpt-5.5-pro (OpenRouter,
+    # openai-family). Two judges is the slate; no third. The key DERIVES from the
+    # pinned judge model so results.json never claims a model that didn't judge.
     def judges(opts)
       j = {}
       if opts[:claude_judge]
-        j["opus-4.8"] = Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: opts[:judge_model]),
-                                  seeds: opts[:seeds])
+        model = opts[:judge_model] || "claude-fable-5"
+        j[model.sub(/\Aclaude-/, "")] =
+          Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: model), seeds: opts[:seeds])
       end
       if opts[:openrouter_judge]
         j[opts[:openrouter_judge_model].split("/").last] =
