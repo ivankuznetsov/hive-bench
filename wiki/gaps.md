@@ -7,24 +7,26 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - **OpenRouter balance ~$4** — the gpt-5.5-pro judge (each call reserves ~$6) can't run until
   topped up. Blocks completing the gpt-judge half of the v2 cells.
 
-## Candidate matrix (only `all-opus-4.8` proven)
+## Candidate matrix (opus, codex, and the mixed candidate PROVEN 2026-07-02)
 
-- **codex candidate** — needs container-posture work. v1 ran codex as root ("app-server needs
-  root"); claude needs non-root. For a mixed candidate (opus-plan → codex-exec) the two stages
-  want different postures in one container. UNVERIFIED whether codex runs non-root in the v2
-  image — test first.
+- ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
+  killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
+  ran the full cycle in the smoke.
 - **open models (glm/kimi via pi)** — hive has **no `--model` flag for pi**; the model comes
   from pi's provider config. To vary glm vs kimi, configure `~/.pi/agent` per run or add an
   `agents.pi.args` passthrough. UNVERIFIED.
+- **codex usage shape** — codex's stream reports input tokens with no cache split, so the
+  token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
+  codex reports cached tokens before publishing cost columns.
 
-## Review stage (the deferred phase)
+## Review stage (SHIPPED 2026-07-02 — leftovers)
 
-- `plan → execute → open-pr → review`. `open-pr` creates a GitHub PR (needs gh) — use hive's
-  babysitter dry-run stubs (`bin/hive-babysitter-stub-gh`, `Hive::Babysitter::DryRunEnv`).
-- `review` runs CI-fix + reviewers + triage + fix loop. Config: `review.ci.command`,
-  `review.max_passes`, `review.max_wall_clock_sec`, and **`review.reviewers` must be HASHES**
-  (v2 currently emits `reviewers: []` — empty is valid; the hash shape is unwritten).
-- Terminal markers `REVIEW_COMPLETE`/`REVIEW_WAITING`/`REVIEW_STALE` should map to `run_status`.
+- Full cycle runs (open-pr + review with prod-default config, gh shim, bench-local origin;
+  see [[architecture]]). Leftovers:
+  - `review_status` marker capture found nothing in status.md — locate hive's terminal
+    REVIEW_COMPLETE/WAITING/STALE marker (file/format) and wire it into telemetry.
+  - CI-fix phase is inert while `ci.command` is null (prod parity); once gates are curated,
+    feed the gate's `test_cmd` in as `ci_command` so review runs real CI.
 
 ## Cleanup (Stage E)
 

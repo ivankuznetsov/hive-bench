@@ -34,6 +34,29 @@ actual hive. See [[architecture]].
   this diff accomplish the task," not "how close to the reference"). v2 runs RunAll with
   `withhold_reference: false`.
 
+## Full-cycle smoke (2026-07-02, fix-claude-tmux-ready-detector, fable-5 judge)
+
+First run of the COMPLETE pipeline (plan → execute → open-pr → review) across the
+whole slate — every cell generated, reviewed, and scored:
+
+| candidate | fable-5 | wall | est. cost | review |
+|---|---|---|---|---|
+| all-opus-4.8 | 8.0 (same-family) | 38 min | $11.80 | 2 passes, diff changed |
+| all-codex | 7.0 | 16 min | $21.74* | 1 pass, diff unchanged |
+| opus-plan→codex-exec | 8.5 (same-family) | 52 min | n/a (mixed) | 2 passes, diff changed |
+
+- **Codex container posture SOLVED**: tmpfs `~/.codex` (identical trap to
+  `.claude` — root-owned bind-parent kills the CLI at startup). The codex and
+  mixed candidates are now proven paths, closing the oldest v2 gap.
+- **Review lift is real and measured**: both claude-planned cells' review passes
+  changed the diff (`review_changed_diff`); codex's single pass changed nothing.
+- **Prod reviewer set ran as mapped**: claude cells → ce-code-review +
+  pr-review-toolkit; codex cell → codex-ce-code-review (plugin constraint).
+- *Codex cost caveat: its stream reports 4.2M input tokens with no cache split —
+  the $21.74 estimate prices them all uncached and is likely overstated; verify
+  codex's usage shape before publishing cost columns.
+- gpt-5.5-pro judging pending (OpenRouter top-up), backfill via rejudge.
+
 ## v1 findings (the imitation — still informative)
 
 - **The refined plan is worth ~2 gpt-points, robust across agents.** Frozen-plan execution
