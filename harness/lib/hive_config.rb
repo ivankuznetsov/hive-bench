@@ -37,6 +37,9 @@ module HiveBench
         "worktree_root" => worktree_root,
         "plan" => { "agent" => candidate.plan },
         "execute" => { "agent" => candidate.execute },
+        # Without this, hive's built-in default (claude) would open the PR even
+        # for open-model candidates — keep every stage on the candidate's agents.
+        "open_pr" => { "agent" => candidate.review },
         "review" => review_config(candidate)
       }
     end

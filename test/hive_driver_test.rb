@@ -128,4 +128,19 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, "--cpus"
     assert_match(/echo HB_EXIT rc=\$\?/, @seen_cmd.last)
   end
+
+  def test_pi_candidate_gets_per_stage_model_env
+    glm_kimi = HiveBench::Candidates.by_id("glm-plan->kimi-exec")
+    driver.call(entry: entry, candidate: glm_kimi, out_dir: @out)
+
+    assert_includes @seen_cmd, "HB_PI_MODEL_PLAN=#{HiveBench::Candidates::GLM}"
+    assert_includes @seen_cmd, "HB_PI_MODEL_EXECUTE=#{HiveBench::Candidates::KIMI}"
+    assert_includes @seen_cmd, "HB_PI_MODEL_REVIEW=#{HiveBench::Candidates::GLM}"
+  end
+
+  def test_claude_candidate_gets_no_pi_model_env
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    refute(@seen_cmd.any? { |a| a.to_s.start_with?("HB_PI_MODEL") })
+  end
 end

@@ -159,11 +159,17 @@ module HiveBench
       mounts
     end
 
-    # OPENROUTER_API_KEY is forwarded (never echoed) when a pi/open-model stage runs.
+    # OPENROUTER_API_KEY is forwarded (never echoed) when a pi/open-model stage
+    # runs, along with the per-stage pi model patterns the in-container pi shim
+    # injects as `--model` (hive has no pi model config of its own).
     def env_args(candidate)
-      return [] unless uses?(candidate, "pi") && ENV["OPENROUTER_API_KEY"]
+      return [] unless uses?(candidate, "pi")
 
-      ["-e", "OPENROUTER_API_KEY"]
+      args = ENV["OPENROUTER_API_KEY"] ? ["-e", "OPENROUTER_API_KEY"] : []
+      (candidate.pi_models || {}).each do |stage, pattern|
+        args += ["-e", "HB_PI_MODEL_#{stage.upcase}=#{pattern}"]
+      end
+      args
     end
 
     def uses?(candidate, agent)

@@ -16,10 +16,29 @@ SLUG="$1"
 BASE="$2"
 export HOME=/home/asterio
 git config --global --add safe.directory '*' 2>/dev/null
-mkdir -p /work/.hb
+mkdir -p /work/.hb/bin
+export PATH="/work/.hb/bin:$PATH"
 cd /work || exit 3
 
 stage() { echo "HB_STAGE $1 rc=$2"; }
+
+# Open-model candidates: hive has no pi model config, so a pi shim injects
+# `--model $HB_PI_MODEL` — set per hive verb below from HB_PI_MODEL_<STAGE>,
+# which is how a mixed pair (glm plans, kimi implements) works. hive's pi
+# preflight also insists on a non-empty ~/.pi/agent/auth.json; pi itself
+# authenticates via the OPENROUTER_API_KEY env, so a marker file satisfies it.
+if [ -n "${HB_PI_MODEL_PLAN:-}${HB_PI_MODEL_EXECUTE:-}${HB_PI_MODEL_REVIEW:-}" ]; then
+  PI_REAL="$(command -v pi)"
+  cat >/work/.hb/bin/pi <<PI
+#!/usr/bin/env bash
+exec "$PI_REAL" \${HB_PI_MODEL:+--model "\$HB_PI_MODEL"} "\$@"
+PI
+  chmod +x /work/.hb/bin/pi
+  mkdir -p "$HOME/.pi/agent"
+  [ -s "$HOME/.pi/agent/auth.json" ] || \
+    echo '{"openrouter":{"type":"api-key","via":"OPENROUTER_API_KEY env"}}' >"$HOME/.pi/agent/auth.json"
+  echo "HB_NOTE pi_models plan=${HB_PI_MODEL_PLAN:-} execute=${HB_PI_MODEL_EXECUTE:-} review=${HB_PI_MODEL_REVIEW:-}"
+fi
 
 # Capture the task worktree's diff vs base into $1: committed + uncommitted +
 # untracked (agents often leave work uncommitted), minus vendored/build trees.
@@ -46,7 +65,8 @@ capture() {
 }
 
 # 1. PLAN — real /ce-plan.
-hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
+HB_PI_MODEL="${HB_PI_MODEL_PLAN:-}" \
+  hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
 stage plan $?
 
 # /ce-plan ends WAITING when it raised open questions. With no human in the loop,
@@ -64,7 +84,8 @@ PLAN_TASK="$(dirname "$PLAN_MD" 2>/dev/null)"
 
 # 2. EXECUTE — real develop -> worktree off base_commit.
 if [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
-  hive develop "$PLAN_TASK" --json >/work/.hb/develop.json 2>>/work/.hb/stage.err
+  HB_PI_MODEL="${HB_PI_MODEL_EXECUTE:-}" \
+    hive develop "$PLAN_TASK" --json >/work/.hb/develop.json 2>>/work/.hb/stage.err
   stage develop $?
 fi
 
@@ -84,7 +105,6 @@ if [ "${HB_REVIEW:-1}" = "1" ] && [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]
   git -C /work remote add origin /work/.hb/origin.git 2>/dev/null
   git -C /work push -q origin main 2>/dev/null
 
-  mkdir -p /work/.hb/bin
   cat >/work/.hb/bin/gh <<'GH'
 #!/usr/bin/env bash
 # bench gh shim: enough of gh for hive's open-pr/review in an offline container.
@@ -109,11 +129,12 @@ esac
 exit 0
 GH
   chmod +x /work/.hb/bin/gh
-  export PATH="/work/.hb/bin:$PATH"
 
-  hive open-pr "$(task_dir)" --json >/work/.hb/open_pr.json 2>>/work/.hb/stage.err
+  HB_PI_MODEL="${HB_PI_MODEL_REVIEW:-}" \
+    hive open-pr "$(task_dir)" --json >/work/.hb/open_pr.json 2>>/work/.hb/stage.err
   stage open-pr $?
-  hive review "$(task_dir)" --json >/work/.hb/review.json 2>>/work/.hb/stage.err
+  HB_PI_MODEL="${HB_PI_MODEL_REVIEW:-}" \
+    hive review "$(task_dir)" --json >/work/.hb/review.json 2>>/work/.hb/stage.err
   stage review $?
 
   ST="$(find /work/.hive-state/stages -name status.md -path "*$SLUG*" 2>/dev/null | head -1)"
