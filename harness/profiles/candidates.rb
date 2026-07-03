@@ -59,9 +59,10 @@ module HiveBench
     end
 
     def all_kimi
-      base("all-kimi-k2.7", plan: "pi", execute: "pi", review: "pi",
-                            pi_models: { "plan" => KIMI, "execute" => KIMI, "review" => KIMI },
-                            model_version: "kimi-k2.7-code")
+      # The CODE variant, deliberately — kimi-k2.7 base is a different model.
+      base("all-kimi-k2.7-code", plan: "pi", execute: "pi", review: "pi",
+                                 pi_models: { "plan" => KIMI, "execute" => KIMI, "review" => KIMI },
+                                 model_version: "kimi-k2.7-code")
     end
 
     # "glm with kimi": glm plans (and reviews), kimi implements — the open-model
