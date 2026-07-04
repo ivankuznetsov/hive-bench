@@ -34,6 +34,11 @@ module HiveBench
       /\b402\b[^\n]{0,40}(?:credit|payment|insufficient)/i,
       /(?:key|credit|spend(?:ing)?|usage|total|monthly|daily) limit exceeded/i,
       /\b403\b[^\n]{0,40}limit exceeded/i,
+      # hive's own stage-error marker for a provider wall mid-stage:
+      #   `stage recorded :error ({"reason" => "limits_reached", ...})`
+      #   `implementer hit a usage/credit limit`
+      /limits_reached/i,
+      /hit a usage\/credit limit/i,
       /quota (?:exhausted|exceeded|reached)/i,
       /rate limit (?:reached|exceeded|reset|hit)/i,
       /too many requests/i,

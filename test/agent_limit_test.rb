@@ -12,6 +12,13 @@ class AgentLimitTest < Minitest::Test
     assert L.limit_hit?("Purchase more usage credits to continue")
   end
 
+  def test_detects_hive_stage_limits_reached_marker
+    # The exact shape hive writes to stage.err when a provider wall hits
+    # mid-stage (seen live 2026-07-03: an opus cell misclassified execute_failed).
+    assert L.limit_hit?('hive: stage recorded :error ({"reason" => "limits_reached", "provider" => "claude", ' \
+                        '"message" => "implementer hit a usage/credit limit", "retry_after" => "2026-07-03T11:14:16Z"})')
+  end
+
   def test_detects_429_and_quota_errors
     assert L.limit_hit?("HTTP 429 Too Many Requests")
     assert L.limit_hit?("RESOURCE_EXHAUSTED: quota exceeded")
