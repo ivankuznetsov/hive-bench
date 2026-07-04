@@ -57,6 +57,47 @@ whole slate — every cell generated, reviewed, and scored:
   codex's usage shape before publishing cost columns.
 - gpt-5.5-pro judging pending (OpenRouter top-up), backfill via rejudge.
 
+## First full board (2026-07-04, 6 tasks × 6 candidates, full cycle, judged vs gold)
+
+Scores as gpt-5.5-pro/fable-5 (cross-family first; `?` = judge backfill pending):
+
+| candidate | add-i-key | web-install | install | fix-tmux | fix-review | daemon |
+|---|---|---|---|---|---|---|
+| all-opus-4.8 | 1.0/1.3* | limit | limit | ?/8.0 | limit | limit |
+| all-codex | 4.0/6.0 | 2.0/? | 2.0/? | 7.0/7.0 | 2.0/? | 3.7/5.7 |
+| opus-plan→codex-exec | 2.0/2.0 | limit | limit | ?/8.5 | limit | 4.0/? |
+| all-glm-5.2 | 4.0/6.2 | 2.0/? | 2.0/? | **8.0**/? | 4.0/? | exec-fail |
+| all-kimi-k2.7-code | exec-fail | empty | 2.0/3.7 | 402† | exec-fail | exec-fail |
+| glm-plan→kimi-exec | —† | —† | —† | —† | —† | —† |
+
+\* the 1/3 minimal-fork plan variance sample. † lost to the OpenRouter balance
+drain (glm's plan agent died on $0 → tasks stuck at 3-plan) — re-run, not model
+signal.
+
+**What it says so far:**
+
+- **glm-5.2 is the surprise**: completes the full cycle reliably and posts the
+  board's best cross-family score (8.0 on fix-tmux, beating codex's 7.0), at
+  ~$13/task vs codex/opus subscription burn. On the scored subset its gpt mean
+  (4.0) edges codex (3.4).
+- **codex is the workhorse**: only candidate to sweep all 6 tasks — never hit a
+  wall, never failed a stage — but scores cluster low-mid (2.0 on the three
+  hard tasks).
+- **The install-class tasks discriminate** (everything scores 2.0 there);
+  fix-tmux separates the field — consistent with v1's "add-i-key saturates,
+  install discriminates".
+- **Closed-model subscriptions are the real bottleneck**: opus generated ~1
+  cell per limit window; 9 of its 11 remaining cells are still pending after
+  three windows. The pending/fail-soft machinery carried the whole day — no
+  cell was lost or mis-scored to a wall (after the limits_reached classifier
+  fix it exposed).
+- **kimi-k2.7-code struggles inside hive's harness** (3 execute_failed + 1
+  empty_diff *before* the drain) — needs a look at its failure mode before
+  reading it as model quality.
+- **Full-cycle review costs ~4× bare execute** for pay-per-token models
+  (glm: ~49M cache-read tokens/task; $81 for 6 cells) — the subscription
+  models hide the same burn.
+
 ## v1 findings (the imitation — still informative)
 
 - **The refined plan is worth ~2 gpt-points, robust across agents.** Frozen-plan execution

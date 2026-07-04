@@ -52,6 +52,23 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   id, the judge fails loudly (fail-soft parks the cell); verify on the first judged pass or
   pin with `--judge-model`.
 
+## Finish-the-board queue (2026-07-04)
+
+- **9 opus/mixed cells pending** on claude limit windows — `tmp/retry-pending.sh`
+  babysits them (sweeps each window, max 6). Re-launch it if it exhausts sweeps.
+- **11 open-model cells to re-run** after the balance drain: all 6 glm→kimi pair
+  cells, 4 kimi cells (plus diagnose kimi's pre-drain execute_faileds), 1 glm
+  daemon cell.
+- **Judge backfill** (`harness/rejudge.rb`): fable-5 missing on most codex/glm
+  cells (claude wall), gpt missing on the smoke cells.
+- **Classifier patterns still missing**: OpenRouter's "requires more credits, or
+  fewer max_tokens" (402 variant) isn't in AgentLimit; a plan stage stuck at
+  `:agent_working` after an instant agent death classifies as execute_failed
+  rather than a limit when the balance is the cause.
+- **Recompute open-cell telemetry at merge time** — cells generated before the
+  pi camelCase fix carry zero tokens; the stream logs persist, so a merge-time
+  backfill can price them.
+
 ## Known open questions
 
 - **`/ce-plan` variance** is 2/3-good but real. For a publishable single-seed leaderboard,
