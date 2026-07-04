@@ -290,12 +290,15 @@ module HiveBench
           obj = stream_json(line) or next
           u = obj.dig("message", "usage") || obj["usage"]
           if u.is_a?(Hash)
-            input += u["input_tokens"].to_i
-            output += u["output_tokens"].to_i
-            cached += u["cache_read_input_tokens"].to_i
+            # Two stream schemas: claude's snake_case *_tokens and pi's camelCase
+            # input/output/cacheRead/cacheWrite — without the aliases, open-model
+            # cells recorded zero tokens and no cost.
+            input += (u["input_tokens"] || u["input"]).to_i
+            output += (u["output_tokens"] || u["output"]).to_i
+            cached += (u["cache_read_input_tokens"] || u["cacheRead"]).to_i
             # Cache WRITES are billed too (claude: ~1.25x input rate) — dropping
             # them systematically understated the API-equivalent cost.
-            cache_creation += u["cache_creation_input_tokens"].to_i
+            cache_creation += (u["cache_creation_input_tokens"] || u["cacheWrite"]).to_i
           end
           cost += obj["total_cost_usd"].to_f if obj["type"] == "result"
         end
