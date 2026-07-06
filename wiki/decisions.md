@@ -57,11 +57,13 @@ how they're implemented.
   quotes the deliverable text are rejected as transcription tasks (see the three
   `update-the-openclaw-hive-skill` extractions, corpus/MANIFEST.md).
 
-## 2026-07-06 — pair install/fix-tmux: no further retries (maintainer decision)
+## 2026-07-06 — pair install/fix-tmux: EXCLUDED from the bench (maintainer decision)
 
 `glm-plan->kimi-exec` failed execute on figure-out-install and fix-tmux twice
-each WITH funds available — that is reproducible signal, not infra noise. The
-recorded `execute_failed` cells stand on the board as honest outcomes; no
-budget retries them again. (The pair's daemon/web-install failures coincided
-with balance drains and remain retry-eligible if ever funded — they are NOT
-part of this exclusion.)
+each WITH funds available — unfinishable, so per maintainer decision those two
+cells are REMOVED from the board: dropped from the published cells and
+aggregates, with the exclusion (and its reason) named in RESULTS.md caveats.
+The pair is evaluated over its remaining tasks. The handoff-fragility finding
+survives in [[findings]] prose — the exclusion removes the cells, not the
+lesson. (Daemon/web-install failures coincided with balance drains and remain
+retry-eligible if ever funded — NOT part of this exclusion.)
