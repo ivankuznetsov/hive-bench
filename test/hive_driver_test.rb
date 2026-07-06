@@ -51,6 +51,16 @@ class HiveDriverTest < Minitest::Test
 
   OK_STDOUT = "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
 
+  def with_claude_dir(dir)
+    original = HiveBench::HiveDriver::CLAUDE_DIR
+    HiveBench::HiveDriver.send(:remove_const, :CLAUDE_DIR)
+    HiveBench::HiveDriver.const_set(:CLAUDE_DIR, dir)
+    yield
+  ensure
+    HiveBench::HiveDriver.send(:remove_const, :CLAUDE_DIR)
+    HiveBench::HiveDriver.const_set(:CLAUDE_DIR, original)
+  end
+
   # A runner seam that fabricates the container's side effects, then returns stdout.
   def driver(stdout: OK_STDOUT, patch: "diff --git a/app.rb b/app.rb\n", log_lines: [])
     seen = @seen_cmd = []
@@ -127,6 +137,22 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, "--pids-limit"
     assert_includes @seen_cmd, "--cpus"
     assert_match(/echo HB_EXIT rc=\$\?/, @seen_cmd.last)
+  end
+
+  def test_claude_auth_mount_fails_before_docker_when_credentials_path_is_not_a_file
+    claude_dir = File.join(@root, "claude")
+    FileUtils.mkdir_p(claude_dir)
+
+    err = assert_raises(RuntimeError) do
+      with_claude_dir(claude_dir) do
+        HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing auth source" })
+                             .call(entry: entry, candidate: candidate, out_dir: @out)
+      end
+    end
+
+    assert_match(/claude credentials missing or not a file/, err.message)
+    refute File.exist?(File.join(claude_dir, ".credentials.json")),
+           "driver must not create Docker's missing bind-mount source"
   end
 
   def test_pi_candidate_gets_per_stage_model_env

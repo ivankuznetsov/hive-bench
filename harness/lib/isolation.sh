@@ -63,7 +63,13 @@ hb_isolated() {
       else
         # pi/claude: non-root, HOME on the tmpfs; mount claude's OAuth creds ro.
         env_args+=(-e HOME=/tmp)
-        [ -n "${HB_CLAUDE_AUTH:-}" ] && mount_args+=(-v "${HB_CLAUDE_AUTH}:/tmp/.claude/.credentials.json:ro")
+        if [ -n "${HB_CLAUDE_AUTH:-}" ]; then
+          [ -f "$HB_CLAUDE_AUTH" ] || {
+            echo "hive-bench: claude auth path is missing or not a file: $HB_CLAUDE_AUTH — failing closed" >&2
+            exit "$HB_FAIL_ISOLATION"
+          }
+          mount_args+=(-v "${HB_CLAUDE_AUTH}:/tmp/.claude/.credentials.json:ro")
+        fi
       fi
       ;;
     *)

@@ -3,6 +3,7 @@
 require "minitest/autorun"
 require "tmpdir"
 require "fileutils"
+require "open3"
 require "lib/isolation_exec"
 require "lib/profile"
 
@@ -180,6 +181,26 @@ class IsolationExecTest < Minitest::Test
     assert_equal "1", env["HB_ALLOW_EGRESS"]
     assert_equal File.expand_path("~/.claude/.credentials.json"), env["HB_CLAUDE_AUTH"]
     refute IE.gen_env(pi_profile).key?("HB_CLAUDE_AUTH"), "pi cells never mount claude creds"
+  end
+
+  def test_isolation_script_rejects_missing_claude_auth_before_docker_run
+    bin = File.join(@dir, "bin")
+    FileUtils.mkdir_p(bin)
+    docker = File.join(bin, "docker")
+    File.write(docker, "#!/usr/bin/env bash\necho docker must not run >&2\nexit 99\n")
+    FileUtils.chmod(0o755, docker)
+    missing_auth = File.join(@dir, "missing", ".credentials.json")
+    env = {
+      "PATH" => "#{bin}:#{ENV.fetch("PATH")}",
+      "HB_ALLOW_EGRESS" => "1",
+      "HB_CLAUDE_AUTH" => missing_auth
+    }
+
+    _out, err, status = Open3.capture3(env, "bash", IE::SCRIPT, "gen", @dir, "true")
+
+    assert_equal IE::FAIL_ISOLATION, status.exitstatus
+    assert_match(/claude auth path is missing or not a file/, err)
+    refute File.exist?(missing_auth), "missing bind-mount source must not be created"
   end
 
   def test_frame_prompt_wraps_plan_with_uniform_instruction

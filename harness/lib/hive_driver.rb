@@ -143,6 +143,9 @@ module HiveBench
     def auth_mounts(candidate)
       mounts = []
       if uses?(candidate, "claude")
+        claude_credentials = File.join(CLAUDE_DIR, ".credentials.json")
+        raise "claude credentials missing or not a file: #{claude_credentials}" unless File.file?(claude_credentials)
+
         mounts += ["-v", "#{CLAUDE_DIR}/.credentials.json:#{HOME}/.claude/.credentials.json:ro",
                    "-v", "#{CLAUDE_DIR}/settings.json:#{HOME}/.claude/settings.json:ro",
                    "-v", "#{CLAUDE_DIR}/plugins:#{HOME}/.claude/plugins:ro"]
