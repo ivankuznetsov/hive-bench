@@ -51,6 +51,13 @@ hb_isolated() {
         [ -n "${!k:-}" ] && env_args+=(-e "$k")
       done
       if [ -n "${HB_CODEX_AUTH:-}" ]; then
+        # RULE: never hand docker a bind-mount source unless it already exists
+        # as a regular file — docker creates a missing source as a root-owned
+        # DIRECTORY on the host, permanently breaking the CLI's login there.
+        [ -f "$HB_CODEX_AUTH" ] || {
+          echo "hive-bench: codex auth path is missing or not a file: $HB_CODEX_AUTH — failing closed" >&2
+          exit "$HB_FAIL_ISOLATION"
+        }
         # codex's in-process app-server requires uid 0 + relaxed seccomp, and
         # refuses a codex_home under /tmp — so it gets root, a writable /root, and
         # an unconfined seccomp profile. Weaker than the non-root posture above,

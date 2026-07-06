@@ -151,8 +151,30 @@ class HiveDriverTest < Minitest::Test
     end
 
     assert_match(/claude credentials missing or not a file/, err.message)
-    refute File.exist?(File.join(claude_dir, ".credentials.json")),
-           "driver must not create Docker's missing bind-mount source"
+    refute_path_exists File.join(claude_dir, ".credentials.json"),
+                       "driver must not create Docker's missing bind-mount source"
+  end
+
+  # Docker creates ANY missing bind-mount source as a root-owned host directory
+  # — settings.json and plugins/ carry the same trap as the credentials file.
+  def test_claude_settings_and_plugins_mounts_fail_before_docker_when_missing
+    claude_dir = File.join(@root, "claude")
+    FileUtils.mkdir_p(claude_dir)
+    File.write(File.join(claude_dir, ".credentials.json"), "{}")
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing mount source" })
+
+    err = assert_raises(RuntimeError) do
+      with_claude_dir(claude_dir) { no_docker.call(entry: entry, candidate: candidate, out_dir: @out) }
+    end
+
+    assert_match(/claude settings missing or not a file/, err.message)
+
+    File.write(File.join(claude_dir, "settings.json"), "{}")
+    err = assert_raises(RuntimeError) do
+      with_claude_dir(claude_dir) { no_docker.call(entry: entry, candidate: candidate, out_dir: @out) }
+    end
+
+    assert_match(/claude plugins missing or not a directory/, err.message)
   end
 
   def test_pi_candidate_gets_per_stage_model_env

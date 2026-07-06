@@ -143,12 +143,22 @@ module HiveBench
     def auth_mounts(candidate)
       mounts = []
       if uses?(candidate, "claude")
+        # RULE: never hand docker a bind-mount source unless it already exists
+        # with the right type — docker creates a missing source as a root-owned
+        # DIRECTORY on the host, which permanently breaks claude login there
+        # (a token-refresh rename can even open that window transiently).
         claude_credentials = File.join(CLAUDE_DIR, ".credentials.json")
         raise "claude credentials missing or not a file: #{claude_credentials}" unless File.file?(claude_credentials)
 
-        mounts += ["-v", "#{CLAUDE_DIR}/.credentials.json:#{HOME}/.claude/.credentials.json:ro",
-                   "-v", "#{CLAUDE_DIR}/settings.json:#{HOME}/.claude/settings.json:ro",
-                   "-v", "#{CLAUDE_DIR}/plugins:#{HOME}/.claude/plugins:ro"]
+        claude_settings = File.join(CLAUDE_DIR, "settings.json")
+        raise "claude settings missing or not a file: #{claude_settings}" unless File.file?(claude_settings)
+
+        claude_plugins = File.join(CLAUDE_DIR, "plugins")
+        raise "claude plugins missing or not a directory: #{claude_plugins}" unless File.directory?(claude_plugins)
+
+        mounts += ["-v", "#{claude_credentials}:#{HOME}/.claude/.credentials.json:ro",
+                   "-v", "#{claude_settings}:#{HOME}/.claude/settings.json:ro",
+                   "-v", "#{claude_plugins}:#{HOME}/.claude/plugins:ro"]
       end
       codex = File.expand_path("~/.codex/auth.json")
       if uses?(candidate, "codex") && File.file?(codex)

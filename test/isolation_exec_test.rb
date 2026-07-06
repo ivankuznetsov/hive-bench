@@ -200,7 +200,7 @@ class IsolationExecTest < Minitest::Test
 
     assert_equal IE::FAIL_ISOLATION, status.exitstatus
     assert_match(/claude auth path is missing or not a file/, err)
-    refute File.exist?(missing_auth), "missing bind-mount source must not be created"
+    refute_path_exists missing_auth, "missing bind-mount source must not be created"
   end
 
   def test_frame_prompt_wraps_plan_with_uniform_instruction
