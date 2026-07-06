@@ -31,6 +31,8 @@ class AgentLimitTest < Minitest::Test
     # The exact string Pi surfaces on a drained OpenRouter balance.
     assert L.limit_hit?('"errorMessage":"402 Insufficient credits. Add more using https://openrouter.ai/settings/credits"')
     assert L.limit_hit?("Error 402: insufficient balance")
+    # The judge-path phrasing of the same wall (seen live 2026-07-06).
+    assert L.limit_hit?('402: {"error":{"message":"This request requires more credits, or fewer max_tokens..."}}')
     refute L.limit_hit?("the function returns 402 widgets after the loop"), "bare 402 unrelated to billing is not a limit"
   end
 

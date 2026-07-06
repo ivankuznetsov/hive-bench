@@ -31,6 +31,10 @@ module HiveBench
       # once a key hits its spend cap. Without these, a credit/key-drained
       # open-model cell is misscored as a real failure instead of parked pending.
       /insufficient (?:credits?|balance|funds)/i,
+      # OpenRouter's other empty-balance phrasing: "This request requires more
+      # credits, or fewer max_tokens" — without it, a drained-balance judge
+      # failure parks the cell as failed instead of pending (seen live 2026-07-06).
+      /requires more credits/i,
       /\b402\b[^\n]{0,40}(?:credit|payment|insufficient)/i,
       /(?:key|credit|spend(?:ing)?|usage|total|monthly|daily) limit exceeded/i,
       /\b403\b[^\n]{0,40}limit exceeded/i,
