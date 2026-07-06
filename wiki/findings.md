@@ -57,6 +57,16 @@ whole slate — every cell generated, reviewed, and scored:
   codex's usage shape before publishing cost columns.
 - gpt-5.5-pro judging pending (OpenRouter top-up), backfill via rejudge.
 
+## FINAL v2 board (2026-07-06) — see RESULTS.md
+
+The campaign closed with 30 cells. Cross-family means: codex 5.2 (fable, 6/6),
+glm-5.2 4.0 (gpt, 6/6), kimi-k2.7-code 3.6 (gpt, 5/6), pair 4.0 (gpt, 2/6),
+opus 1.0 (gpt, 1/6 — subscription-limited, not capability). Best cells: glm
+8.0/9.0 and kimi 8.0/8.5 on fix-tmux. Deliberation verdict across 10 discussed
+cells: gpt never revised (0.00), fable revised only downward after verifying
+gpt's claims — the strict judge's verdicts survive fact-checking. Full table,
+caveats and cost model in RESULTS.md; unresolved holes in [[gaps]].
+
 ## First full board (2026-07-04, 6 tasks × 6 candidates, full cycle, judged vs gold)
 
 Scores as gpt-5.5-pro/fable-5 (cross-family first; `?` = judge backfill pending):
