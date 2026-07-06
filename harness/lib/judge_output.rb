@@ -18,7 +18,9 @@ module HiveBench
       obj = last_score_object(text)
       raise Error, %(judge returned no parseable {"score": <number>} JSON) unless obj
 
-      { score: obj["score"], reason: obj["reason"].to_s }
+      # `discussion` is only present in deliberation round-2 replies; empty
+      # elsewhere. Passed through so the deliberation transcript keeps it.
+      { score: obj["score"], reason: obj["reason"].to_s, discussion: obj["discussion"].to_s }
     end
 
     def last_score_object(text)

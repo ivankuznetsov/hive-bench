@@ -1,0 +1,126 @@
+# frozen_string_literal: true
+
+# Runs judge DELIBERATION over already-generated cells: round 1 re-grades each
+# diff independently (with reasons), round 2 shares the anonymized verdicts and
+# each judge writes a discussion + final score. Output is a transcript file for
+# analysis — it never touches the leaderboard results.json (the published score
+# stays the independent mean; see lib/deliberation.rb for why).
+#
+#   OPENROUTER_API_KEY=… ruby harness/deliberate.rb --source <clone> \
+#     --results runs/v2-merged/results.json --out runs/v2-merged/deliberation.json <search-dir>...
+$LOAD_PATH.unshift(__dir__) unless $LOAD_PATH.include?(__dir__)
+
+require "json"
+require "optparse"
+require "fileutils"
+require "lib/deliberation"
+require "lib/corpus"
+require "lib/git_restore"
+require "lib/claude_judge"
+require "lib/openrouter_judge"
+require "rejudge"
+
+module HiveBench
+  module DeliberateCli
+    module_function
+
+    def run(cells:, search_dirs:, source:, corpus_root:, judge_fns:, withhold_reference: false)
+      bases = Corpus.load(root: corpus_root, checkout_source: source)
+                    .to_h { |e| [e["task_id"], { base: e.dig("source", "base_commit"), entry: e }] }
+      restorer = GitRestore.new
+      delib = Deliberation.new(judge_fns: judge_fns)
+      transcripts = cells.filter_map do |cell|
+        info = bases[cell["task_id"]] or next
+        diff = Rejudge.recover_diff(search_dirs, cell, info[:base], restorer)
+        next if diff.strip.empty?
+
+        plan = Rejudge.read_plan(info[:entry])
+        reference = withhold_reference ? nil : Rejudge.read_reference(info[:entry])
+        verdicts = delib.call(plan: plan, candidate_diff: diff, reference: reference)
+        next if verdicts.empty?
+
+        warn "  deliberated #{cell["agent_id"]} #{cell["task_id"]}: " +
+             verdicts.map { |n, v| "#{n} #{v.initial}->#{v.final || "?"}" }.join("  ")
+        transcript(cell, verdicts)
+      end
+      { "schema" => "hive-bench-deliberation", "schema_version" => 1,
+        "cells" => transcripts, "summary" => summary(transcripts) }
+    end
+
+    def transcript(cell, verdicts)
+      { "task_id" => cell["task_id"], "agent_id" => cell["agent_id"],
+        "judges" => verdicts.transform_values do |v|
+          { "initial" => v.initial, "initial_reason" => v.initial_reason,
+            "final" => v.final, "final_reason" => v.final_reason,
+            "discussion" => v.discussion, "revised" => v.revised?, "delta" => v.delta }
+        end }
+    end
+
+    # Aggregate movement: how far each judge moved, and whether discussion
+    # narrowed the inter-judge spread (convergence) — the anchoring telltale.
+    def summary(transcripts)
+      per_judge = Hash.new { |h, k| h[k] = [] }
+      spreads = { before: [], after: [] }
+      transcripts.each do |t|
+        js = t["judges"].values
+        if js.size >= 2
+          spreads[:before] << (js.map { |j| j["initial"] }.max - js.map { |j| j["initial"] }.min)
+          finals = js.map { |j| j["final"] || j["initial"] }
+          spreads[:after] << (finals.max - finals.min)
+        end
+        t["judges"].each { |name, j| per_judge[name] << j["delta"] if j["delta"] }
+      end
+      {
+        "cells" => transcripts.size,
+        "mean_revision_by_judge" => per_judge.transform_values { |d| (d.sum / d.size).round(3) },
+        "mean_abs_revision_by_judge" => per_judge.transform_values { |d| (d.sum(&:abs) / d.size).round(3) },
+        "mean_spread_before" => mean(spreads[:before]),
+        "mean_spread_after" => mean(spreads[:after])
+      }
+    end
+
+    def mean(values) = values.empty? ? nil : (values.sum.to_f / values.size).round(3)
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  opts = { source: nil, corpus: "corpus", results: "runs/v2-merged/results.json",
+           out: "runs/v2-merged/deliberation.json", judge_model: nil,
+           openrouter_model: "openai/gpt-5.5-pro", max_tokens: 16_384,
+           agent: nil, task: nil, withhold_reference: false }
+  OptionParser.new do |o|
+    o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/deliberate.rb --source <clone> [opts] <search-dir>..."
+    o.on("--source PATH") { |v| opts[:source] = v }
+    o.on("--corpus DIR") { |v| opts[:corpus] = v }
+    o.on("--results PATH") { |v| opts[:results] = v }
+    o.on("--out PATH") { |v| opts[:out] = v }
+    o.on("--agent ID", "only this candidate's cells") { |v| opts[:agent] = v }
+    o.on("--task SLUG", "only this task's cells") { |v| opts[:task] = v }
+    o.on("--max-tokens N", Integer) { |v| opts[:max_tokens] = v }
+    o.on("--judge-model M") { |v| opts[:judge_model] = v }
+    o.on("--openrouter-model M") { |v| opts[:openrouter_model] = v }
+    o.on("--[no-]withhold-reference") { |v| opts[:withhold_reference] = v }
+  end.parse!(ARGV)
+  abort("--source is required") unless opts[:source]
+  abort("give at least one search-dir") if ARGV.empty?
+
+  claude_model = opts[:judge_model] || "claude-fable-5"
+  judge_fns = {
+    claude_model.sub(/\Aclaude-/, "") => HiveBench::ClaudeJudge.judge_fn(model: claude_model),
+    opts[:openrouter_model].split("/").last =>
+      HiveBench::OpenRouterJudge.judge_fn(model: opts[:openrouter_model], max_tokens: opts[:max_tokens])
+  }
+
+  cells = JSON.parse(File.read(opts[:results]))["cells"]
+  cells = cells.select { |c| c["agent_id"] == opts[:agent] } if opts[:agent]
+  cells = cells.select { |c| c["task_id"] == opts[:task] } if opts[:task]
+  # Deliberation only makes sense where both judges already scored the cell.
+  cells = cells.select { |c| (c["judges"] || {}).size >= 2 }
+
+  out = HiveBench::DeliberateCli.run(cells: cells, search_dirs: ARGV, source: opts[:source],
+                                     corpus_root: opts[:corpus], judge_fns: judge_fns,
+                                     withhold_reference: opts[:withhold_reference])
+  FileUtils.mkdir_p(File.dirname(opts[:out]))
+  File.write(opts[:out], "#{JSON.pretty_generate(out)}\n")
+  warn "wrote #{opts[:out]}: #{out["cells"].size} deliberated cell(s); summary=#{out["summary"].inspect}"
+end

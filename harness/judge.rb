@@ -15,7 +15,11 @@ module HiveBench
   # The judge model invocation is a seam (`judge_fn`) so the family-disjoint
   # model choice + live calls live at the edge, and tests run offline.
   class Judge
-    Result = Data.define(:mean, :stddev, :scores, :interval, :reference_withheld) do
+    Result = Data.define(:mean, :stddev, :scores, :interval, :reference_withheld, :reasons) do
+      # reasons defaults empty so pre-existing constructions (tests, merge paths)
+      # stay valid — older records simply carry no rationale.
+      def initialize(reasons: [], **rest) = super
+
       # Two cells are a tie when their judge intervals overlap — the leaderboard
       # must not order within noise.
       def ties_with?(other)
@@ -36,8 +40,10 @@ module HiveBench
 
     def call(plan:, candidate_diff:, reference: nil)
       prompt = render(plan: plan, candidate_diff: candidate_diff, reference: reference)
-      scores = (1..@seeds).map { |seed| clamp(@judge_fn.call(prompt: prompt, seed: seed).fetch(:score)) }
-      aggregate(scores, reference_withheld: reference.nil?)
+      verdicts = (1..@seeds).map { |seed| @judge_fn.call(prompt: prompt, seed: seed) }
+      aggregate(verdicts.map { |v| clamp(v.fetch(:score)) },
+                reasons: verdicts.map { |v| v[:reason].to_s },
+                reference_withheld: reference.nil?)
     end
 
     # Builds the judge prompt. Public so tests can assert blinding/verbosity rules.
@@ -59,12 +65,12 @@ module HiveBench
 
     private
 
-    def aggregate(scores, reference_withheld:)
+    def aggregate(scores, reference_withheld:, reasons: [])
       mean = scores.sum.to_f / scores.size
       var = scores.map { |s| (s - mean)**2 }.sum / scores.size
       stddev = Math.sqrt(var)
       Result.new(
-        mean: mean.round(3), stddev: stddev.round(3), scores: scores,
+        mean: mean.round(3), stddev: stddev.round(3), scores: scores, reasons: reasons,
         interval: [(mean - stddev).round(3), (mean + stddev).round(3)],
         reference_withheld: reference_withheld
       )

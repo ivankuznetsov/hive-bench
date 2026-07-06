@@ -38,7 +38,7 @@ module HiveBench
       #   `stage recorded :error ({"reason" => "limits_reached", ...})`
       #   `implementer hit a usage/credit limit`
       /limits_reached/i,
-      /hit a usage\/credit limit/i,
+      %r{hit a usage/credit limit}i,
       /quota (?:exhausted|exceeded|reached)/i,
       /rate limit (?:reached|exceeded|reset|hit)/i,
       /too many requests/i,
