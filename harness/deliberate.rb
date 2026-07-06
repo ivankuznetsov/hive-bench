@@ -87,7 +87,8 @@ if $PROGRAM_NAME == __FILE__
   opts = { source: nil, corpus: "corpus", results: "runs/v2-merged/results.json",
            out: "runs/v2-merged/deliberation.json", judge_model: nil,
            openrouter_model: "openai/gpt-5.5-pro", max_tokens: 16_384,
-           agent: nil, task: nil, withhold_reference: false }
+           agent: nil, task: nil, withhold_reference: false,
+           min_disagreement: 1.5, skip_done: nil }
   OptionParser.new do |o|
     o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/deliberate.rb --source <clone> [opts] <search-dir>..."
     o.on("--source PATH") { |v| opts[:source] = v }
@@ -100,6 +101,9 @@ if $PROGRAM_NAME == __FILE__
     o.on("--judge-model M") { |v| opts[:judge_model] = v }
     o.on("--openrouter-model M") { |v| opts[:openrouter_model] = v }
     o.on("--[no-]withhold-reference") { |v| opts[:withhold_reference] = v }
+    o.on("--min-disagreement N", Float, "only deliberate cells whose stored judge means differ " \
+                                        "by >= N (default 1.5; 0 = all dual-judged cells)") { |v| opts[:min_disagreement] = v }
+    o.on("--skip-done PATH", "skip cells already in this deliberation transcript") { |v| opts[:skip_done] = v }
   end.parse!(ARGV)
   abort("--source is required") unless opts[:source]
   abort("give at least one search-dir") if ARGV.empty?
@@ -114,8 +118,22 @@ if $PROGRAM_NAME == __FILE__
   cells = JSON.parse(File.read(opts[:results]))["cells"]
   cells = cells.select { |c| c["agent_id"] == opts[:agent] } if opts[:agent]
   cells = cells.select { |c| c["task_id"] == opts[:task] } if opts[:task]
-  # Deliberation only makes sense where both judges already scored the cell.
+  # Deliberation only makes sense where both judges already scored the cell —
+  # and only pays for itself where they DISAGREE (the pilot showed agreeing
+  # judges simply hold their scores; discussing agreement is wasted tokens).
   cells = cells.select { |c| (c["judges"] || {}).size >= 2 }
+  if opts[:min_disagreement].positive?
+    cells = cells.select do |c|
+      means = c["judges"].values.filter_map { |j| j["mean"] }
+      means.size >= 2 && (means.max - means.min) >= opts[:min_disagreement]
+    end
+  end
+  if opts[:skip_done] && File.file?(opts[:skip_done])
+    seen = JSON.parse(File.read(opts[:skip_done]))["cells"].to_a
+               .to_set { |t| [t["task_id"], t["agent_id"]] }
+    cells = cells.reject { |c| seen.include?([c["task_id"], c["agent_id"]]) }
+  end
+  warn "deliberating #{cells.size} cell(s) (min_disagreement=#{opts[:min_disagreement]})"
 
   out = HiveBench::DeliberateCli.run(cells: cells, search_dirs: ARGV, source: opts[:source],
                                      corpus_root: opts[:corpus], judge_fns: judge_fns,
