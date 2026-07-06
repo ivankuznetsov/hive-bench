@@ -56,3 +56,12 @@ how they're implemented.
   legitimately quotes the code it prescribes. Content-specified docs tasks whose brainstorm
   quotes the deliverable text are rejected as transcription tasks (see the three
   `update-the-openclaw-hive-skill` extractions, corpus/MANIFEST.md).
+
+## 2026-07-06 — pair install/fix-tmux: no further retries (maintainer decision)
+
+`glm-plan->kimi-exec` failed execute on figure-out-install and fix-tmux twice
+each WITH funds available — that is reproducible signal, not infra noise. The
+recorded `execute_failed` cells stand on the board as honest outcomes; no
+budget retries them again. (The pair's daemon/web-install failures coincided
+with balance drains and remain retry-eligible if ever funded — they are NOT
+part of this exclusion.)
