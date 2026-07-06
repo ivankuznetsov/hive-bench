@@ -130,6 +130,8 @@ if $PROGRAM_NAME == __FILE__
     o.on("--openrouter-model M") { |v| opts[:openrouter_model] = v }
     o.on("--[no-]withhold-reference", "default off: judge vs the gold, matching v2 passes") { |v| opts[:withhold_reference] = v }
     o.on("--only-missing", "skip judges the cell already has a score from") { opts[:only_missing] = true }
+    o.on("--max-tokens N", Integer, "openrouter judge output cap (reservation = cap x output rate; " \
+                                    "lower it to backfill on a thin balance)") { |v| opts[:max_tokens] = v }
   end.parse!(ARGV)
   abort("--source is required") unless opts[:source]
   abort("give at least one search-dir") if ARGV.empty?
@@ -141,8 +143,10 @@ if $PROGRAM_NAME == __FILE__
       HiveBench::Judge.new(judge_fn: HiveBench::ClaudeJudge.judge_fn(model: model), seeds: opts[:seeds])
   end
   if opts[:openrouter_judge]
+    or_kwargs = { model: opts[:openrouter_model] }
+    or_kwargs[:max_tokens] = opts[:max_tokens] if opts[:max_tokens]
     judges[opts[:openrouter_model].split("/").last] =
-      HiveBench::Judge.new(judge_fn: HiveBench::OpenRouterJudge.judge_fn(model: opts[:openrouter_model]), seeds: opts[:seeds])
+      HiveBench::Judge.new(judge_fn: HiveBench::OpenRouterJudge.judge_fn(**or_kwargs), seeds: opts[:seeds])
   end
   abort("no judges enabled") if judges.empty?
 
