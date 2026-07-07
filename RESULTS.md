@@ -17,7 +17,7 @@ windows; EXCLUDED = maintainer exclusion (see caveats).
 |---|---|---|---|---|---|---|
 | all-opus-4.8 | 1.0 / 1.3ᵃ | 2.0 / 4.0 | **4.0** / **6.5** | **8.0** / **8.5** | ⏳ | ⏳ |
 | all-codex | 4.0 / 6.0 | 2.0 / 4.5 | 2.0 / 4.0 | 7.0 / 7.0 | 2.0 / 4.0 | 3.7 / 5.7 |
-| opus-plan→codex-exec | 2.0 / 2.0 | ⏳ | ⏳ | · / 8.5ᵇ | ⏳ | 4.0 / 5.0 |
+| opus-plan→codex-exec | 2.0 / 2.0 | ⏳ | ⏳ | 8.0 / 8.5ᵇ | ⏳ | 4.0 / 5.0 |
 | all-glm-5.2 | 4.0 / 6.2 | 2.0 / 3.5 | 2.0 / 4.5 | **8.0 / 9.0** | 4.0 / 7.0 | 4.0 / · |
 | all-kimi-k2.7-code | 4.0 / · | 2.0 / 3.5 | 2.0 / 3.7 | **8.0 / 8.5** | 2.0 / · | 1.0 / 1.0 |
 | glm-plan→kimi-exec | 4.0 / · | ✗ empty | EXCLUDED | EXCLUDED | 4.0 / · | ✗ exec |
@@ -34,7 +34,7 @@ none and rank on flagged means):
 | glm-plan→kimi-exec | gpt-5.5-pro | 4.0 | 2/4 (2 excluded) |
 | all-kimi-k2.7-code | gpt-5.5-pro | **3.2** | 6/6 |
 | all-opus-4.8 | gpt-5.5-pro | **3.75** | 4/6 (2 generating) |
-| opus-plan→codex-exec | — | gpt 3.0 / fable 5.2 (flagged) | 3/6 |
+| opus-plan→codex-exec | — | gpt 4.7 / fable 5.2 (flagged) | 3/6 |
 
 ## What the numbers say
 
