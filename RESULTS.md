@@ -1,87 +1,82 @@
 # hive-bench v2 results — real hive, full cycle, judged vs the merged PR
 
-_2026-07-06. Corpus v2 (6 tasks, ivankuznetsov/hive, judged subset). Candidates run
+_2026-07-07. Corpus v2 (6 tasks, ivankuznetsov/hive, judged subset). Candidates run
 REAL hive (plan → execute → open-pr → review, prod review config) in an isolated
 container; the final post-review diff is judged against the merged reference PR by
 two blind judges. v1 (the deprecated imitation harness) is in
-`RESULTS-v1-deprecated.md`._
+`RESULTS-v1-deprecated.md`. **Status: opus/mixed column still filling** (6 cells
+generating on subscription windows); everything else is final._
 
 ## The board
 
 Cell = `gpt-5.5-pro / fable-5` (independent scores, 0–10 absolute rubric, reference
-provided as signal). `·` = judge missing (limits); statuses are honest outcomes.
+provided as signal). `·` = judge backfill pending; ⏳ = generating on subscription
+windows; EXCLUDED = maintainer exclusion (see caveats).
 
 | candidate | add-i-key | web-install | install | fix-tmux | fix-review | daemon |
 |---|---|---|---|---|---|---|
-| all-opus-4.8 | 1.0 / 1.3ᵃ | ✗ exec | ⏳ | · / 8.0ᵇ | ⏳ | ⏳ |
+| all-opus-4.8 | 1.0 / 1.3ᵃ | · / 4.0 | · / **6.5** | · / **8.5** | ⏳ | ⏳ |
 | all-codex | 4.0 / 6.0 | 2.0 / 4.5 | 2.0 / 4.0 | 7.0 / 7.0 | 2.0 / 4.0 | 3.7 / 5.7 |
 | opus-plan→codex-exec | 2.0 / 2.0 | ⏳ | ⏳ | · / 8.5ᵇ | ⏳ | 4.0 / 5.0 |
 | all-glm-5.2 | 4.0 / 6.2 | 2.0 / 3.5 | 2.0 / 4.5 | **8.0 / 9.0** | 4.0 / 7.0 | 4.0 / · |
-| all-kimi-k2.7-code | 4.0 / · | 2.0 / 3.5 | 2.0 / 3.7 | **8.0 / 8.5** | 2.0 / · | ✗ exec |
-| glm-plan→kimi-exec | 4.0 / · | ✗ empty | ✗ exec | ✗ exec | 4.0 / · | ✗ exec |
+| all-kimi-k2.7-code | 4.0 / · | 2.0 / 3.5 | 2.0 / 3.7 | **8.0 / 8.5** | 2.0 / · | 1.0 / 1.0 |
+| glm-plan→kimi-exec | 4.0 / · | ✗ empty | EXCLUDED | EXCLUDED | 4.0 / · | ✗ exec |
 
-ᵃ the 1/3 `/ce-plan` minimal-fork variance sample (220-line diff vs the ~1300-line
-full scope). ᵇ from the earlier smoke run of the same pipeline (opus generation was
-subscription-limited before a re-run landed). ⏳ = not run: claude subscription
-limit windows consumed every retry attempt across two days.
+ᵃ the 1/3 `/ce-plan` minimal-fork variance sample. ᵇ from the pipeline smoke run.
 
-**Cross-family headline** (the judge from the family disjoint to the candidate;
-mixed candidates have none and rank on flagged means only):
+**Cross-family headline** (the family-disjoint judge only; mixed candidates have
+none and rank on flagged means):
 
-| candidate | cross-family judge | mean over scored tasks |
-|---|---|---|
-| all-codex | fable-5 | **5.2** (6/6 tasks) |
-| all-glm-5.2 | gpt-5.5-pro | **4.0** (6/6 tasks) |
-| glm-plan→kimi-exec | gpt-5.5-pro | 4.0 (2/6 — 4 failed) |
-| all-kimi-k2.7-code | gpt-5.5-pro | **3.6** (5/6 tasks) |
-| opus-plan→codex-exec | (none — both families) | gpt 3.0 / fable 5.2, flagged |
-| all-opus-4.8 | gpt-5.5-pro | 1.0 (1/6 — see limits) |
+| candidate | judge | mean | scored |
+|---|---|---|---|
+| all-codex | fable-5 | **5.2** | 6/6 |
+| all-glm-5.2 | gpt-5.5-pro | **4.0** | 6/6 |
+| glm-plan→kimi-exec | gpt-5.5-pro | 4.0 | 2/4 (2 excluded) |
+| all-kimi-k2.7-code | gpt-5.5-pro | **3.2** | 6/6 |
+| all-opus-4.8 | gpt-5.5-pro | in progress | 1 scored, 3 await gpt, 2 generating |
+| opus-plan→codex-exec | — | gpt 3.0 / fable 5.2 (flagged) | 3/6 |
 
 ## What the numbers say
 
-1. **glm-5.2 is the efficiency frontier.** Full-cycle-reliable (6/6), the board's
-   best single scores (8.0/9.0 on fix-tmux), and fully metered at ~$13/task —
-   while the closed models hide their (larger) burn behind subscriptions.
-2. **codex is the only candidate that never failed** — 6/6 tasks, no walls, no
-   stage errors — and its cross-family 5.2 is the best complete-column mean. The
-   trade: it clusters at 2.0 (gpt) on the three hardest tasks.
-3. **kimi-k2.7-code is bimodal**: excellent on the discriminating fix-tmux
-   (8.0/8.5) but with real execute fragility (empty final turns stalling hive's
-   stage markers) beyond what infra failures explain.
-4. **The glm→kimi handoff mostly doesn't work** (4 of 6 cells failed at execute)
-   even though each model succeeds solo — mirror-imaging the closed mixed pair,
-   which scored when it ran. Cross-model handoff inside hive is its own risk.
-5. **Subscription limits, not capability, decided the opus column.** Two days of
-   retry windows produced one full opus cell (plus the smoke run's 8.0-fable
-   fix-tmux). For benchmarking, per-token open models are *operationally* superior:
-   they can always be re-run for money.
-6. **Task difficulty replicated v1**: install-class tasks floor everyone at
-   gpt 2.0; fix-tmux separates the field.
+1. **Opus, when it runs, leads on hard tasks**: fable 6.5 on install (everyone
+   else: ~4.0-and-below territory) and 8.5 on fix-tmux. Its column was gated by
+   subscription limit windows for days — the benchmark's most practical finding:
+   per-token models can always be re-run for money; subscription models cannot.
+2. **glm-5.2 is the efficiency frontier**: reliable 6/6 full-cycle, the board's
+   best dual-judged cell (8.0/9.0 fix-tmux), ~$13/task fully metered.
+3. **codex is the reliability frontier**: 6/6, zero walls, zero stage failures,
+   best complete-column cross-family mean (5.2) — but 2.0-floors the hard tasks.
+4. **kimi-k2.7-code is bimodal**: 8.0/8.5 on fix-tmux, floor (1.0/1.0) on daemon,
+   with execute fragility (empty final turns stalling hive's stage markers).
+5. **Cross-model handoff is its own risk**: the glm→kimi pair failed execute
+   reproducibly on two tasks (excluded per maintainer decision) even though each
+   model succeeds solo; the closed pair (opus→codex) scored whenever it ran.
+6. **Task structure replicated v1**: install-class tasks discriminate, fix-tmux
+   separates the field, add-i-key saturates mid-band.
 
-## Judge deliberation (diagnostic)
+## Integrity verification
 
-After independent scoring, judges exchanged anonymized verdicts and discussed
-(one round, revise only on concrete facts). Across all 10 discussed cells:
-**gpt-5.5-pro's mean revision was 0.00; fable-5 revised only downward (to −2.0),
-always after verifying gpt's specific claims against the diff.** The lenient
-judge's generosity does not survive fact-checking; the strict judge's verdicts
-do. The leaderboard keeps independent round-1 means (deliberation can anchor as
-well as correct); transcripts are in `runs/v2-merged/deliberation*.json`.
+- **Model claims verified**: `harness/verify_models.rb` cross-checks every
+  cell's stream-log model ids against its candidate's claim (CLI utility models
+  allowlisted). Result over the whole campaign: **101 substantive stage logs, 0
+  violations.**
+- **Judge deliberation** (diagnostic; leaderboard keeps independent scores):
+  across all 15 discussed verdicts, gpt-5.5-pro's mean revision was **0.00**;
+  fable-5 revised only downward (to −2.0) and only after verifying gpt's
+  specific claims against the diff. Transcripts: `runs/v2-merged/deliberation*.json`.
 
 ## Costs (API-equivalent, usual tier)
 
-Open models: glm ~$13/task, kimi ~$13/task full-cycle (~4× bare execute — the
-review stage re-reads context heavily; ~49M cache-read tokens/task). Closed
-models: same burn shape, hidden by subscription flat rates. Judging: ~$1–3/cell
-(gpt-5.5-pro, 16–32k cap). Whole v2 campaign: ~$310 OpenRouter + two days of
-claude/codex subscription windows.
+Open models ~$13/task full-cycle (~4× bare execute — review re-reads context;
+~49M cache-read tokens/task). Closed models: same burn shape, hidden by
+subscriptions. Judging ~$1–3/cell. Campaign OpenRouter total: ~$360.
 
 ## Caveats
 
 Corpus is 6 Ruby/CLI tasks from one maintainer's repo, judged-subset only (no
-curated test gates yet) — rankings are "best on this corpus", not "best agent".
-Judge scores are single-seed for most cells (tie intervals collapse). Missing
-cells are named constraints, never silent: ⏳ subscription limits, ✗ honest
-stage failures, budget cuts documented in `wiki/gaps.md`.
-
-*Reproduce: `runs/v2-merged/final.json`; harness at this commit; corpus v2.*
+curated test gates yet); most cells single-judge-seed. **Exclusions**: pair
+install + fix-tmux removed per maintainer decision after two funded,
+reproducible execute failures each (unfinishable); the handoff-fragility
+finding stands in prose. Remaining ⏳/· cells fill automatically as
+subscription windows and the key cap allow; the table is regenerated by
+`tmp/assemble-final.sh` from `runs/v2-merged/final2.json`.
