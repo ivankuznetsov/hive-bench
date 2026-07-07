@@ -3,35 +3,40 @@
 **Which AI model runs the [hive](https://github.com/ivankuznetsov/hive) pipeline best?**
 
 Hive is an autonomous development pipeline: idea → brainstorm → plan →
-implement → PR → review, driven by LLM agents. `hive-bench` answers which model
-configuration should drive it — by replaying real, completed hive tasks through
-the **actual pipeline** with each candidate's models and grading the final diff
-against the pull request a human really merged.
+implement → PR → review, driven by LLM agents. I run it daily, and
+`hive-bench` is how I decide which model configuration should drive it: replay
+real, already-merged hive tasks through the **actual pipeline** with each
+candidate's models, and grade the final diff against the pull request I
+merged.
 
-Results: **[/bench on the hive site](https://ivankuznetsov.github.io/hive-site/bench/)** ·
+Results: **[/bench on the hive site](https://hivecli.sh/bench/)** ·
 [`RESULTS.md`](RESULTS.md) (full board + findings) ·
 sibling project: [`agent-reviewer-eval`](https://github.com/ivankuznetsov/agent-reviewer-eval)
-(benchmarks *reviewers*; this benchmarks *implementers*).
+(that one benchmarks code *reviewers*; this one benchmarks *implementers*).
 
 ## How it works
 
 Each cell is `(corpus task × candidate)`:
 
 1. **A candidate is a model configuration for hive's stages** — `all-opus-4.8`,
-   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or mixed pairs like
-   `opus-plan→codex-exec` (see `harness/profiles/candidates.rb`).
+   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or a mixed pair like
+   `opus-plan→codex-exec`, where one model plans and another implements
+   (see `harness/profiles/candidates.rb`).
 2. The target repo is **rewound to the task's base commit** and seeded with the
    frozen idea + brainstorm. The candidate never sees the reference solution.
 3. **Real hive runs the full cycle** in an isolated container: `/ce-plan` →
    execute → open-pr (against a bench-local origin + `gh` shim) → review with
    hive's production review config (reviewers, triage, fix loop).
 4. The final post-review diff is graded **against the merged reference PR** by
-   two blind judges — `gpt-5.5-pro` and `fable-5` — on an absolute 0–10 rubric
-   (the reference is a *signal*, not "closest wins"; verbosity is not rewarded).
+   two blind judges — `gpt-5.5-pro` and `fable-5` — on an absolute 0–10 rubric:
+   does this accomplish the task? The reference PR is a signal of what the
+   task needed; a candidate is never scored on how closely it matches it, and
+   verbosity is not rewarded.
 
 ## The corpus (v2)
 
-Six real, completed hive tasks — each judged against the PR a human merged:
+Six real hive tasks, each one finished by a human and merged; every candidate
+diff is graded against that merged PR:
 
 | task | type | what it asked | merged reference |
 |---|---|---|---|
@@ -48,12 +53,11 @@ Curation details: `corpus/MANIFEST.md`.
 
 ## The scoped claim (read this first)
 
-The corpus is **six Ruby/CLI tasks from one maintainer's repo**, judge-scored
-(no curated test gates yet), mostly single judge seed. The honest headline is
-**"who runs the full hive workflow best on this corpus"** — not "best coding
-agent" in general. Every hole in the board is labeled with its cause
-(subscription limit windows, budget caps, or named maintainer exclusions) —
-never silently dropped.
+The corpus is **six Ruby/CLI tasks from my repo**, judge-scored (no curated
+test gates yet), mostly single judge seed. The honest headline is **"who runs
+the full hive workflow best on this corpus"**, not "best coding agent" in
+general. Every hole in the board carries a label for its cause — subscription
+limit windows, budget caps, or an exclusion I made and named.
 
 ## Integrity model
 
@@ -63,11 +67,11 @@ never silently dropped.
 - **Model claims verified**: `harness/verify_models.rb` cross-checks every
   cell's agent stream logs against the candidate's claimed models (CLI utility
   models allowlisted). Campaign result: 101 substantive stage logs, 0 violations.
-- **Judge deliberation** (diagnostic): after independent scoring, judges
-  exchange anonymized verdicts and must fact-check each other against the diff
-  (`harness/deliberate.rb`). Across 15 discussed verdicts, gpt-5.5-pro revised
-  0.00; fable-5 conceded only on diff-verified facts. The leaderboard keeps
-  independent scores.
+- **Judge deliberation** (diagnostic): after independent scoring, the judges
+  exchange anonymized verdicts and fact-check each other against the diff
+  (`harness/deliberate.rb`). Across 15 discussed verdicts, gpt-5.5-pro's mean
+  revision was 0.00; fable-5 revised only downward, and only after checking
+  gpt's claims against the diff. The leaderboard keeps the independent scores.
 - **Limits are never failures**: provider walls (subscription windows, drained
   credit, key caps) park cells `pending` for re-run; a wall is never scored.
 - **Answer-key protection**: generation logs are scanned for reference-PR
