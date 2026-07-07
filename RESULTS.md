@@ -15,7 +15,7 @@ windows; EXCLUDED = maintainer exclusion (see caveats).
 
 | candidate | add-i-key | web-install | install | fix-tmux | fix-review | daemon |
 |---|---|---|---|---|---|---|
-| all-opus-4.8 | 1.0 / 1.3ᵃ | · / 4.0 | · / **6.5** | · / **8.5** | ⏳ | ⏳ |
+| all-opus-4.8 | 1.0 / 1.3ᵃ | 2.0 / 4.0 | **4.0** / **6.5** | **8.0** / **8.5** | ⏳ | ⏳ |
 | all-codex | 4.0 / 6.0 | 2.0 / 4.5 | 2.0 / 4.0 | 7.0 / 7.0 | 2.0 / 4.0 | 3.7 / 5.7 |
 | opus-plan→codex-exec | 2.0 / 2.0 | ⏳ | ⏳ | · / 8.5ᵇ | ⏳ | 4.0 / 5.0 |
 | all-glm-5.2 | 4.0 / 6.2 | 2.0 / 3.5 | 2.0 / 4.5 | **8.0 / 9.0** | 4.0 / 7.0 | 4.0 / · |
@@ -33,13 +33,14 @@ none and rank on flagged means):
 | all-glm-5.2 | gpt-5.5-pro | **4.0** | 6/6 |
 | glm-plan→kimi-exec | gpt-5.5-pro | 4.0 | 2/4 (2 excluded) |
 | all-kimi-k2.7-code | gpt-5.5-pro | **3.2** | 6/6 |
-| all-opus-4.8 | gpt-5.5-pro | in progress | 1 scored, 3 await gpt, 2 generating |
+| all-opus-4.8 | gpt-5.5-pro | **3.75** | 4/6 (2 generating) |
 | opus-plan→codex-exec | — | gpt 3.0 / fable 5.2 (flagged) | 3/6 |
 
 ## What the numbers say
 
-1. **Opus, when it runs, leads on hard tasks**: fable 6.5 on install (everyone
-   else: ~4.0-and-below territory) and 8.5 on fix-tmux. Its column was gated by
+1. **Opus, when it runs, leads on hard tasks**: the only above-floor install
+   score on the board (gpt 4.0 — double everyone's 2.0; fable 6.5) and a
+   top-tying fix-tmux (8.0/8.5). Its column was gated by
    subscription limit windows for days — the benchmark's most practical finding:
    per-token models can always be re-run for money; subscription models cannot.
 2. **glm-5.2 is the efficiency frontier**: reliable 6/6 full-cycle, the board's
