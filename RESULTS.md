@@ -79,7 +79,9 @@ kimi $140, glm $104, gpt $78, haiku (claude CLI utility calls) $4. Judging
 ## Caveats
 
 Corpus is 6 Ruby/CLI tasks from one maintainer's repo, judged-subset only (no
-curated test gates yet); most cells single-judge-seed. **Exclusions**: pair
+curated test gates yet); most cells single-judge-seed. **codex ran at the CLI's
+default reasoning effort** (verified in-container: model `gpt-5.5`, no effort
+override — hive passes codex no flags); v1's xhigh pin did not carry into v2. **Exclusions**: pair
 install + fix-tmux removed per maintainer decision after two funded,
 reproducible execute failures each (unfinishable); the handoff-fragility
 finding stands in prose. Remaining ⏳/· cells fill automatically as
