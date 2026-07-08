@@ -4,8 +4,8 @@ _2026-07-07. Corpus v2 (6 tasks, ivankuznetsov/hive, judged subset). Candidates 
 REAL hive (plan → execute → open-pr → review, prod review config) in an isolated
 container; the final post-review diff is judged against the merged reference PR by
 two blind judges. v1 (the deprecated imitation harness) is in
-`RESULTS-v1-deprecated.md`. **Status: opus/mixed column still filling** (6 cells
-generating on subscription windows); everything else is final._
+`RESULTS-v1-deprecated.md`. **Status: opus column COMPLETE; 4 mixed cells still
+generating on subscription windows** — everything else is final._
 
 ## The board
 
@@ -15,7 +15,7 @@ windows; EXCLUDED = maintainer exclusion (see caveats).
 
 | candidate | add-i-key | web-install | install | fix-tmux | fix-review | daemon |
 |---|---|---|---|---|---|---|
-| all-opus-4.8 | 1.0 / 1.3ᵃ | 2.0 / 4.0 | **4.0** / **6.5** | **8.0** / **8.5** | ⏳ | ⏳ |
+| all-opus-4.8 | 1.0 / 1.3ᵃ | 2.0 / 4.0 | **4.0** / **6.5** | **8.0** / **8.5** | 4.0 / 6.0 | 4.0 / · |
 | all-codex | 4.0 / 6.0 | 2.0 / 4.5 | 2.0 / 4.0 | 7.0 / 7.0 | 2.0 / 4.0 | 3.7 / 5.7 |
 | opus-plan→codex-exec | 2.0 / 2.0 | ⏳ | ⏳ | 8.0 / 8.5ᵇ | ⏳ | 4.0 / 5.0 |
 | all-glm-5.2 | 4.0 / 6.2 | 2.0 / 3.5 | 2.0 / 4.5 | **8.0 / 9.0** | 4.0 / 7.0 | 4.0 / · |
@@ -33,7 +33,7 @@ none and rank on flagged means):
 | all-glm-5.2 | gpt-5.5-pro | **4.0** | 6/6 |
 | glm-plan→kimi-exec | gpt-5.5-pro | 4.0 | 2/4 (2 excluded) |
 | all-kimi-k2.7-code | gpt-5.5-pro | **3.2** | 6/6 |
-| all-opus-4.8 | gpt-5.5-pro | **3.75** | 4/6 (2 generating) |
+| all-opus-4.8 | gpt-5.5-pro | **3.83** | 6/6 |
 | opus-plan→codex-exec | — | gpt 4.7 / fable 5.2 (flagged) | 3/6 |
 
 ## What the numbers say
