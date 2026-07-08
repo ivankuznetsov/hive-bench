@@ -66,11 +66,15 @@ none and rank on flagged means):
   fable-5 revised only downward (to −2.0) and only after verifying gpt's
   specific claims against the diff. Transcripts: `runs/v2-merged/deliberation*.json`.
 
-## Costs (API-equivalent, usual tier)
+## Costs (API-equivalent, usual tier — per-model attribution from stream logs)
 
-Open models ~$13/task full-cycle (~4× bare execute — review re-reads context;
-~49M cache-read tokens/task). Closed models: same burn shape, hidden by
-subscriptions. Judging ~$1–3/cell. Campaign OpenRouter total: ~$360.
+Per task, generation only: **codex $8.78 (11M tokens — cheapest and most
+token-efficient)**, glm-5.2 $15.64 (65M), kimi $18.91 (86M), pair $18.39 (91M),
+opus $22.78 (39M). The open models are cheap per token but burn 6–8× codex's
+tokens. (An earlier codex figure was overstated: its cached input had been
+priced at the full rate.) Campaign generation spend per model: opus $171,
+kimi $140, glm $104, gpt $78, haiku (claude CLI utility calls) $4. Judging
+~$1–3/cell; campaign OpenRouter total ~$360.
 
 ## Caveats
 
