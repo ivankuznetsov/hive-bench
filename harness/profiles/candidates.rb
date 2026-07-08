@@ -13,8 +13,8 @@ module HiveBench
     module_function
 
     Candidate = Data.define(:id, :plan, :execute, :review, :claude_model, :pi_models,
-                            :model_version, :review_max_passes, :review_wall_clock_sec,
-                            :reviewers, :ci_command)
+                            :codex_effort, :model_version, :review_max_passes,
+                            :review_wall_clock_sec, :reviewers, :ci_command)
 
     # pi --model patterns verified against the local pi + OpenRouter (2026-07-03).
     GLM = "openrouter/z-ai/glm-5.2"
@@ -22,17 +22,19 @@ module HiveBench
 
     def all
       [all_opus, all_codex, opus_plan_codex_exec,
-       all_glm, all_kimi, glm_plan_kimi_exec].freeze
+       all_glm, all_kimi, glm_plan_kimi_exec,
+       all_codex_xhigh, opus_plan_codex_exec_xhigh].freeze
     end
 
     def by_id(id)
       all.find { |c| c.id == id }
     end
 
-    def base(id, plan:, execute:, review:, model_version:, claude_model: nil, pi_models: nil)
+    def base(id, plan:, execute:, review:, model_version:, claude_model: nil, pi_models: nil,
+             codex_effort: nil)
       Candidate.new(id: id, plan: plan, execute: execute, review: review,
                     claude_model: claude_model, pi_models: pi_models,
-                    model_version: model_version,
+                    codex_effort: codex_effort, model_version: model_version,
                     review_max_passes: 2, review_wall_clock_sec: 7200,
                     reviewers: [], ci_command: nil)
     end
@@ -71,6 +73,21 @@ module HiveBench
       base("glm-plan->kimi-exec", plan: "pi", execute: "pi", review: "pi",
                                   pi_models: { "plan" => GLM, "execute" => KIMI, "review" => GLM },
                                   model_version: "glm-plan/kimi-exec")
+    end
+
+    # xhigh variants (maintainer decision 2026-07-08): the default-effort codex
+    # cells reasoned at ~15% of output — these re-run every codex-touched
+    # candidate with model_reasoning_effort=xhigh (driver mounts a codex
+    # config.toml carrying the pin; hive itself passes codex no flags).
+    def all_codex_xhigh
+      base("all-codex-xhigh", plan: "codex", execute: "codex", review: "codex",
+                              codex_effort: "xhigh", model_version: "gpt-5.5-xhigh")
+    end
+
+    def opus_plan_codex_exec_xhigh
+      base("opus-plan->codex-exec-xhigh", plan: "claude", execute: "codex", review: "claude",
+                                          claude_model: "claude-opus-4-8", codex_effort: "xhigh",
+                                          model_version: "opus-plan/codex-exec-xhigh")
     end
   end
 end

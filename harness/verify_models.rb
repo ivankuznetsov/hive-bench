@@ -21,7 +21,9 @@ module HiveBench
     CLAIMS = {
       "all_opus_4_8" => /claude-opus-4-8/,
       "all_codex" => /gpt-5\.5|codex/,
+      "all_codex_xhigh" => /gpt-5\.5|codex/,
       "opus_plan_codex_exec" => /claude-opus-4-8|gpt-5\.5|codex/,
+      "opus_plan_codex_exec_xhigh" => /claude-opus-4-8|gpt-5\.5|codex/,
       "all_glm_5_2" => /glm-5\.2/,
       "all_kimi_k2_7_code" => /kimi-k2\.7-code/,
       "glm_plan_kimi_exec" => /glm-5\.2|kimi-k2\.7-code/
@@ -51,7 +53,7 @@ module HiveBench
         next if substantive.empty? # utility-only log (probes, titles)
 
         checked += 1
-        rogue = substantive.reject { |m| m.match?(claim) }
+        rogue = substantive.grep_v(claim)
         findings << Finding.new(log, cell_dir, rogue, "unclaimed model ran") unless rogue.empty?
       end
       [findings, checked]

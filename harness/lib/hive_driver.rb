@@ -168,6 +168,15 @@ module HiveBench
         # Permission denied"). tmpfs the dir; bind the auth ro within it.
         mounts += ["--tmpfs", "#{HOME}/.codex:exec,mode=1777",
                    "-v", "#{codex}:#{HOME}/.codex/auth.json:ro"]
+        # hive spawns codex with no flags, so per-candidate reasoning effort is
+        # pinned via codex's own config file — a versioned bench file, never the
+        # operator's ~/.codex/config.toml (the bench controls the pin).
+        if candidate.codex_effort
+          cfg = File.expand_path("codex-#{candidate.codex_effort}.toml", __dir__)
+          raise "codex effort config missing or not a file: #{cfg}" unless File.file?(cfg)
+
+          mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
+        end
       end
       mounts
     end
