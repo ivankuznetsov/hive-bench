@@ -23,6 +23,7 @@ require "lib/corpus"
 require "lib/git_restore"
 require "lib/claude_judge"
 require "lib/openrouter_judge"
+require "lib/codex_judge"
 
 module HiveBench
   # Offline re-judge: same scoring contract as RunAll, but the diff comes from
@@ -130,7 +131,7 @@ end
 
 if $PROGRAM_NAME == __FILE__
   opts = { source: nil, corpus: "corpus", results: "runs/results.json", out: "runs/results.json",
-           seeds: 1, claude_judge: true, judge_model: nil, openrouter_judge: true,
+           seeds: 1, claude_judge: true, judge_model: nil, codex_judge: false, openrouter_judge: true,
            openrouter_model: "openai/gpt-5.5-pro", withhold_reference: false, only_missing: false, plan_source: :frozen }
   OptionParser.new do |o|
     o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/rejudge.rb --source <clone> [opts] <search-dir>..."
@@ -141,6 +142,7 @@ if $PROGRAM_NAME == __FILE__
     o.on("--seeds N", Integer) { |v| opts[:seeds] = v }
     o.on("--[no-]claude-judge") { |v| opts[:claude_judge] = v }
     o.on("--judge-model M") { |v| opts[:judge_model] = v }
+    o.on("--[no-]codex-judge", "gpt-5.6-sol@xhigh via the codex CLI (subscription)") { |v| opts[:codex_judge] = v }
     o.on("--[no-]openrouter-judge") { |v| opts[:openrouter_judge] = v }
     o.on("--openrouter-model M") { |v| opts[:openrouter_model] = v }
     o.on("--[no-]withhold-reference", "default off: judge vs the gold, matching v2 passes") { |v| opts[:withhold_reference] = v }
@@ -159,6 +161,10 @@ if $PROGRAM_NAME == __FILE__
     model = opts[:judge_model] || "claude-fable-5"
     judges[model.sub(/\Aclaude-/, "")] =
       HiveBench::Judge.new(judge_fn: HiveBench::ClaudeJudge.judge_fn(model: model), seeds: opts[:seeds])
+  end
+  if opts[:codex_judge]
+    judges[HiveBench::CodexJudge::DEFAULT_MODEL] =
+      HiveBench::Judge.new(judge_fn: HiveBench::CodexJudge.judge_fn, seeds: opts[:seeds])
   end
   if opts[:openrouter_judge]
     or_kwargs = { model: opts[:openrouter_model] }
