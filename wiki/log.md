@@ -3,6 +3,21 @@
 Append-only log of all wiki operations.
 
 <!-- BEGIN GENERATED WIKI LOG FRAGMENTS -->
+# 2026-07-09 — v3 workflow residue refresh
+
+- Reviewed v3-bench-as-hive-workflow-260709-b3nc's residual wiki commit against
+  the workflow stage sources. The durable source-backed state remains that
+  `3-generate` checks per-cell result files under
+  `runs/<campaign_id>/<candidate>--<task>/results.json`, while `4-judge` and
+  `5-publish` still require the campaign-root
+  `runs/<campaign_id>/results.json`.
+- Refreshed [[v3-workflow]] to state that `3-generate` does not currently write
+  the campaign-root result file and that the campaign-level handoff still needs
+  a real campaign smoke or explicit merge step.
+- Left [[gaps]]' v3 workflow uncertainty in place because the stage sources
+  still require verification of the per-cell to campaign-level result handoff
+  and publish summary.
+
 # 2026-07-09 — wiki refresh for current harness
 
 - Refreshed [[architecture]] for the current candidate slate, full-cycle review
@@ -12,8 +27,9 @@ Append-only log of all wiki operations.
   current review-default posture and to record explicit harness-owned model pins
   for CLIs without hive model fields.
 - Updated [[findings]] and [[gaps]] for closed pi model-selection ambiguity,
-  codex CE/plugin parity, grok telemetry uncertainty, and the current state of
-  objective gates.
+  codex CE/plugin parity, completed model verification, superseded final-board
+  retry queues, grok telemetry uncertainty, and the current state of objective
+  gates.
 - Filled [[dependencies]] and refreshed [[index]] page coverage/status.
 
 # 2026-07-09 — v3 bench workflow descriptor
@@ -41,6 +57,17 @@ Append-only log of all wiki operations.
 - Updated [[gaps]] to preserve the remaining uncertainty: the structural smoke
   exists, but a real campaign has not yet been observed completing after this
   per-cell final-check fix, and publish-summary coverage is still unverified.
+
+# 2026-07-09 — bench workflow results handoff uncertainty
+
+- Refreshed [[v3-workflow]] after HEAD's workflow documentation pass and the
+  later generate-stage per-cell result check: `3-generate` now verifies
+  `runs/<campaign_id>/<candidate>--<task>/results.json`, while `4-judge` and
+  `5-publish` still consume `runs/<campaign_id>/results.json`.
+- Recorded the remaining uncertainty in [[gaps]]: a real campaign or explicit
+  merge step still needs to prove the handoff from per-cell generation outputs
+  to the campaign-level result file before the workflow can be considered
+  end-to-end covered.
 
 # 2026-07-09 — bench workflow follow-up refresh
 
