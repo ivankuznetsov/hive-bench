@@ -75,3 +75,18 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   decide: accept + report spread, or take a representative/median run. (No hack per [[decisions]].)
 - The reused-incumbent range-diff capture can sweep unrelated history — needs tightening.
 - Corpus is only 2 tasks (Ruby/CLI) — small. More tasks needed for robust per-agent resolution.
+
+## v3 agenda (from the external design review, 2026-07-09)
+
+Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
+- **Objective gates primary** for all 6 tasks (concrete gate designs are in the
+  review §4.2); judges then score quality among passing diffs only.
+- **Pre-registered, replicated campaign**: campaign.yml committed before
+  running; N>=3 generations/cell; completion x quality axes; exclusions only
+  per pre-registered criteria.
+- **Anchor diffs** per task (empty / reference / known-bad) + rater-calibrated
+  score model (score ~ candidate + task + judge severity) instead of raw means.
+- **{{PLAN}} contract ambiguity**: judges grade against the frozen plan while
+  v2 candidates re-plan from brainstorm — pick one authoritative contract.
+- Style-provenance scrubbing of diffs before judging; third rater for the
+  mixed-family candidates; stratify results by plan_authorship provenance.

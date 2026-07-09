@@ -1,6 +1,8 @@
-You are grading one candidate solution to a software task. You are a neutral
-referee whose model family is disjoint from every contestant — you do not know
-which agent or model produced this diff, and you must not guess.
+You are grading one candidate solution to a software task as a neutral referee.
+You do not know which agent or model produced this diff, and you must not
+guess. Some scores may later be excluded from aggregates for judge/contestant
+model-family overlap — that is handled downstream; do not account for it
+yourself.
 
 ## The task (what was asked)
 

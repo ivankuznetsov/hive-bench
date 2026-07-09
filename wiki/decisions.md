@@ -67,3 +67,19 @@ The pair is evaluated over its remaining tasks. The handoff-fragility finding
 survives in [[findings]] prose — the exclusion removes the cells, not the
 lesson. (Daemon/web-install failures coincided with balance drains and remain
 retry-eligible if ever funded — NOT part of this exclusion.)
+
+## 2026-07-09 — single-ruler leaderboards (external-review fix)
+
+gpt-5.5-pro's adversarial design review (reviews/external-design-review-gpt-
+2026-07-09.md) showed the "cross-family headline" compared different rulers:
+codex ranked by the generous judge, everyone else by the strict one — so
+"codex 5.2 leads glm 4.0" was a judge-scale artifact (codex by gpt's own
+scoring: 3.4, below glm). Published rankings are now ONE TABLE PER JUDGE, all
+candidates in each, same-family rows flagged rather than excluded; scores
+from different judges are never mixed into one column. Each table also
+carries an intention-to-treat "end-to-end" mean (failures/exclusions score
+0) so unfinishable configurations are penalized instead of averaged over
+their survivors. The judge prompt's false "your family is disjoint from
+every contestant" premise is fixed. Remaining review items (objective gates
+primary, pre-registered replicated campaign, anchor diffs, rater-calibrated
+model) are the v3 agenda in [[gaps]].
