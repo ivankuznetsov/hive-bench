@@ -24,6 +24,11 @@ Each cell is `(corpus task × candidate)`:
    (see `harness/profiles/candidates.rb`).
 2. The target repo is **rewound to the task's base commit** and seeded with the
    frozen idea + brainstorm. The candidate never sees the reference solution.
+   **The task contract**: the candidate re-plans from idea + brainstorm (the
+   brainstorm is the scope authority); the frozen original plan is judge
+   context only. In v2 the judges graded against the frozen plan — a known
+   asymmetry the external review flagged; v3 grades against the candidate's
+   own plan (`rejudge --plan-source candidate`).
 3. **Real hive runs the full cycle** in an isolated container: `/ce-plan` →
    execute → open-pr (against a bench-local origin + `gh` shim) → review with
    hive's production review config (reviewers, triage, fix loop).

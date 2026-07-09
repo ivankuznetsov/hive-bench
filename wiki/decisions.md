@@ -16,8 +16,8 @@ how they're implemented.
   plan→execute. Fair, deterministic, same task. The brainstorm is the scope authority.
 - **Hive-in-container** for isolation (real hive runs agents on the host with skip-perms; we
   add the isolation ourselves).
-- **Dual independent judge** = opus-4.8 (local claude CLI) + gpt-5.5-pro (OpenRouter),
-  cross-family; gpt-5.5-pro is the de-anchored headline (stricter, but agrees on ordering).
+- **Dual independent judge** — v1 ran opus-4.8 + gpt-5.5-pro; superseded 2026-07-01 by
+  the fable-5 + gpt-5.5-pro slate, and 2026-07-09 by single-ruler presentation (below).
 - **Cost is API-equivalent at usual-tier rates**, computed from token counts (the CLIs report
   tokens even on subscription). Closed models priced at gpt-5.5 `$5/$30/$0.50` and opus-4.8
   `$5/$25/$0.50` per M — NOT the fast tier.

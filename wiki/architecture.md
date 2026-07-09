@@ -13,7 +13,7 @@ for each corpus task T, for each candidate C:
   4. container: hive plan (/ce-plan) -> force-complete if WAITING -> hive develop (execute)
   5. capture working-tree diff (base..worktree, vendored-excluded) -> candidate.patch
   6. parse token telemetry from .hive-state/logs/<slug>/*.log
-  7. dual-judge (opus-4.8 + gpt-5.5-pro) vs reference.patch (reference-PROVIDED)
+  7. dual-judge (fable-5 + gpt-5.5-pro; was opus-4.8 in early passes) vs reference.patch (reference-PROVIDED)
 ```
 
 ## Components (all under `harness/`)

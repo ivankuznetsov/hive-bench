@@ -38,20 +38,27 @@ module HiveBench
     # only_missing_judges: skip judges the cell already has a score from — a
     # backfill must never re-buy existing scores.
     def run(cells:, search_dirs:, source:, corpus_root:, judges:, scorer: Score.new,
-            restorer: GitRestore.new, withhold_reference: false, only_missing_judges: false)
+            restorer: GitRestore.new, withhold_reference: false, only_missing_judges: false,
+            plan_source: :frozen)
       bases = Corpus.load(root: corpus_root, checkout_source: source)
                     .to_h { |e| [e["task_id"], { base: e.dig("source", "base_commit"), entry: e }] }
       records = cells.map do |old|
         rejudge_cell(old, bases, search_dirs, judges, scorer, restorer,
-                     withhold_reference: withhold_reference, only_missing: only_missing_judges)
+                     withhold_reference: withhold_reference, only_missing: only_missing_judges,
+                     plan_source: plan_source)
       end
       scorer.results(records: records, corpus_version: "v2", generated_at: Time.now.utc.iso8601)
     end
 
-    def rejudge_cell(old, bases, search_dirs, judges, scorer, restorer, withhold_reference:, only_missing:)
+    def rejudge_cell(old, bases, search_dirs, judges, scorer, restorer, withhold_reference:, only_missing:,
+                     plan_source: :frozen)
       info = bases.fetch(old["task_id"])
       diff = recover_diff(search_dirs, old, info[:base], restorer)
-      plan = read_plan(info[:entry])
+      # Task contract (external review, threat #4): v2 graded every cell against
+      # the FROZEN plan while candidates re-planned from idea+brainstorm — kept
+      # as the default so backfills stay comparable with the published board.
+      # :candidate grades against the cell's own generated plan (the v3 contract).
+      plan = plan_source == :candidate ? candidate_plan(search_dirs, old) || read_plan(info[:entry]) : read_plan(info[:entry])
       reference = withhold_reference ? nil : read_reference(info[:entry])
       wanted = only_missing ? judges.reject { |name, _| (old["judges"] || {}).key?(name) } : judges
       judged = diff.strip.empty? ? {} : judge_all(wanted, plan, diff, reference)
@@ -76,6 +83,14 @@ module HiveBench
     def read_reference(entry)
       path = File.join(entry.fetch("entry_dir"), "reference.patch")
       File.file?(path) ? File.read(path) : nil
+    end
+
+    # The plan the CANDIDATE generated inside its own cell (v3 contract).
+    def candidate_plan(search_dirs, old)
+      cell_path = search_dirs.map { |d| File.join(d, old["task_id"], cell_dir(old["agent_id"])) }
+                             .find { |p| File.directory?(p) } or return nil
+      plan = Dir.glob(File.join(cell_path, "target", ".hive-state", "stages", "**", old["task_id"], "plan.md")).first
+      plan && File.read(plan)
     end
 
     # v2 cells persist the final diff at <cell>/target/candidate.patch (the
@@ -116,7 +131,7 @@ end
 if $PROGRAM_NAME == __FILE__
   opts = { source: nil, corpus: "corpus", results: "runs/results.json", out: "runs/results.json",
            seeds: 1, claude_judge: true, judge_model: nil, openrouter_judge: true,
-           openrouter_model: "openai/gpt-5.5-pro", withhold_reference: false, only_missing: false }
+           openrouter_model: "openai/gpt-5.5-pro", withhold_reference: false, only_missing: false, plan_source: :frozen }
   OptionParser.new do |o|
     o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/rejudge.rb --source <clone> [opts] <search-dir>..."
     o.on("--source PATH") { |v| opts[:source] = v }
@@ -132,6 +147,9 @@ if $PROGRAM_NAME == __FILE__
     o.on("--only-missing", "skip judges the cell already has a score from") { opts[:only_missing] = true }
     o.on("--max-tokens N", Integer, "openrouter judge output cap (reservation = cap x output rate; " \
                                     "lower it to backfill on a thin balance)") { |v| opts[:max_tokens] = v }
+    o.on("--plan-source SRC", %w[frozen candidate],
+         "what {{PLAN}} carries: frozen (v2 default, board-comparable) or candidate " \
+         "(the cell's own generated plan — the v3 contract)") { |v| opts[:plan_source] = v.to_sym }
   end.parse!(ARGV)
   abort("--source is required") unless opts[:source]
   abort("give at least one search-dir") if ARGV.empty?
@@ -153,7 +171,7 @@ if $PROGRAM_NAME == __FILE__
   cells = JSON.parse(File.read(opts[:results]))["cells"]
   results = HiveBench::Rejudge.run(cells: cells, search_dirs: ARGV, source: opts[:source],
                                    corpus_root: opts[:corpus], judges: judges,
-                                   withhold_reference: opts[:withhold_reference],
+                                   withhold_reference: opts[:withhold_reference], plan_source: opts[:plan_source],
                                    only_missing_judges: opts[:only_missing])
   FileUtils.mkdir_p(File.dirname(opts[:out]))
   File.write(opts[:out], "#{JSON.pretty_generate(results)}\n")

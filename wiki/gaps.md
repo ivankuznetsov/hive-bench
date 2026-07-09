@@ -2,11 +2,6 @@
 
 What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 
-## Blocked
-
-- **OpenRouter balance ~$4** — the gpt-5.5-pro judge (each call reserves ~$6) can't run until
-  topped up. Blocks completing the gpt-judge half of the v2 cells.
-
 ## Candidate matrix (opus, codex, and the mixed candidate PROVEN 2026-07-02)
 
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
@@ -74,7 +69,7 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - **`/ce-plan` variance** is 2/3-good but real. For a publishable single-seed leaderboard,
   decide: accept + report spread, or take a representative/median run. (No hack per [[decisions]].)
 - The reused-incumbent range-diff capture can sweep unrelated history — needs tightening.
-- Corpus is only 2 tasks (Ruby/CLI) — small. More tasks needed for robust per-agent resolution.
+- Corpus is 6 tasks (Ruby/CLI, single repo) — small; correlated samples. v3 grows it with fresh PRs as they merge (also the contamination mitigation).
 
 ## v3 agenda (from the external design review, 2026-07-09)
 
