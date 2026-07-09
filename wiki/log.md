@@ -16,6 +16,16 @@ Append-only log of all wiki operations.
 - Documented operator flow, WAITING plus `touch <state_file>` retry semantics,
   and remaining manual pieces in [[v3-workflow]].
 
+# 2026-07-09 — bench workflow follow-up refresh
+
+- `3-generate` now records nonzero harness commands and still inspects the
+  campaign result file before deciding whether to park at WAITING.
+- `5-publish` now summarizes the merged `agents` schema directly: cross-family
+  means, judged cells, gate pass rate, fresh/reused provenance, and total cost.
+- The no-cost workflow smoke now requires `hive` before loading the descriptor
+  parser. [[v3-workflow]] and [[gaps]] were refreshed to match the current
+  workflow coverage and remaining uncertainty.
+
 # 2026-07-07 — model verification, opus column filling, near-final board
 
 - `harness/verify_models.rb`: every cell's stream-log model ids cross-checked
