@@ -68,25 +68,40 @@ ruby -ryaml -rjson -e '
   exit 0
 }
 
-ruby -ryaml -rshellwords -e '
+ruby -ryaml -rshellwords -rjson -e '
+  repo = ARGV.fetch(0)
   data = YAML.safe_load_file("campaign.yml")
   exclusions = data.fetch("exclusions", []).map { |item| [item.fetch("task").to_s, item.fetch("candidate").to_s] }
+  done = lambda do |out_dir|
+    cell = (JSON.parse(File.read(File.join(repo, out_dir, "results.json")))["cells"] || []).first rescue nil
+    cell && %w[generated empty_diff].include?(cell["run_status"])
+  end
   data.fetch("tasks").each do |task|
     data.fetch("candidates").each do |candidate|
       next if exclusions.include?([task.to_s, candidate.to_s])
+      # One out dir per cell: hive_run.rb OVERWRITES results.json per
+      # invocation, so a shared campaign dir would keep only the last cell.
+      out = File.join("runs", data.fetch("campaign_id").to_s, "#{candidate}--#{task}")
+      next if done.call(out) # a completed cell is never re-bought
       args = [
         "ruby", "harness/hive_run.rb",
         "--source", data.fetch("source").to_s,
         "--candidate", candidate.to_s,
         "--task", task.to_s,
-        "--out", File.join("runs", data.fetch("campaign_id").to_s),
+        "--out", out,
         "--seeds", data.fetch("seeds").to_s,
         "--corpus-version", data.fetch("corpus_version").to_s
       ]
-      puts Shellwords.join(args)
+      env = ["env", "HB_HIVE_TIMEOUT=14400"]
+      env << "HB_RUNNER_IMAGE=hive-bench-runner:grok" if candidate.to_s.include?("grok")
+      puts Shellwords.join(env + args)
     end
   end
-' >.generate-commands
+' "$REPO_ROOT" >.generate-commands
+
+if [ -f "$HOME/.openrouter_key" ]; then
+  export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
+fi
 
 generate_status=0
 while IFS= read -r command; do
