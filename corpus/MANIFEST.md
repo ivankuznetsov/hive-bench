@@ -39,9 +39,12 @@ how it's balanced.
 | fix-review-stage-claude-stop-260629-26ed | ivankuznetsov/hive | bugfix | needs curation | PR #625; validator ACCEPT (judged) |
 | make-the-hive-daemon-automatically-260629-223d | ivankuznetsov/hive | feature | needs curation | PR #624; validator ACCEPT (judged) |
 
-_(Curation in progress — gates not yet filled, so all entries are currently in
-the judged subset. PRs #623/#624/#625 add unit tests, so they are the best
-F2P-gate candidates.)_
+_Gates CURATED 2026-07-09 for the three test-shipping tasks (#623/#624/#625):
+held-out reference tests overlay the candidate diff (`gate/tests.patch`,
+SWE-bench style), verified both directions in the no-network container (F2P
+fails at base+tests, reference passes its own gate — validator ACCEPT
+(gated) for all three). add-i-key / web-install / install remain judged-only
+(no reference tests to hold out; runtime gates are v3 work)._
 
 **Extracted but rejected (2026-07-01):** the three `update-the-openclaw-hive-skill-260630-*`
 tasks (PRs #632/#633/#635). Their brainstorms quote the exact guidance lines the

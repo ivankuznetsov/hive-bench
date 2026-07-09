@@ -1,6 +1,17 @@
----
-needs_curation: true
-install_cmd:
-test_cmd:
-fail_to_pass: []
-pass_to_pass: []
+# Curated 2026-07-09 (external-review fix: gates primary). Held-out reference
+# tests overlay the candidate diff (tests_patch). Deliberately EXCLUDES
+# integration/daemon_auto_retry_test.rb + dispatch_result_queue_test.rb (they
+# require json_schemer, absent from the gate image). Verified: F2P LoadErrors
+# at base+tests, passes at reference (67 runs), no-network container.
+needs_curation: false
+install_cmd: null
+test_cmd: rake test TEST='test/unit/{daemon/{auto_retry_safety,health_probe,health_signal,recoverable_error_classifier,recoverable_error_healer},config}_test.rb' TESTOPTS=-v
+tests_patch: gate/tests.patch
+fail_to_pass:
+  - HiveDaemonRecoverableErrorClassifierTest#test_codex_implementer_401_missing_bearer_is_recoverable
+  - HiveDaemonRecoverableErrorHealerTest#test_codex_auth_probe_success_clears_marker_and_audits
+  - HiveDaemonRecoverableErrorHealerTest#test_unknown_implementer_failure_is_not_cleared
+  - HiveDaemonAutoRetrySafetyTest#test_refuses_terminal_success_marker
+pass_to_pass:
+  - ConfigTest#test_load_returns_defaults_when_no_config_file
+  - ConfigTest#test_load_accepts_default_workflow_override

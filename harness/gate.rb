@@ -43,7 +43,22 @@ module HiveBench
                         base_commit: entry.dig("source", "base_commit"), into: work_dir)
       return error("candidate diff did not apply at base") unless @restorer.apply(work_dir: work_dir, patch: candidate_patch.to_s)
 
-      run_gate(gate_spec, work_dir, f2p, p2p)
+      # SWE-bench-style held-out tests: the REFERENCE's test files overlay the
+      # candidate's diff (the gate's F2P names come from the reference, so the
+      # reference tests must be present). A failed overlay is NOT an immediate
+      # error: the candidate may already carry those exact files (the reference
+      # itself does — the validator's reproducibility run) or same-path files
+      # of its own. The run proceeds; if the F2P names aren't positively
+      # observed afterwards, classify() errors the cell anyway.
+      overlay = "applied"
+      if (tests_rel = gate_spec["tests_patch"])
+        tests_patch = File.read(File.join(entry.fetch("entry_dir"), tests_rel))
+        overlay = @restorer.apply(work_dir: work_dir, patch: tests_patch) ? "applied" : "conflicted (candidate supplies same-path tests)"
+      end
+
+      result = run_gate(gate_spec, work_dir, f2p, p2p)
+      result.details["tests_overlay"] = overlay if gate_spec["tests_patch"]
+      result
     end
 
     private

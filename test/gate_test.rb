@@ -163,6 +163,57 @@ class GateTest < Minitest::Test
     assert_match(/GreetTest#test_exists/, res.reason)
   end
 
+  # --- held-out test overlay ---
+
+  def test_tests_patch_overlays_reference_tests_over_the_candidate
+    tests_patch_dir = File.join(@root, "entry", "gate")
+    FileUtils.mkdir_p(tests_patch_dir)
+    # a new-file diff for a test the candidate does not carry
+    File.write(File.join(tests_patch_dir, "tests.patch"), <<~PATCH)
+      diff --git a/held_out_test.rb b/held_out_test.rb
+      new file mode 100644
+      --- /dev/null
+      +++ b/held_out_test.rb
+      @@ -0,0 +1 @@
+      +# held-out reference test
+    PATCH
+    seen_files = nil
+    g = gate(exec: lambda { |cmd:, work_dir:|
+      _ = cmd
+      seen_files = File.exist?(File.join(work_dir, "held_out_test.rb"))
+      { output: GREEN, ok: true }
+    })
+    res = g.call(entry: entry.merge("entry_dir" => File.join(@root, "entry")),
+                 gate_spec: gate_spec(tests_patch: "gate/tests.patch"),
+                 candidate_patch: @patch, work_dir: work)
+
+    assert seen_files, "the overlay must be applied before the test run"
+    assert_equal "applied", res.details["tests_overlay"]
+    assert_equal :pass, res.status
+  end
+
+  def test_conflicting_overlay_falls_through_to_positive_observation
+    tests_patch_dir = File.join(@root, "entry", "gate")
+    FileUtils.mkdir_p(tests_patch_dir)
+    # conflicts with the candidate diff (same file, different content)
+    File.write(File.join(tests_patch_dir, "tests.patch"), <<~PATCH)
+      diff --git a/app.rb b/app.rb
+      new file mode 100644
+      --- /dev/null
+      +++ b/app.rb
+      @@ -0,0 +1 @@
+      +conflicting content
+    PATCH
+    res = gate(exec: exec_returning(GREEN)).call(
+      entry: entry.merge("entry_dir" => File.join(@root, "entry")),
+      gate_spec: gate_spec(tests_patch: "gate/tests.patch"),
+      candidate_patch: @patch, work_dir: work
+    )
+
+    assert_match(/conflicted/, res.details["tests_overlay"])
+    assert_equal :pass, res.status, "conflict falls through; observation decides"
+  end
+
   # --- error paths ---
 
   def test_non_applying_patch_is_a_gate_error

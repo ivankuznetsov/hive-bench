@@ -1,6 +1,16 @@
----
-needs_curation: true
-install_cmd:
-test_cmd:
-fail_to_pass: []
-pass_to_pass: []
+# Curated 2026-07-09 (external-review fix: gates primary). Held-out reference
+# tests overlay the candidate diff (tests_patch); verified: F2P LoadErrors at
+# base+tests (class absent), passes at reference, no-network container.
+needs_curation: false
+install_cmd: null
+test_cmd: rake test TEST='test/unit/{claude_completion_fallback_test,stages/review/fallback_coverage_test,config_test}.rb' TESTOPTS=-v
+tests_patch: gate/tests.patch
+fail_to_pass:
+  - ClaudeCompletionFallbackTest#test_suppresses_when_generic_and_phase_conditions_hold
+  - ClaudeCompletionFallbackTest#test_process_crash_blocks_suppression
+  - ClaudeCompletionFallbackTest#test_missing_artifacts_block_suppression
+  - ReviewFallbackCoverageTest#test_fix_completion_artifact_probe_fails_closed_on_filesystem_error
+  - ReviewFallbackCoverageTest#test_completion_fallback_audit_emit_failure_blocks_suppression
+pass_to_pass:
+  - ConfigTest#test_load_returns_defaults_when_no_config_file
+  - ConfigTest#test_load_accepts_default_workflow_override
