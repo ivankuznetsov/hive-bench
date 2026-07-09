@@ -1,3 +1,0 @@
-# Mounted at ~/.codex/config.toml for codex_effort: "xhigh" candidates.
-# hive passes codex no CLI flags, so the reasoning-effort pin lives here.
-model_reasoning_effort = "xhigh"

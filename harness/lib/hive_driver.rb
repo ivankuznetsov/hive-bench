@@ -97,7 +97,7 @@ module HiveBench
       FileUtils.cp_r(src, File.join(tdir, "assets"))
     end
 
-    def run_container(slug, base, work, candidate)
+    def run_container(slug, base, work, candidate, out_dir)
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
              # Full-cycle by default (plan->execute->open-pr->review, the real
@@ -117,7 +117,7 @@ module HiveBench
              "--tmpfs", "#{HOME}/.claude:exec,mode=1777",
              "-v", "#{STAGES_SH}:/hive_stages.sh:ro",
              "-v", "#{work}:/work",
-             *auth_mounts(candidate),
+             *auth_mounts(candidate, out_dir),
              *env_args(candidate),
              IMAGE,
              # HB_EXIT lets classify() tell a timeout (rc=124) from a stage
@@ -140,7 +140,7 @@ module HiveBench
 
     # Mount the auth each used agent needs. claude: creds+settings+plugins at the
     # matching absolute path (so /ce-plan resolves). codex: its OAuth, read-only.
-    def auth_mounts(candidate)
+    def auth_mounts(candidate, out_dir)
       mounts = []
       if uses?(candidate, "claude")
         # RULE: never hand docker a bind-mount source unless it already exists
@@ -174,15 +174,14 @@ module HiveBench
         # Permission denied"). tmpfs the dir; bind the auth ro within it.
         mounts += ["--tmpfs", "#{HOME}/.codex:exec,mode=1777",
                    "-v", "#{codex}:#{HOME}/.codex/auth.json:ro"]
-        # hive spawns codex with no flags, so per-candidate reasoning effort is
-        # pinned via codex's own config file — a versioned bench file, never the
-        # operator's ~/.codex/config.toml (the bench controls the pin).
-        if candidate.codex_effort
-          cfg = File.expand_path("codex-#{candidate.codex_effort}.toml", __dir__)
-          raise "codex effort config missing or not a file: #{cfg}" unless File.file?(cfg)
-
-          mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
-        end
+        # Codex registers plugins in config.toml (found 2026-07-09: the cache
+        # mount alone leaves skills unregistered). The bench GENERATES a
+        # minimal config per cell — plugin registration + /work trust, plus
+        # the effort pin for xhigh candidates — never the operator's own
+        # config.toml (it carries personal MCP servers and project trusts).
+        cfg = File.join(out_dir, "codex-config.toml")
+        File.write(cfg, codex_config(candidate))
+        mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
       end
       if uses?(candidate, "codex") && File.file?(codex)
         # Native CE skills (prod parity, found missing 2026-07-09: codex's own
@@ -236,6 +235,27 @@ module HiveBench
 
     def uses?(candidate, agent)
       [candidate.plan, candidate.execute, candidate.review].include?(agent)
+    end
+
+    # Minimal per-cell codex config: CE plugin registration (the cache is
+    # mounted + linked separately) + trust for /work, + the effort pin for
+    # xhigh candidates. Deliberately NOT the operator's config.toml — that
+    # carries personal MCP servers and host project trusts.
+    def codex_config(candidate)
+      # TOML: top-level keys must precede any [table] section, so the effort
+      # pin goes first.
+      effort = candidate.codex_effort ? %(model_reasoning_effort = "#{candidate.codex_effort}"\n\n) : ""
+      effort + <<~TOML
+        [marketplaces.compound-engineering-plugin]
+        source_type = "git"
+        source = "https://github.com/EveryInc/compound-engineering-plugin.git"
+
+        [plugins."compound-engineering@compound-engineering-plugin"]
+        enabled = true
+
+        [projects."/work"]
+        trust_level = "trusted"
+      TOML
     end
 
     # ---- result assembly ----

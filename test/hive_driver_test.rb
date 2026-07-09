@@ -177,23 +177,28 @@ class HiveDriverTest < Minitest::Test
     assert_match(/claude plugins missing or not a directory/, err.message)
   end
 
-  def test_xhigh_codex_candidate_mounts_the_effort_config
+  def test_xhigh_codex_candidate_generates_config_with_effort_and_plugins
     skip "needs ~/.codex/auth.json" unless File.file?(File.expand_path("~/.codex/auth.json"))
     xhigh = HiveBench::Candidates.by_id("all-codex-xhigh")
     driver.call(entry: entry, candidate: xhigh, out_dir: @out)
-    mount = @seen_cmd.find { |a| a.to_s.include?("codex-xhigh.toml") }
+    mount = @seen_cmd.find { |a| a.to_s.include?("codex-config.toml") }
 
-    assert mount, "xhigh candidate must mount the effort pin"
-    assert_match %r{codex-xhigh\.toml:/home/asterio/\.codex/config\.toml:ro}, mount
+    assert mount, "xhigh candidate must mount the generated config"
+    cfg = File.read(File.join(@out, "codex-config.toml"))
+
+    assert_match(/^model_reasoning_effort = "xhigh"/, cfg)
+    assert_includes cfg, 'plugins."compound-engineering@compound-engineering-plugin"'
   end
 
-  def test_default_codex_candidate_mounts_no_config
+  def test_default_codex_candidate_config_registers_plugins_without_effort
     skip "needs ~/.codex/auth.json" unless File.file?(File.expand_path("~/.codex/auth.json"))
     plain = HiveBench::Candidates.by_id("all-codex")
     driver.call(entry: entry, candidate: plain, out_dir: @out)
+    cfg = File.read(File.join(@out, "codex-config.toml"))
 
-    refute(@seen_cmd.any? { |a| a.to_s.include?("config.toml") },
-           "default-effort codex must keep the CLI's own defaults")
+    refute_match(/model_reasoning_effort/, cfg, "default effort stays the CLI default")
+    assert_includes cfg, 'plugins."compound-engineering@compound-engineering-plugin"'
+    assert(@seen_cmd.any? { |a| a.to_s.include?("codex-plugins-cache") }, "skill cache mounted")
   end
 
   def test_grok_candidate_mounts_auth_and_pins_model_effort
