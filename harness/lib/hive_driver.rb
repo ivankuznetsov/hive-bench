@@ -52,7 +52,7 @@ module HiveBench
       init_state_repo(work)
 
       started = @clock.call
-      stdout = run_container(slug, base, work, candidate)
+      stdout = run_container(slug, base, work, candidate, out_dir)
       wall = (@clock.call - started).round(2)
 
       build_cell(entry, candidate, work, stdout, wall)
