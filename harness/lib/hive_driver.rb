@@ -242,10 +242,13 @@ module HiveBench
     # xhigh candidates. Deliberately NOT the operator's config.toml — that
     # carries personal MCP servers and host project trusts.
     def codex_config(candidate)
-      # TOML: top-level keys must precede any [table] section, so the effort
-      # pin goes first.
-      effort = candidate.codex_effort ? %(model_reasoning_effort = "#{candidate.codex_effort}"\n\n) : ""
-      effort + <<~TOML
+      # TOML: top-level keys must precede any [table] section, so the model
+      # and effort pins go first.
+      pins = +""
+      pins << %(model = "#{candidate.codex_model}"\n) if candidate.codex_model
+      pins << %(model_reasoning_effort = "#{candidate.codex_effort}"\n) if candidate.codex_effort
+      pins << "\n" unless pins.empty?
+      pins + <<~TOML
         [marketplaces.compound-engineering-plugin]
         source_type = "git"
         source = "https://github.com/EveryInc/compound-engineering-plugin.git"

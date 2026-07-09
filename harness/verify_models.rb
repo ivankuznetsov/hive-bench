@@ -22,6 +22,7 @@ module HiveBench
       "all_opus_4_8" => /claude-opus-4-8/,
       "all_codex" => /gpt-5\.5|codex/,
       "all_codex_xhigh" => /gpt-5\.5|codex/,
+      "all_codex_5_6_sol_xhigh" => /gpt-5\.6-sol|codex/,
       "opus_plan_codex_exec" => /claude-opus-4-8|gpt-5\.5|codex/,
       "opus_plan_codex_exec_xhigh" => /claude-opus-4-8|gpt-5\.5|codex/,
       "all_grok_4_5" => /grok/,

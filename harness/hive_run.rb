@@ -19,6 +19,7 @@ require "lib/hive_driver"
 require "lib/corpus"
 require "lib/claude_judge"
 require "lib/openrouter_judge"
+require "lib/codex_judge"
 require "profiles/candidates"
 
 module HiveBench
@@ -64,7 +65,8 @@ module HiveBench
     def parse(argv)
       opts = { corpus: "corpus", out: "runs/v2", source: nil, candidate: nil, seeds: 1,
                corpus_version: "v2", withhold_reference: false, claude_judge: true, judge_bin: "claude",
-               judge_model: nil, openrouter_judge: true, openrouter_judge_model: "openai/gpt-5.5-pro" }
+               judge_model: nil, codex_judge: true,
+               openrouter_judge: false, openrouter_judge_model: "openai/gpt-5.5-pro" }
       OptionParser.new do |o|
         o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/hive_run.rb --source <hive-clone> [opts]"
         o.on("--source PATH", "the target repo hive runs against (cloned at base_commit)") { |v| opts[:source] = v }
@@ -76,6 +78,7 @@ module HiveBench
         o.on("--seeds N", Integer, "judge samples per judge (default 1; use >=3 for " \
                                    "published cells — 1 seed collapses the tie interval") { |v| opts[:seeds] = v }
         o.on("--[no-]withhold-reference", "default off: judge vs the reference PR") { |v| opts[:withhold_reference] = v }
+        o.on("--[no-]codex-judge", "gpt-5.6-sol@xhigh via the codex CLI (subscription)") { |v| opts[:codex_judge] = v }
         o.on("--[no-]openrouter-judge") { |v| opts[:openrouter_judge] = v }
       end.parse!(argv)
       opts

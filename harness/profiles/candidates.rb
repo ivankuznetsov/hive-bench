@@ -13,7 +13,7 @@ module HiveBench
     module_function
 
     Candidate = Data.define(:id, :plan, :execute, :review, :claude_model, :pi_models,
-                            :codex_effort, :grok_model, :grok_effort, :model_version,
+                            :codex_effort, :codex_model, :grok_model, :grok_effort, :model_version,
                             :review_max_passes, :review_wall_clock_sec, :reviewers, :ci_command)
 
     # pi --model patterns verified against the local pi + OpenRouter (2026-07-03).
@@ -23,7 +23,8 @@ module HiveBench
     def all
       [all_opus, all_codex, opus_plan_codex_exec,
        all_glm, all_kimi, glm_plan_kimi_exec,
-       all_codex_xhigh, opus_plan_codex_exec_xhigh, all_grok].freeze
+       all_codex_xhigh, opus_plan_codex_exec_xhigh, all_grok,
+       all_codex_sol_xhigh].freeze
     end
 
     def by_id(id)
@@ -31,10 +32,11 @@ module HiveBench
     end
 
     def base(id, plan:, execute:, review:, model_version:, claude_model: nil, pi_models: nil,
-             codex_effort: nil, grok_model: nil, grok_effort: nil)
+             codex_effort: nil, codex_model: nil, grok_model: nil, grok_effort: nil)
       Candidate.new(id: id, plan: plan, execute: execute, review: review,
                     claude_model: claude_model, pi_models: pi_models,
-                    codex_effort: codex_effort, grok_model: grok_model, grok_effort: grok_effort,
+                    codex_effort: codex_effort, codex_model: codex_model,
+                    grok_model: grok_model, grok_effort: grok_effort,
                     model_version: model_version,
                     review_max_passes: 2, review_wall_clock_sec: 7200,
                     reviewers: [], ci_command: nil)
@@ -89,6 +91,15 @@ module HiveBench
       base("opus-plan->codex-exec-xhigh", plan: "claude", execute: "codex", review: "claude",
                                           claude_model: "claude-opus-4-8", codex_effort: "xhigh",
                                           model_version: "opus-plan/codex-exec-xhigh")
+    end
+
+    # gpt-5.6-sol at xhigh (maintainer request 2026-07-09): the 5.6 generation
+    # joins the board alongside gpt-5.5. Model pinned via the generated codex
+    # config.toml; needs codex >= 0.144 (hive-bench-runner:sol image).
+    def all_codex_sol_xhigh
+      base("all-codex-5.6-sol-xhigh", plan: "codex", execute: "codex", review: "codex",
+                                      codex_model: "gpt-5.6-sol", codex_effort: "xhigh",
+                                      model_version: "gpt-5.6-sol-xhigh")
     end
 
     # xAI grok (maintainer request 2026-07-09): grok-4.5 at xhigh — grok's

@@ -263,10 +263,12 @@ module HiveBench
       )
     end
 
-    # The independent judges, keyed by the name recorded in results.json. Both on
-    # by default — the dual-judge slate (maintainer decision, 2026-07-01):
-    # fable-5 (local claude CLI, anthropic-family) + gpt-5.5-pro (OpenRouter,
-    # openai-family). Two judges is the slate; no third. The key DERIVES from the
+    # The independent judges, keyed by the name recorded in results.json. The
+    # dual-judge slate (maintainer decision 2026-07-09, superseding 2026-07-01):
+    # fable-5 (local claude CLI, anthropic-family) + gpt-5.6-sol@xhigh (codex
+    # CLI, openai-family) — both subscription, so judging costs no API balance.
+    # gpt-5.5-pro via OpenRouter remains available behind --openrouter-judge
+    # (off by default). Two judges is the slate; no third. Keys DERIVE from the
     # pinned judge model so results.json never claims a model that didn't judge.
     def judges(opts)
       j = {}
@@ -275,11 +277,15 @@ module HiveBench
         j[model.sub(/\Aclaude-/, "")] =
           Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: model), seeds: opts[:seeds])
       end
+      if opts[:codex_judge]
+        j[CodexJudge::DEFAULT_MODEL] =
+          Judge.new(judge_fn: CodexJudge.judge_fn, seeds: opts[:seeds])
+      end
       if opts[:openrouter_judge]
         j[opts[:openrouter_judge_model].split("/").last] =
           Judge.new(judge_fn: OpenRouterJudge.judge_fn(model: opts[:openrouter_judge_model]), seeds: opts[:seeds])
       end
-      abort("no judges enabled (need --claude-judge and/or --openrouter-judge)") if j.empty?
+      abort("no judges enabled (need --claude-judge, --codex-judge and/or --openrouter-judge)") if j.empty?
       j
     end
 
