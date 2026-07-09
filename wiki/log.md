@@ -3,6 +3,19 @@
 Append-only log of all wiki operations.
 
 <!-- BEGIN GENERATED WIKI LOG FRAGMENTS -->
+# 2026-07-09 — wiki refresh for current harness
+
+- Refreshed [[architecture]] for the current candidate slate, full-cycle review
+  default, candidate-owned review config, per-cell codex config, pi/grok shims,
+  native CE skill mounts, and the three curated held-out test gates.
+- Updated [[decisions]] to replace the old "review is next phase" note with the
+  current review-default posture and to record explicit harness-owned model pins
+  for CLIs without hive model fields.
+- Updated [[findings]] and [[gaps]] for closed pi model-selection ambiguity,
+  codex CE/plugin parity, grok telemetry uncertainty, and the current state of
+  objective gates.
+- Filled [[dependencies]] and refreshed [[index]] page coverage/status.
+
 # 2026-07-09 — v3 bench workflow descriptor
 
 - Added the `bench` custom hive workflow (`inbox -> extract -> generate ->
@@ -15,6 +28,29 @@ Append-only log of all wiki operations.
   and verifies the generate-stage missing-campaign gate.
 - Documented operator flow, WAITING plus `touch <state_file>` retry semantics,
   and remaining manual pieces in [[v3-workflow]].
+
+# 2026-07-09 — bench generate per-cell result check
+
+- Refreshed [[v3-workflow]] for v3-bench-as-hive-workflow-260709-b3nc:
+  `3-generate` no longer expects a campaign-root `results.json` after running
+  cells. `harness/hive_run.rb` writes one result file per cell under
+  `runs/<campaign_id>/<candidate>--<task>/results.json`, so the final generate
+  check now iterates the campaign matrix, skips exclusions, and reports
+  unfinished cells by `candidate/task` with status `missing` or the observed
+  `run_status`.
+- Updated [[gaps]] to preserve the remaining uncertainty: the structural smoke
+  exists, but a real campaign has not yet been observed completing after this
+  per-cell final-check fix, and publish-summary coverage is still unverified.
+
+# 2026-07-09 — bench workflow follow-up refresh
+
+- `3-generate` now records nonzero harness commands and still inspects the
+  campaign results before deciding whether to park at WAITING.
+- `5-publish` now summarizes the merged `agents` schema directly: cross-family
+  means, judged cells, gate pass rate, fresh/reused provenance, and total cost.
+- The no-cost workflow smoke now requires `hive` before loading the descriptor
+  parser. [[v3-workflow]] and [[gaps]] were refreshed to match the current
+  workflow coverage and remaining uncertainty.
 
 # 2026-07-07 — model verification, opus column filling, near-final board
 

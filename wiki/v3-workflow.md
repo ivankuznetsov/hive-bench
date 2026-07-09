@@ -37,8 +37,10 @@ generation.
 - `3-generate` validates the committed campaign contract, then runs
   `ruby harness/hive_run.rb` once for each non-excluded task/candidate cell.
   If a harness command exits nonzero, the stage records that fact and still
-  inspects the campaign `results.json`; only remaining `pending` or `failed`
-  cells park the stage at WAITING. Existing harness reuse makes reruns
+  inspects every per-cell result at
+  `runs/<campaign_id>/<candidate>--<task>/results.json`; only cells whose
+  `run_status` is not `generated` or `empty_diff`, or whose result file is
+  missing, park the stage at WAITING. Existing harness reuse makes reruns
   idempotent for already-scored cells.
 - `4-judge` runs `harness/rejudge.rb --only-missing` and then
   `harness/deliberate.rb` for the campaign result file.

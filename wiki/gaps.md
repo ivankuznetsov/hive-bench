@@ -2,24 +2,32 @@
 
 What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 
-## Candidate matrix (opus, codex, and the mixed candidate PROVEN 2026-07-02)
+## Candidate matrix (opus, codex, open models, and grok)
 
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **open models (glm/kimi via pi)** — hive has **no `--model` flag for pi**; the model comes
-  from pi's provider config. To vary glm vs kimi, configure `~/.pi/agent` per run or add an
-  `agents.pi.args` passthrough. UNVERIFIED.
+- ~~open models (glm/kimi via pi)~~ — SOLVED in the harness: hive still has no
+  native pi model field, but `hive_stages.sh` wraps pi and injects
+  `HB_PI_MODEL_PLAN` / `HB_PI_MODEL_EXECUTE` / `HB_PI_MODEL_REVIEW`, so glm,
+  kimi, and glm-plan→kimi-exec are explicit per cell.
 - **codex usage shape** — codex's stream reports input tokens with no cache split, so the
   token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
   codex reports cached tokens before publishing cost columns.
+- **grok usage/cost** — `all-grok-4.5` is configured with model+effort pins, but
+  grok currently reports no token usage in this harness path. Cost columns stay
+  unknown until telemetry exists.
+- **grok runner pin** — grok needs the grok-enabled runner image
+  (`HB_RUNNER_IMAGE=hive-bench-runner:grok`) until hive PR #695 is included in
+  the pinned runner image.
 
 ## Review stage (SHIPPED 2026-07-02 — leftovers)
 
 - Full cycle runs (open-pr + review with prod-default config, gh shim, bench-local origin;
   see [[architecture]]). Leftovers:
-  - `review_status` marker capture found nothing in status.md — locate hive's terminal
-    REVIEW_COMPLETE/WAITING/STALE marker (file/format) and wire it into telemetry.
+  - `review_status` marker capture now scans for REVIEW_COMPLETE/WAITING/STALE
+    in `status.md`, but it has not been confirmed against a fresh successful
+    full-cycle review run after the 2026-07-09 review-config changes.
   - CI-fix phase is inert while `ci.command` is null (prod parity); once gates are curated,
     feed the gate's `test_cmd` in as `ci_command` so review runs real CI.
 
@@ -39,9 +47,11 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   `cost_usd` can be estimated for mixed candidates. Currently nil by design.
 - **Model self-verification** — `model_version` is asserted by the candidate config, not
   verified. The stream logs carry model ids; parse and cross-check, flag mismatched cells.
-- **Gate curation is still the biggest lever** — v2 runs a no-op gate; the objective floor
-  returns only when tasks carry curated verbose gates. Corpus is now 6 accepted tasks
-  (2026-07-01 extraction round); PRs #623/#624/#625 ship unit tests → best F2P candidates.
+- **Gate curation is still the biggest lever** — three tasks now carry
+  reference-test overlays (#623/#624/#625), but only `fix-tmux` behaved as a
+  useful behavioral gate on existing diffs. add-i-key, web-install, and install
+  still need runtime-style gates, and the interface-strict gates need replacement
+  before gates can be primary.
 - **Fable judge model id unverified** — the claude judge now defaults to `claude-fable-5`
   (maintainer picked fable + gpt-5.5-pro as the full judge slate). If the CLI rejects that
   id, the judge fails loudly (fail-soft parks the cell); verify on the first judged pass or
@@ -81,7 +91,8 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
 - **Bench workflow smoke coverage is structural** — it parses both descriptor
   copies, checks installation drift, validates the campaign example, advances a
   throwaway task, and tests the missing-campaign gate; it has not run a real
-  campaign through the new generate nonzero/result-inspection path or the
+  campaign to completion after the v3-bench-as-hive-workflow-260709-b3nc
+  generate-stage fix that checks per-cell result files, nor has it run the
   publish summary against merged results.
 - **Objective gates primary** for all 6 tasks (concrete gate designs are in the
   review §4.2); judges then score quality among passing diffs only.

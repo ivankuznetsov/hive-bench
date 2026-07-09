@@ -17,18 +17,22 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 ## Pages
 
 - [[architecture]] — how v2 drives real hive (driver, config, candidates, container recipe)
+- [[dependencies]] — confirmed runtime tools, CLIs, services, and local auth assumptions
 - [[v3-workflow]] — hive custom workflow for one campaign per task folder
 - [[findings]] — everything learned across v1 and v2 (the headline results + gotchas)
 - [[decisions]] — methodology decisions and why
 - [[gaps]] — what's unverified / left to build
 - [[log]] — work log
 
-## Status (2026-06-27)
+## Status (2026-07-09)
 
-v2 is **proven and committed** for the `all-opus-4.8` candidate: real hive produces
-reference-quality diffs (1300 lines matching the reference PR's file set), judged vs the
-gold. Ships **plan+execute**; review is the next phase. See [[gaps]] for what's left and
-`HANDOFF.md` (repo root) for the run/build commands to continue on another machine.
+v2 is **published** as a real-hive benchmark: plan, execute, open-pr, and
+review run in the container by default, then the final post-review diff is
+judged against the merged reference PR. The slate now covers opus, codex,
+codex-xhigh, glm, kimi, mixed candidates, and grok. Three tasks have curated
+held-out reference-test gates; three remain judged-only. v3 work is about
+campaign orchestration, stronger runtime gates, replication, and calibrated
+judge presentation. See [[gaps]] and [[v3-workflow]].
 
 ## Query protocol
 
