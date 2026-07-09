@@ -1,0 +1,41 @@
+# v3 campaign pre-registration.
+# Copy this file into a bench task folder as campaign.yml, edit it, and commit it
+# in the hive-state checkout before the generate stage runs.
+
+campaign_id: v3-example
+source: /home/user/Dev/hive
+corpus_version: v3
+
+# Corpus slugs. Each must exist at corpus/<slug>/manifest.yml.
+tasks:
+  - fix-claude-tmux-ready-detector-260629-50cc
+
+# Candidate ids from harness/profiles/candidates.rb.
+candidates:
+  - all-opus-4.8
+
+# Candidate-id -> effort. Today effort pins live in candidate profiles; this is
+# a review contract rather than a hive_run.rb flag.
+effort_pins: {}
+
+# Judge samples. Use at least 3 for published results.
+seeds: 3
+
+# Review-enforced caps. The current harness does not enforce these as per-run
+# flags.
+budgets:
+  per_cell_usd: 25
+
+# Review-enforced timeout declarations. Harness defaults apply today.
+timeouts: {}
+
+# Cells intentionally excluded from the campaign matrix.
+# Example:
+#   - task: fix-claude-tmux-ready-detector-260629-50cc
+#     candidate: all-opus-4.8
+#     reason: documented reason
+exclusions: []
+
+aggregation: >
+  Gate pass_rate on gated subset; judge mean with cross-family judge emphasis;
+  efficiency is reported, not ranked.
