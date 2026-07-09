@@ -66,15 +66,30 @@ class HiveConfigTest < Minitest::Test
     assert_includes names, "pr-review-toolkit:review-pr"
   end
 
-  def test_every_candidate_gets_the_prod_tri_reviewer_set
+  def test_single_model_candidate_reviews_itself_with_ce
     h = HiveBench::HiveConfig.to_h(candidate(plan: "codex", execute: "codex", review: "codex", claude_model: nil))
     reviewers = h.dig("review", "reviewers")
 
-    assert_equal(%w[claude-ce-code-review codex-ce-code-review pr-review-toolkit],
-                 reviewers.map { |r| r["name"] })
-    assert_equal(%w[claude codex claude], reviewers.map { |r| r["agent"] })
-    assert_equal "claude", h.dig("review", "triage", "agent"), "prod triage is claude"
-    assert_equal "claude", h.dig("review", "fix", "agent"), "prod fix agent is claude"
+    assert_equal(["codex-ce-code-review"], reviewers.map { |r| r["name"] })
+    assert_equal "reviewer_codex_ce_code_review.md.erb", reviewers.first["prompt_template"]
+    assert_equal "codex", h.dig("review", "triage", "agent")
+  end
+
+  def test_claude_candidate_adds_pr_review_toolkit
+    h = HiveBench::HiveConfig.to_h(candidate(plan: "claude", execute: "claude", review: "claude"))
+    reviewers = h.dig("review", "reviewers")
+
+    assert_equal(%w[claude-ce-code-review pr-review-toolkit], reviewers.map { |r| r["name"] })
+  end
+
+  def test_mixed_candidate_derives_the_full_prod_tri_set
+    h = HiveBench::HiveConfig.to_h(candidate(plan: "claude", execute: "codex", review: "claude"))
+    names = h.dig("review", "reviewers").map { |r| r["name"] }
+
+    assert_equal 3, names.size, "opus+codex mixed = the prod claude+codex shop"
+    assert_includes names, "claude-ce-code-review"
+    assert_includes names, "codex-ce-code-review"
+    assert_includes names, "pr-review-toolkit"
   end
 
   def test_explicit_reviewers_override_the_derived_set
