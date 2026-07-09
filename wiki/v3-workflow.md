@@ -29,6 +29,11 @@ aggregation prose, then commit it in the hive-state checkout before generate.
 This keeps the campaign pre-registration immutable before spending on
 generation.
 
+The workflow stage files contain marker-anchored bash blocks. `3-generate`
+explicitly requires that block to be executed verbatim: its guards and its
+single terminal `<!-- WAITING -->` / `<!-- COMPLETE -->` marker are part of the
+stage contract, not prose for an agent to reimplement.
+
 ## Stage behavior
 
 - `2-extract` checks that every `tasks[]` slug has `corpus/<slug>/manifest.yml`
@@ -36,27 +41,31 @@ generation.
   it does not guess source PR coordinates for `harness/extract.rb`.
 - `3-generate` validates the committed campaign contract (required keys, strict
   `campaign_id` slug — it becomes the `runs/<campaign_id>` path segment — with
-  the unedited `v3-example` id rejected, exclusion entry shape, and
-  `timeouts.hive_seconds`), then runs `ruby harness/hive_run.rb` once for each
-  non-excluded task/candidate cell. `HB_HIVE_TIMEOUT` comes from the
-  pre-registered `timeouts.hive_seconds` (harness defaults apply when unset);
-  the grok runner image is keyed on the candidate profile's `grok_model`
-  field. A cell is never re-bought once its per-cell results.json shows
-  `generated`/`empty_diff`, once the file exists but does not parse (fail
-  closed: a truncated file must not read as "never ran"), or once a diff was
-  captured but every judge walled (`pending[]` + `target/candidate.patch`) —
-  that last state is reported as `judges_pending` for rejudge backfill, never
-  regenerated (the hive driver would rm-rf the paid work tree). If a harness
-  command exits nonzero, the stage folds that note into the status and still
-  inspects every per-cell result at
-  `runs/<campaign_id>/<candidate>--<task>/results.json`, reporting unfinished
-  cells with their `pending[]`/`failed[]` reasons. When every cell is
-  `generated`/`empty_diff`, the stage merges all per-cell files into
-  `runs/<campaign_id>/results.json` via `harness/merge_results.rb` — the
-  handoff `4-judge` and `5-publish` consume.
+  the unedited `v3-example` id rejected, non-empty single-line `source`,
+  single-line scalar `corpus_version`, exclusion entry shape, at least one
+  non-excluded task/candidate cell, and `timeouts.hive_seconds`). It then runs
+  `ruby harness/hive_run.rb` once for each non-excluded cell. `HB_HIVE_TIMEOUT`
+  comes from the pre-registered timeout (harness defaults apply when unset);
+  the grok runner image is keyed on the candidate profile's `grok_model` field.
+  A cell is treated as already bought if its per-cell result is terminal
+  (`generated`/`empty_diff`) or if any `target/candidate.patch` exists, even
+  when the result is missing or parked in `pending[]`, `failed[]`, or a
+  non-terminal `cells[]` record. An unreadable existing result also fails
+  closed. Captured-diff states are reported as `judges_pending` and are never
+  regenerated unless the operator deliberately removes the cell directory,
+  because the hive driver starts a rerun by deleting the paid work tree.
+  Completion is stricter than the re-buy guard: every per-cell result must be
+  terminal with both `pending[]` and `failed[]` empty. Harness commands run
+  under non-login `bash -c`; bounded stderr tails are folded into a WAITING
+  status when commands fail. Once the matrix is clean, the stage merges an
+  existing campaign-root result first and the per-cell results second, which
+  preserves root-only rejudge scores while keeping per-cell run/gate data
+  authoritative. It writes `runs/<campaign_id>/results.json.next` and renames
+  it over `results.json` only after a successful merge, so the campaign-root
+  handoff consumed by `4-judge` and `5-publish` is not truncated mid-write.
 - `4-judge` extracts campaign fields in one guarded ruby block (a malformed
   campaign.yml parks WAITING instead of dying marker-less), sources
-  `~/.openrouter_key` like generate, then runs `harness/rejudge.rb
+  `~/.openrouter_key`, then runs `harness/rejudge.rb
   --only-missing` and `harness/deliberate.rb --min-disagreement 0 --skip-done`
   (wall retries never re-buy deliberated cells) with the PER-CELL run dirs
   (`runs/<campaign_id>/*--*`) as artifact search dirs — rejudge resolves
@@ -79,7 +88,12 @@ residual commits.
 Each instruction anchors from the task folder to the repo root with
 `REPO_ROOT="$(cd ../../../.. && pwd)"`. Do not replace that with
 `git rev-parse`; task folders live under `.hive-state`, which is its own git
-checkout in normal hive operation.
+checkout in normal hive operation. Only `3-generate` currently defines its
+marker helpers before guarding this substitution; extract, judge, and publish
+still resolve the anchor first and can therefore exit marker-less if `cd`
+itself fails. Judge's key-file behavior also differs from generate: it exports
+the file contents verbatim, so an empty `~/.openrouter_key` can replace a valid
+environment key. Both asymmetries remain in [[gaps]].
 
 ## Provider walls and retries
 
@@ -95,6 +109,13 @@ The v3 retry contract is explicit marker discipline:
 The daemon's edit-resume policy sees the state file mtime change after its
 debounce window and may dispatch the stage again. Automatic cooldown retry is a
 hive-side feature request, not part of hive-bench v3.
+
+When a candidate patch already exists, the generate status directs judge
+backfill at the campaign-root `runs/<campaign_id>/results.json`, never at the
+per-cell result (rejudge overwrites its output and can otherwise erase the
+pending evidence that keeps generation disarmed). The first-wall case where no
+campaign-root result exists yet is not source-closed or smoke-verified; see
+[[gaps]].
 
 Every retry appends a fresh `## Status` section to the state file;
 last-marker-wins keeps the semantics correct, but the file grows across
@@ -142,4 +163,15 @@ example fails the smoke, not a live campaign) with a stub `hive_run.rb`
 simulating a provider wall, asserting WAITING with the retry note, the
 surfaced `pending[]` reason, and scratch-file cleanup. The parser smoke
 requires `hive` before loading the descriptor parser, matching the real gem
-load path.
+load path. It does not yet cover the fully-excluded/multiline contract guards,
+an empty key-file fallback, paid patches in the pending/failed/non-terminal
+buckets, contradictory terminal results, bounded command stderr, or the
+existing-root plus atomic `.next` merge path.
+
+At v3-bench-as-hive-workflow-260709-b3nc, the canonical
+`workflows/bench/generate.md` and the committed
+`.hive-state/workflows/bench/generate.md` copy are not identical: the installed
+copy predates the broader generate hardening described above. Because the smoke
+starts with a recursive copy comparison, it currently exits at that drift check
+before running the scenario coverage. Refresh the installed workflow copy from
+`workflows/bench/` and rerun the smoke before treating it as green.
