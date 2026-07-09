@@ -43,11 +43,7 @@ generation.
   missing, park the stage at WAITING. Existing harness reuse makes reruns
   idempotent for already-scored cells.
 - `4-judge` runs `harness/rejudge.rb --only-missing` and then
-  `harness/deliberate.rb` for the campaign result file at
-  `runs/<campaign_id>/results.json`. The current generate stage verifies
-  per-cell result files under `runs/<campaign_id>/<candidate>--<task>/`; the
-  campaign-level handoff into judge/publish still needs a real campaign smoke or
-  an explicit merge step if that file is absent.
+  `harness/deliberate.rb` for the campaign result file.
 - `5-publish` runs `harness/merge_results.rb` and writes a leaderboard summary
   into `publish.md` from the merged `agents` schema: cells, cross-family judge
   means, judged-cell count, gate pass rate, fresh/reused provenance, and total
