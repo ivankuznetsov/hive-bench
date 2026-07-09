@@ -54,6 +54,24 @@ GROK
   echo "HB_NOTE grok_pin model=${HB_GROK_MODEL:-} effort=${HB_GROK_EFFORT:-}"
 fi
 
+# Native CE skills (prod parity): the driver mounts each CLI's skill tree ro at
+# a neutral /opt/hb path; link it into the CLI's discovery path here, inside
+# the writable tmpfs (a direct bind under the tmpfs would leave root-owned
+# parent dirs that kill the CLIs — the .claude/.codex lesson).
+if [ -d /opt/hb/codex-plugins-cache ]; then
+  mkdir -p "$HOME/.codex/plugins"
+  [ -e "$HOME/.codex/plugins/cache" ] || ln -s /opt/hb/codex-plugins-cache "$HOME/.codex/plugins/cache"
+  echo "HB_NOTE codex_skills linked: $(ls /opt/hb/codex-plugins-cache | tr '\n' ' ')"
+fi
+if [ -d /opt/hb/pi-ce-skills ]; then
+  mkdir -p "$HOME/.pi/agent/skills"
+  for s in /opt/hb/pi-ce-skills/*/; do
+    n="$(basename "$s")"
+    [ -e "$HOME/.pi/agent/skills/$n" ] || ln -s "${s%/}" "$HOME/.pi/agent/skills/$n"
+  done
+  echo "HB_NOTE pi_skills linked: $(ls /opt/hb/pi-ce-skills | wc -l) skills"
+fi
+
 # Capture the task worktree's diff vs base into $1: committed + uncommitted +
 # untracked (agents often leave work uncommitted), minus vendored/build trees.
 # Pathspecs mirror GitRestore::VENDORED_EXCLUDES — keep them in sync.

@@ -159,6 +159,12 @@ module HiveBench
         mounts += ["-v", "#{claude_credentials}:#{HOME}/.claude/.credentials.json:ro",
                    "-v", "#{claude_settings}:#{HOME}/.claude/settings.json:ro",
                    "-v", "#{claude_plugins}:#{HOME}/.claude/plugins:ro"]
+        # Prod parity: hive's default plan skill for claude is /plan (the
+        # wiki+ce-plan wrapper). It resolves from user commands OR a plugin;
+        # mount the user commands dir when the host has one (this host's /plan
+        # lives in plugins, already mounted — so conditional, not fail-closed).
+        claude_commands = File.join(CLAUDE_DIR, "commands")
+        mounts += ["-v", "#{claude_commands}:#{HOME}/.claude/commands:ro"] if File.directory?(claude_commands)
       end
       codex = File.expand_path("~/.codex/auth.json")
       if uses?(candidate, "codex") && File.file?(codex)
@@ -177,6 +183,24 @@ module HiveBench
 
           mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
         end
+      end
+      if uses?(candidate, "codex") && File.file?(codex)
+        # Native CE skills (prod parity, found missing 2026-07-09: codex's own
+        # review log said the skill "is not available in the listed skills").
+        # Mounted at a neutral path; hive_stages.sh links it into the ~/.codex
+        # tmpfs (a direct bind under the tmpfs would leave root-owned parents).
+        codex_cache = File.expand_path("~/.codex/plugins/cache")
+        raise "codex plugin cache missing or not a directory: #{codex_cache}" unless File.directory?(codex_cache)
+
+        mounts += ["-v", "#{codex_cache}:/opt/hb/codex-plugins-cache:ro"]
+      end
+      if uses?(candidate, "pi")
+        # Same for pi: the compound-engineering skill tree from pi's plugin
+        # checkout, linked into ~/.pi/agent/skills by hive_stages.sh.
+        pi_skills = File.expand_path("~/.pi/agent/git/github.com/EveryInc/compound-engineering-plugin/skills")
+        raise "pi CE skills missing or not a directory: #{pi_skills}" unless File.directory?(pi_skills)
+
+        mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro"]
       end
       if uses?(candidate, "grok")
         # Same tmpfs-the-dir/bind-the-credential pattern as codex; fail closed
