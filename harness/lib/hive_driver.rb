@@ -142,7 +142,7 @@ module HiveBench
     # matching absolute path (so /ce-plan resolves). codex: its OAuth, read-only.
     def auth_mounts(candidate, out_dir)
       mounts = []
-      if needs?(candidate, "claude")
+      if uses?(candidate, "claude")
         # RULE: never hand docker a bind-mount source unless it already exists
         # with the right type — docker creates a missing source as a root-owned
         # DIRECTORY on the host, which permanently breaks claude login there
@@ -167,7 +167,7 @@ module HiveBench
         mounts += ["-v", "#{claude_commands}:#{HOME}/.claude/commands:ro"] if File.directory?(claude_commands)
       end
       codex = File.expand_path("~/.codex/auth.json")
-      if needs?(candidate, "codex") && File.file?(codex)
+      if uses?(candidate, "codex") && File.file?(codex)
         # Same trap as claude's .claude: a ro bind-mount's parent dir is created
         # root-owned inside the HOME tmpfs, and codex dies at startup unable to
         # write beside it ("failed to initialize in-process app-server client:
@@ -183,7 +183,7 @@ module HiveBench
         File.write(cfg, codex_config(candidate))
         mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
       end
-      if needs?(candidate, "codex") && File.file?(codex)
+      if uses?(candidate, "codex") && File.file?(codex)
         # Native CE skills (prod parity, found missing 2026-07-09: codex's own
         # review log said the skill "is not available in the listed skills").
         # Mounted at a neutral path; hive_stages.sh links it into the ~/.codex
@@ -235,15 +235,6 @@ module HiveBench
 
     def uses?(candidate, agent)
       [candidate.plan, candidate.execute, candidate.review].include?(agent)
-    end
-
-    # The prod review harness runs claude (triage/fix/2 reviewers) and codex
-    # (1 reviewer) for EVERY candidate, so review-enabled cells need both
-    # mounted regardless of who plans/executes.
-    def needs?(candidate, agent)
-      return true if uses?(candidate, agent)
-
-      %w[claude codex].include?(agent) && ENV.fetch("HB_REVIEW", "1") == "1"
     end
 
     # Minimal per-cell codex config: CE plugin registration (the cache is
