@@ -57,6 +57,21 @@ whole slate — every cell generated, reviewed, and scored:
   codex's usage shape before publishing cost columns.
 - gpt-5.5-pro judging pending (OpenRouter top-up), backfill via rejudge.
 
+## Objective gates land (2026-07-09) — plausibility vs observed success, measured
+
+Three tasks now carry held-out-reference-test gates (see corpus/MANIFEST.md).
+Run over every existing diff (17 cells, no-network container):
+- **fix-tmux (behavioral gate): 6/6 candidates PASS** — every generated diff
+  really makes the reference's gem-packaging test pass; the judges' 7-8 scores
+  there were measuring real success.
+- **fix-review + daemon (interface-strict gates): 0 passes** — the reference's
+  unit tests require its internal class names; every candidate architected
+  differently, so the tests can't even load. These gates measure conformance
+  to the reference's internals, not task success — the external review's
+  SWE-bench-limitation warning, demonstrated on our own data. Published with
+  nature labels, excluded from rankings. v3's runtime gates (install smoke,
+  tmux fixture, state-machine test) are the fix.
+
 ## FINAL v2 board (2026-07-06) — see RESULTS.md
 
 The campaign closed with 30 cells. Cross-family means: codex 5.2 (fable, 6/6),
