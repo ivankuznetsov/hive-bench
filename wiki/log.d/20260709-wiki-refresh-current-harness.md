@@ -7,7 +7,6 @@
   current review-default posture and to record explicit harness-owned model pins
   for CLIs without hive model fields.
 - Updated [[findings]] and [[gaps]] for closed pi model-selection ambiguity,
-  codex CE/plugin parity, completed model verification, superseded final-board
-  retry queues, grok telemetry uncertainty, and the current state of objective
-  gates.
+  codex CE/plugin parity, grok telemetry uncertainty, and the current state of
+  objective gates.
 - Filled [[dependencies]] and refreshed [[index]] page coverage/status.
