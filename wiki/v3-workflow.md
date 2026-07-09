@@ -36,11 +36,16 @@ generation.
   it does not guess source PR coordinates for `harness/extract.rb`.
 - `3-generate` validates the committed campaign contract, then runs
   `ruby harness/hive_run.rb` once for each non-excluded task/candidate cell.
-  Existing harness reuse makes reruns idempotent for already-scored cells.
+  If a harness command exits nonzero, the stage records that fact and still
+  inspects the campaign `results.json`; only remaining `pending` or `failed`
+  cells park the stage at WAITING. Existing harness reuse makes reruns
+  idempotent for already-scored cells.
 - `4-judge` runs `harness/rejudge.rb --only-missing` and then
   `harness/deliberate.rb` for the campaign result file.
 - `5-publish` runs `harness/merge_results.rb` and writes a leaderboard summary
-  into `publish.md`. There is no site generator in this repo yet.
+  into `publish.md` from the merged `agents` schema: cells, cross-family judge
+  means, judged-cell count, gate pass rate, fresh/reused provenance, and total
+  cost. There is no site generator in this repo yet.
 
 Each instruction anchors from the task folder to the repo root with
 `REPO_ROOT="$(cd ../../../.. && pwd)"`. Do not replace that with
@@ -92,3 +97,5 @@ The smoke is no-cost. It parses both descriptor copies through hive's real
 canonical copy, validates `campaign.yml.example` against current candidates and
 corpus, advances a throwaway task through all six stages with
 `Hive::Commands::Approve`, and checks the generate-stage missing-campaign gate.
+The parser smoke requires `hive` before loading the descriptor parser, matching
+the real gem load path.
