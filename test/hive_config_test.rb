@@ -66,14 +66,15 @@ class HiveConfigTest < Minitest::Test
     assert_includes names, "pr-review-toolkit:review-pr"
   end
 
-  def test_codex_candidate_gets_codex_reviewers_without_claude_plugins
+  def test_every_candidate_gets_the_prod_tri_reviewer_set
     h = HiveBench::HiveConfig.to_h(candidate(plan: "codex", execute: "codex", review: "codex", claude_model: nil))
     reviewers = h.dig("review", "reviewers")
 
-    assert_equal ["codex"], reviewers.map { |r| r["agent"] }.uniq
-    refute(reviewers.any? { |r| r["skill"].include?("pr-review-toolkit") },
-           "pr-review-toolkit is a claude plugin — codex candidates can't run it")
-    assert_equal "reviewer_codex_ce_code_review.md.erb", reviewers.first["prompt_template"]
+    assert_equal(%w[claude-ce-code-review codex-ce-code-review pr-review-toolkit],
+                 reviewers.map { |r| r["name"] })
+    assert_equal(%w[claude codex claude], reviewers.map { |r| r["agent"] })
+    assert_equal "claude", h.dig("review", "triage", "agent"), "prod triage is claude"
+    assert_equal "claude", h.dig("review", "fix", "agent"), "prod fix agent is claude"
   end
 
   def test_explicit_reviewers_override_the_derived_set
