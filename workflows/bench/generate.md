@@ -118,19 +118,26 @@ if [ "$generate_status" -ne 0 ]; then
   printf 'One or more generation commands exited nonzero; inspecting results.json for pending/failed cells.\n' >.generate-run.err
 fi
 
-ruby -rjson -e '
-  data = JSON.parse(File.read(ARGV.fetch(0)))
-  pending = data.fetch("pending", [])
-  failed = data.fetch("failed", [])
-  unless pending.empty? && failed.empty?
-    puts "pending=#{pending.size}"
-    pending.each { |cell| puts "PENDING #{cell.inspect}" }
-    puts "failed=#{failed.size}"
-    failed.each { |cell| puts "FAILED #{cell.inspect}" }
+ruby -ryaml -rjson -e '
+  repo = ARGV.fetch(0)
+  data = YAML.safe_load_file("campaign.yml")
+  exclusions = data.fetch("exclusions", []).map { |item| [item.fetch("task").to_s, item.fetch("candidate").to_s] }
+  bad = []
+  data.fetch("tasks").each do |task|
+    data.fetch("candidates").each do |candidate|
+      next if exclusions.include?([task.to_s, candidate.to_s])
+      out = File.join(repo, "runs", data.fetch("campaign_id").to_s, "#{candidate}--#{task}", "results.json")
+      cell = (JSON.parse(File.read(out))["cells"] || []).first rescue nil
+      status = cell ? cell["run_status"] : "missing"
+      bad << "#{candidate}/#{task}: #{status}" unless %w[generated empty_diff].include?(status)
+    end
+  end
+  unless bad.empty?
+    puts "unfinished=#{bad.size}"
+    bad.each { |line| puts "UNFINISHED #{line}" }
     exit 2
   end
-' "$REPO_ROOT/runs/$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml").fetch("campaign_id")')/results.json" \
-  >.generate-outcome.out 2>.generate-outcome.err || {
+' "$REPO_ROOT" >.generate-outcome.out 2>.generate-outcome.err || {
   write_waiting "$(cat .generate-outcome.err .generate-outcome.out)"
   exit 0
 }
