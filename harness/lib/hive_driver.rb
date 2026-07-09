@@ -179,7 +179,7 @@ module HiveBench
         # minimal config per cell — plugin registration + /work trust, plus
         # the effort pin for xhigh candidates — never the operator's own
         # config.toml (it carries personal MCP servers and project trusts).
-        cfg = File.join(out_dir, "codex-config.toml")
+        cfg = File.expand_path(File.join(out_dir, "codex-config.toml"))
         File.write(cfg, codex_config(candidate))
         mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
       end
