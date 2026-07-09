@@ -3,11 +3,16 @@
 Run this stage from the task folder. The task folder must contain
 `campaign.yml`; the repository root is four directories above the task folder.
 
+<!-- bench-stage-script -->
 ```bash
 set -euo pipefail
 
 STATE_FILE="extract.md"
 REPO_ROOT="$(cd ../../../.. && pwd)"
+
+# Scratch outputs are folded into the state file below; never leave them behind
+# to be swept into hive-state commits.
+trap 'rm -f .extract-check.out .extract-check.err' EXIT
 
 write_waiting() {
   {

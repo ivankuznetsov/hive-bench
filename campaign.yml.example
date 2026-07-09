@@ -26,8 +26,11 @@ seeds: 3
 budgets:
   per_cell_usd: 25
 
-# Review-enforced timeout declarations. Harness defaults apply today.
-timeouts: {}
+# Timeout declarations. `hive_seconds` IS enforced: the generate stage exports
+# it as HB_HIVE_TIMEOUT for every hive_run.rb invocation. Remove the key (or
+# use `timeouts: {}`) to let harness defaults apply.
+timeouts:
+  hive_seconds: 14400
 
 # Cells intentionally excluded from the campaign matrix.
 # Example:
