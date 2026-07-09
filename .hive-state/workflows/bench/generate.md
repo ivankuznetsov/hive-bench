@@ -88,9 +88,20 @@ ruby -ryaml -rshellwords -e '
   end
 ' >.generate-commands
 
+generate_status=0
 while IFS= read -r command; do
+  set +e
   (cd "$REPO_ROOT" && bash -lc "$command")
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    generate_status="$status"
+  fi
 done <.generate-commands
+
+if [ "$generate_status" -ne 0 ]; then
+  printf 'One or more generation commands exited nonzero; inspecting results.json for pending/failed cells.\n' >.generate-run.err
+fi
 
 ruby -rjson -e '
   data = JSON.parse(File.read(ARGV.fetch(0)))

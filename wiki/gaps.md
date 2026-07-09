@@ -78,6 +78,11 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
   [[v3-workflow]]. Remaining manual pieces: campaign authoring/commit,
   new-corpus extraction, provider-wall retry by `touch <state_file>`, website
   publishing, and review enforcement for budgets/timeouts/effort pins.
+- **Bench workflow smoke coverage is structural** — it parses both descriptor
+  copies, checks installation drift, validates the campaign example, advances a
+  throwaway task, and tests the missing-campaign gate; it has not run a real
+  campaign through the new generate nonzero/result-inspection path or the
+  publish summary against merged results.
 - **Objective gates primary** for all 6 tasks (concrete gate designs are in the
   review §4.2); judges then score quality among passing diffs only.
 - **Pre-registered, replicated campaign**: campaign.yml committed before

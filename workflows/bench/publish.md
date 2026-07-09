@@ -49,14 +49,25 @@ ruby -rjson -e '
   agents = data.fetch("agents", {})
   puts "## Leaderboard Summary"
   puts
-  puts "| Agent | Cells | Mean | Pass rate |"
-  puts "|---|---:|---:|---:|"
+  puts "| Agent | Cells | Cross-family mean | Judged cells | Gate pass rate | Fresh | Reused | Cost USD |"
+  puts "|---|---:|---|---:|---:|---:|---:|---:|"
+  def fmt(value)
+    value.nil? ? "n/a" : value
+  end
+  def mean_map(values)
+    return "n/a" unless values.is_a?(Hash) && !values.empty?
+    values.map { |judge, mean| "#{judge}=#{fmt(mean)}" }.join("<br>")
+  end
   agents.keys.sort.each do |agent|
     row = agents.fetch(agent)
-    mean = row["mean"] || row["score_mean"] || row["judge_mean"] || "n/a"
-    pass = row["pass_rate"] || row["gate_pass_rate"] || "n/a"
-    cells = row["cells"] || row["n"] || "n/a"
-    puts "| #{agent} | #{cells} | #{mean} | #{pass} |"
+    cells = row["cells"]
+    cross_mean = mean_map(row.dig("judged", "mean_quality_cross_family"))
+    judged = row.dig("judged", "scored_cells")
+    pass_rate = row.dig("gated", "pass_rate")
+    fresh = row.dig("provenance", "fresh")
+    reused = row.dig("provenance", "reused")
+    cost = row.dig("efficiency", "total_cost_usd")
+    puts "| #{agent} | #{fmt(cells)} | #{cross_mean} | #{fmt(judged)} | #{fmt(pass_rate)} | #{fmt(fresh)} | #{fmt(reused)} | #{fmt(cost)} |"
   end
   puts
   puts "Merged results: `#{ARGV.fetch(0)}`"

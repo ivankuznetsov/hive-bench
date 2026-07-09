@@ -10,6 +10,7 @@ cd "$ROOT"
 parse_descriptor() {
   local path="$1"
   ruby -e '
+    require "hive"
     require "hive/workflows/descriptor_parser"
     workflow = Hive::Workflows::DescriptorParser.parse_file(ARGV.fetch(0))
     expected = %w[1-inbox 2-extract 3-generate 4-judge 5-publish 6-done]
