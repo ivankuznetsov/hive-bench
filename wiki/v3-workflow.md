@@ -40,16 +40,10 @@ generation.
   inspects every per-cell result at
   `runs/<campaign_id>/<candidate>--<task>/results.json`; only cells whose
   `run_status` is not `generated` or `empty_diff`, or whose result file is
-  missing, park the stage at WAITING. It does not currently write the
-  campaign-root `runs/<campaign_id>/results.json`. Existing harness reuse makes
-  reruns idempotent for already-scored cells.
+  missing, park the stage at WAITING. Existing harness reuse makes reruns
+  idempotent for already-scored cells.
 - `4-judge` runs `harness/rejudge.rb --only-missing` and then
-  `harness/deliberate.rb` for the campaign result file at
-  `runs/<campaign_id>/results.json`; if that file is absent, the stage parks
-  before judging. The handoff from generated per-cell files into this
-  campaign-level file still needs a real campaign smoke or an explicit merge
-  step; the workflow sources for v3-bench-as-hive-workflow-260709-b3nc do not
-  currently show that merge.
+  `harness/deliberate.rb` for the campaign result file.
 - `5-publish` runs `harness/merge_results.rb` and writes a leaderboard summary
   into `publish.md` from the merged `agents` schema: cells, cross-family judge
   means, judged-cell count, gate pass rate, fresh/reused provenance, and total
