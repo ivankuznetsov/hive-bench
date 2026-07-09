@@ -3,6 +3,37 @@
 Append-only log of all wiki operations.
 
 <!-- BEGIN GENERATED WIKI LOG FRAGMENTS -->
+# 2026-07-09 — bench workflow review fix pass refresh
+
+- Refreshed [[v3-workflow]] from v3-bench-as-hive-workflow-260709-b3nc: `3-generate`
+  now merges per-cell results into the campaign-root `runs/<campaign_id>/results.json`
+  via `harness/merge_results.rb`, tightening the handoff consumed by `4-judge`
+  and `5-publish`.
+- Documented the no-re-buy semantics for generated/empty-diff cells, unparseable
+  per-cell results, and captured diffs whose judges all walled (`judges_pending`
+  for rejudge backfill); plus campaign contract checks, `HB_HIVE_TIMEOUT`, grok
+  runner selection, guarded judge/publish extraction, `--skip-done`, and scratch
+  cleanup.
+- Updated [[gaps]] to remove the stale "campaign merge missing" uncertainty while
+  keeping the remaining limits explicit: no real campaign has run end to end
+  through generate -> judge -> publish, judge/publish paid paths are fixture-only
+  so far, and judge seed count is not re-derivable from `results.json`.
+
+# 2026-07-09 — v3 workflow fragment refresh
+
+- Inspected v3-bench-as-hive-workflow-260709-b3nc's workflow-refresh commit.
+  The diff is changelog-only: it adds the `bench workflow review fix pass 1`
+  fragment, removes the later duplicate refresh fragment, and touches the
+  compiled `wiki/log.md` (left for the post-commit compiler here).
+- Rechecked the branch's `workflows/bench/{generate,judge,publish}.md`,
+  `campaign.yml.example`, `harness/merge_results.rb`, and
+  `tmp/bench-workflow-smoke.sh`. The main wiki's [[v3-workflow]] and [[gaps]]
+  already describe the verified state: per-cell results merge into the
+  campaign-root `results.json`, bought/walled cells are not regenerated,
+  judge/publish use guarded extraction and scratch files, and smoke coverage
+  remains no-cost/stubbed rather than a real paid campaign run.
+- No page coverage changed, so [[index]] needed no new page entry.
+
 # 2026-07-09 — v3 workflow residual cleanup
 
 - Inspected v3-bench-as-hive-workflow-260709-b3nc's residual wiki cleanup and
