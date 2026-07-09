@@ -17,6 +17,7 @@ module HiveBench
     FAMILIES = {
       "anthropic" => /claude|opus|sonnet|haiku|fable|mythos/i,
       "openai" => /gpt|codex|\bo[0-9]\b/i,
+      "xai" => /grok/i,
       "zhipu" => /glm/i,
       "moonshot" => /kimi/i,
       "alibaba" => /qwen/i,

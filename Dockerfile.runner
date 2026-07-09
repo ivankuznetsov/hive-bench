@@ -34,6 +34,15 @@ RUN curl -fsSLo /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-
 # claude cells). Auth is NOT installed here — only the binaries. Provider keys /
 # OAuth credentials are injected at run time (OpenRouter key as env; the claude
 # OAuth creds file bind-mounted read-only by harness/lib/isolation.sh).
+# Grok CLI is a native binary via x.ai's installer (version-pinned arg).
+ARG GROK_VERSION=0.2.93
+# The installer symlinks into /root/.grok (untraversable for the runner
+# user) — materialize the real binary in /usr/local/bin instead.
+RUN curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/usr/local/bin bash -s "${GROK_VERSION}" \
+  && real="$(readlink -f /usr/local/bin/grok)" && rm /usr/local/bin/grok \
+  && cp "$real" /usr/local/bin/grok && chmod 755 /usr/local/bin/grok \
+  && rm -rf /root/.grok && grok --version
+
 RUN npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}" \
   && npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" \
   && npm install -g "@openai/codex@${CODEX_VERSION}" \

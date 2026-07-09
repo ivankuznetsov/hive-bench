@@ -13,8 +13,8 @@ module HiveBench
     module_function
 
     Candidate = Data.define(:id, :plan, :execute, :review, :claude_model, :pi_models,
-                            :codex_effort, :model_version, :review_max_passes,
-                            :review_wall_clock_sec, :reviewers, :ci_command)
+                            :codex_effort, :grok_model, :grok_effort, :model_version,
+                            :review_max_passes, :review_wall_clock_sec, :reviewers, :ci_command)
 
     # pi --model patterns verified against the local pi + OpenRouter (2026-07-03).
     GLM = "openrouter/z-ai/glm-5.2"
@@ -23,7 +23,7 @@ module HiveBench
     def all
       [all_opus, all_codex, opus_plan_codex_exec,
        all_glm, all_kimi, glm_plan_kimi_exec,
-       all_codex_xhigh, opus_plan_codex_exec_xhigh].freeze
+       all_codex_xhigh, opus_plan_codex_exec_xhigh, all_grok].freeze
     end
 
     def by_id(id)
@@ -31,10 +31,11 @@ module HiveBench
     end
 
     def base(id, plan:, execute:, review:, model_version:, claude_model: nil, pi_models: nil,
-             codex_effort: nil)
+             codex_effort: nil, grok_model: nil, grok_effort: nil)
       Candidate.new(id: id, plan: plan, execute: execute, review: review,
                     claude_model: claude_model, pi_models: pi_models,
-                    codex_effort: codex_effort, model_version: model_version,
+                    codex_effort: codex_effort, grok_model: grok_model, grok_effort: grok_effort,
+                    model_version: model_version,
                     review_max_passes: 2, review_wall_clock_sec: 7200,
                     reviewers: [], ci_command: nil)
     end
@@ -88,6 +89,20 @@ module HiveBench
       base("opus-plan->codex-exec-xhigh", plan: "claude", execute: "codex", review: "claude",
                                           claude_model: "claude-opus-4-8", codex_effort: "xhigh",
                                           model_version: "opus-plan/codex-exec-xhigh")
+    end
+
+    # xAI grok (maintainer request 2026-07-09): grok-4.5 at xhigh — grok's
+    # effort scale has a literal xhigh, so the pin is like-for-like with the
+    # codex xhigh candidates. hive's grok profile passes no model/effort
+    # flags; the in-container grok shim injects them (HB_GROK_MODEL /
+    # HB_GROK_EFFORT, mirroring the pi shim). Needs the :grok-enabled runner
+    # image (HB_RUNNER_IMAGE=hive-bench-runner:grok until hive PR #695 ships
+    # in the pinned image). Grok reports no token usage — cost columns stay
+    # empty by design.
+    def all_grok
+      base("all-grok-4.5", plan: "grok", execute: "grok", review: "grok",
+                           grok_model: "grok-4.5", grok_effort: "xhigh",
+                           model_version: "grok-4.5-xhigh")
     end
   end
 end

@@ -196,6 +196,18 @@ class HiveDriverTest < Minitest::Test
            "default-effort codex must keep the CLI's own defaults")
   end
 
+  def test_grok_candidate_mounts_auth_and_pins_model_effort
+    skip "needs ~/.grok/auth.json" unless File.file?(File.expand_path("~/.grok/auth.json"))
+    grok = HiveBench::Candidates.by_id("all-grok-4.5")
+    driver.call(entry: entry, candidate: grok, out_dir: @out)
+
+    assert(@seen_cmd.each_cons(2).any? { |f, v| f == "--tmpfs" && v.to_s.include?("/.grok") },
+           "grok dir must be a tmpfs (root-owned bind-parent trap)")
+    assert(@seen_cmd.any? { |a| a.to_s.end_with?(".grok/auth.json:ro") }, "auth bound ro")
+    assert_includes @seen_cmd, "HB_GROK_MODEL=grok-4.5"
+    assert_includes @seen_cmd, "HB_GROK_EFFORT=xhigh"
+  end
+
   def test_pi_candidate_gets_per_stage_model_env
     glm_kimi = HiveBench::Candidates.by_id("glm-plan->kimi-exec")
     driver.call(entry: entry, candidate: glm_kimi, out_dir: @out)

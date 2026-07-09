@@ -40,6 +40,20 @@ PI
   echo "HB_NOTE pi_models plan=${HB_PI_MODEL_PLAN:-} execute=${HB_PI_MODEL_EXECUTE:-} review=${HB_PI_MODEL_REVIEW:-}"
 fi
 
+# Grok candidates: hive's grok profile passes no model/effort flags, so a shim
+# injects `-m $HB_GROK_MODEL --reasoning-effort $HB_GROK_EFFORT` (same pattern
+# as the pi shim; grok's default model would drift with CLI releases, and the
+# effort pin is the candidate definition).
+if [ -n "${HB_GROK_MODEL:-}${HB_GROK_EFFORT:-}" ]; then
+  GROK_REAL="$(command -v grok)"
+  cat >/work/.hb/bin/grok <<GROK
+#!/usr/bin/env bash
+exec "$GROK_REAL" \${HB_GROK_MODEL:+-m "\$HB_GROK_MODEL"} \${HB_GROK_EFFORT:+--reasoning-effort "\$HB_GROK_EFFORT"} "\$@"
+GROK
+  chmod +x /work/.hb/bin/grok
+  echo "HB_NOTE grok_pin model=${HB_GROK_MODEL:-} effort=${HB_GROK_EFFORT:-}"
+fi
+
 # Capture the task worktree's diff vs base into $1: committed + uncommitted +
 # untracked (agents often leave work uncommitted), minus vendored/build trees.
 # Pathspecs mirror GitRestore::VENDORED_EXCLUDES — keep them in sync.
