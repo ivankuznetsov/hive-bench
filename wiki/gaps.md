@@ -74,6 +74,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 ## v3 agenda (from the external design review, 2026-07-09)
 
 Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
+- **Bench-as-hive workflow shipped as orchestration only** — see
+  [[v3-workflow]]. Remaining manual pieces: campaign authoring/commit,
+  new-corpus extraction, provider-wall retry by `touch <state_file>`, website
+  publishing, and review enforcement for budgets/timeouts/effort pins.
 - **Objective gates primary** for all 6 tasks (concrete gate designs are in the
   review §4.2); judges then score quality among passing diffs only.
 - **Pre-registered, replicated campaign**: campaign.yml committed before

@@ -17,6 +17,7 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 ## Pages
 
 - [[architecture]] — how v2 drives real hive (driver, config, candidates, container recipe)
+- [[v3-workflow]] — hive custom workflow for one campaign per task folder
 - [[findings]] — everything learned across v1 and v2 (the headline results + gotchas)
 - [[decisions]] — methodology decisions and why
 - [[gaps]] — what's unverified / left to build
