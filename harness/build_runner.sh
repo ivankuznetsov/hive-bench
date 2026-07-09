@@ -12,7 +12,7 @@ set -euo pipefail
 HIVE_SRC="${HIVE_SRC:-$HOME/Dev/hive}"
 cd "$(dirname "$0")/.."
 
-[ -d "$HIVE_SRC/.git" ] || { echo "HIVE_SRC=$HIVE_SRC is not a git checkout" >&2; exit 1; }
+[ -e "$HIVE_SRC/.git" ] || { echo "HIVE_SRC=$HIVE_SRC is not a git checkout" >&2; exit 1; }
 rev="$(git -C "$HIVE_SRC" rev-parse --short HEAD)"
 echo "pinning hive tool from $HIVE_SRC @ $rev"
 
@@ -20,5 +20,6 @@ echo "pinning hive tool from $HIVE_SRC @ $rev"
 git -C "$HIVE_SRC" archive --format=tar HEAD >hive-src.tar
 trap 'rm -f hive-src.tar' EXIT
 
-docker build -f Dockerfile.runner -t hive-bench-runner:latest .
-echo "built hive-bench-runner:latest with hive tool @ $rev"
+IMAGE_TAG="${IMAGE_TAG:-hive-bench-runner:latest}"
+docker build -f Dockerfile.runner -t "$IMAGE_TAG" .
+echo "built $IMAGE_TAG with hive tool @ $rev"

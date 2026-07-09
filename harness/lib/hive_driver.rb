@@ -178,18 +178,34 @@ module HiveBench
           mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
         end
       end
+      if uses?(candidate, "grok")
+        # Same tmpfs-the-dir/bind-the-credential pattern as codex; fail closed
+        # on a missing credential (the missing-source root-owned-dir trap).
+        grok = File.expand_path("~/.grok/auth.json")
+        raise "grok credentials missing or not a file: #{grok} (run `grok login`)" unless File.file?(grok)
+
+        mounts += ["--tmpfs", "#{HOME}/.grok:exec,mode=1777",
+                   "-v", "#{grok}:#{HOME}/.grok/auth.json:ro"]
+      end
       mounts
     end
 
     # OPENROUTER_API_KEY is forwarded (never echoed) when a pi/open-model stage
     # runs, along with the per-stage pi model patterns the in-container pi shim
-    # injects as `--model` (hive has no pi model config of its own).
+    # injects as `--model` (hive has no pi model config of its own). Grok's
+    # model/effort pins ride the same shim mechanism (hive's grok profile
+    # passes no model flags either).
     def env_args(candidate)
-      return [] unless uses?(candidate, "pi")
-
-      args = ENV["OPENROUTER_API_KEY"] ? ["-e", "OPENROUTER_API_KEY"] : []
-      (candidate.pi_models || {}).each do |stage, pattern|
-        args += ["-e", "HB_PI_MODEL_#{stage.upcase}=#{pattern}"]
+      args = []
+      if uses?(candidate, "pi")
+        args += ENV["OPENROUTER_API_KEY"] ? ["-e", "OPENROUTER_API_KEY"] : []
+        (candidate.pi_models || {}).each do |stage, pattern|
+          args += ["-e", "HB_PI_MODEL_#{stage.upcase}=#{pattern}"]
+        end
+      end
+      if uses?(candidate, "grok")
+        args += ["-e", "HB_GROK_MODEL=#{candidate.grok_model}"] if candidate.grok_model
+        args += ["-e", "HB_GROK_EFFORT=#{candidate.grok_effort}"] if candidate.grok_effort
       end
       args
     end

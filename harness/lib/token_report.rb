@@ -58,22 +58,22 @@ module HiveBench
       per_model
     end
 
-    def add_usage(acc, u)
-      if u.key?("cacheRead") || u.key?("input") # pi
-        acc["input"] += u["input"].to_i
-        acc["output"] += u["output"].to_i
-        acc["cache_read"] += u["cacheRead"].to_i
-        acc["cache_write"] += u["cacheWrite"].to_i
-      elsif u.key?("cached_input_tokens") # codex: input INCLUDES cached
-        cached = u["cached_input_tokens"].to_i
-        acc["input"] += [u["input_tokens"].to_i - cached, 0].max
-        acc["output"] += u["output_tokens"].to_i
+    def add_usage(acc, usage)
+      if usage.key?("cacheRead") || usage.key?("input") # pi
+        acc["input"] += usage["input"].to_i
+        acc["output"] += usage["output"].to_i
+        acc["cache_read"] += usage["cacheRead"].to_i
+        acc["cache_write"] += usage["cacheWrite"].to_i
+      elsif usage.key?("cached_input_tokens") # codex: input INCLUDES cached
+        cached = usage["cached_input_tokens"].to_i
+        acc["input"] += [usage["input_tokens"].to_i - cached, 0].max
+        acc["output"] += usage["output_tokens"].to_i
         acc["cache_read"] += cached
       else # claude: input EXCLUDES cache reads
-        acc["input"] += u["input_tokens"].to_i
-        acc["output"] += u["output_tokens"].to_i
-        acc["cache_read"] += u["cache_read_input_tokens"].to_i
-        acc["cache_write"] += u["cache_creation_input_tokens"].to_i
+        acc["input"] += usage["input_tokens"].to_i
+        acc["output"] += usage["output_tokens"].to_i
+        acc["cache_read"] += usage["cache_read_input_tokens"].to_i
+        acc["cache_write"] += usage["cache_creation_input_tokens"].to_i
       end
     end
 
