@@ -86,17 +86,21 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
   [[v3-workflow]]. Remaining manual pieces: campaign authoring/commit,
   new-corpus extraction, provider-wall retry by `touch <state_file>`, website
   publishing, and review enforcement for budgets/timeouts/effort pins.
-- **Bench workflow smoke coverage is structural** — it parses both descriptor
-  copies, checks installation drift, validates the campaign example, advances a
-  throwaway task, and tests the missing-campaign gate; it has not run a real
-  campaign to completion after the v3-bench-as-hive-workflow-260709-b3nc
-  generate-stage fix that checks per-cell result files. In particular, verify
-  or add the handoff from per-cell outputs
-  `runs/<campaign_id>/<candidate>--<task>/results.json` into the
-  campaign-level `runs/<campaign_id>/results.json` consumed by `4-judge` and
-  `5-publish`. The workflow sources inspected for
-  v3-bench-as-hive-workflow-260709-b3nc still do not show that merge, and the
-  publish summary remains unverified against merged results.
+- **Bench workflow smoke coverage is no-cost only** — the per-cell -> campaign
+  handoff now exists (`3-generate` ends by merging
+  `runs/<campaign_id>/<candidate>--<task>/results.json` into
+  `runs/<campaign_id>/results.json` via `harness/merge_results.rb`), and the
+  smoke exercises the generate gates (missing/untracked/dirty campaign,
+  misanchor), the extract missing-slug path, the judge/publish missing-results
+  paths, and a full stubbed generate pass (real contract validator over a
+  campaign derived from the example + simulated provider-wall `pending[]` ->
+  WAITING). But no REAL campaign has run end to end through generate -> judge
+  -> publish yet; the judge/publish paid paths (rejudge, deliberate, live
+  merge/render on real data) are verified only against fixtures.
+- **Judge seed count is not re-verifiable from results.json** — judge records
+  persist mean/interval only, not per-seed scores, so `4-judge` validation can
+  require the dual-judge slate per non-empty-diff cell but must trust the
+  `--seeds` flag it passed to `harness/rejudge.rb` for seed count.
 - **Objective gates primary** for all 6 tasks (concrete gate designs are in the
   review §4.2); judges then score quality among passing diffs only.
 - **Pre-registered, replicated campaign**: campaign.yml committed before
