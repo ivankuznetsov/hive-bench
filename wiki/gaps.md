@@ -45,8 +45,9 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - **Mixed-family cost attribution** — `opus-plan→codex-exec` tokens span two price rows;
   needs per-stage token attribution (stage → agent from the log filename) before
   `cost_usd` can be estimated for mixed candidates. Currently nil by design.
-- **Model self-verification** — `model_version` is asserted by the candidate config, not
-  verified. The stream logs carry model ids; parse and cross-check, flag mismatched cells.
+- ~~Model self-verification~~ — SOLVED 2026-07-07: `harness/verify_models.rb`
+  cross-checks substantive stage stream logs against each candidate claim; the
+  recorded pass checked 101 stage logs with 0 violations.
 - **Gate curation is still the biggest lever** — three tasks now carry
   reference-test overlays (#623/#624/#625), but only `fix-tmux` behaved as a
   useful behavioral gate on existing diffs. add-i-key, web-install, and install
@@ -57,22 +58,19 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   id, the judge fails loudly (fail-soft parks the cell); verify on the first judged pass or
   pin with `--judge-model`.
 
-## Finish-the-board queue (2026-07-04)
+## Finish-the-board leftovers after final v2 publication
 
-- **9 opus/mixed cells pending** on claude limit windows — `tmp/retry-pending.sh`
-  babysits them (sweeps each window, max 6). Re-launch it if it exhausts sweeps.
-- **11 open-model cells to re-run** after the balance drain: all 6 glm→kimi pair
-  cells, 4 kimi cells (plus diagnose kimi's pre-drain execute_faileds), 1 glm
-  daemon cell.
-- **Judge backfill** (`harness/rejudge.rb`): fable-5 missing on most codex/glm
-  cells (claude wall), gpt missing on the smoke cells.
-- **Classifier patterns still missing**: OpenRouter's "requires more credits, or
-  fewer max_tokens" (402 variant) isn't in AgentLimit; a plan stage stuck at
-  `:agent_working` after an instant agent death classifies as execute_failed
-  rather than a limit when the balance is the cause.
-- **Recompute open-cell telemetry at merge time** — cells generated before the
-  pi camelCase fix carry zero tokens; the stream logs persist, so a merge-time
-  backfill can price them.
+- The old 2026-07-04 pending-cell queue was resolved or superseded by the
+  2026-07-06/07 final board publication. Do not relaunch those historical
+  retry scripts as current work without first checking `runs/v2-merged` and
+  RESULTS.md.
+- **Open-model telemetry backfill** may still be useful for cells generated
+  before the pi camelCase usage fix; stream logs persist, but this is now an
+  analysis cleanup, not a board blocker.
+- **Limit classifier drift** remains possible as providers change wording.
+  OpenRouter's "requires more credits, or fewer max_tokens" variant was fixed
+  in the final-board round; add new patterns only when a fresh wall is
+  misclassified.
 
 ## Known open questions
 
@@ -92,8 +90,13 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
   copies, checks installation drift, validates the campaign example, advances a
   throwaway task, and tests the missing-campaign gate; it has not run a real
   campaign to completion after the v3-bench-as-hive-workflow-260709-b3nc
-  generate-stage fix that checks per-cell result files, nor has it run the
-  publish summary against merged results.
+  generate-stage fix that checks per-cell result files. In particular, verify
+  or add the handoff from per-cell outputs
+  `runs/<campaign_id>/<candidate>--<task>/results.json` into the
+  campaign-level `runs/<campaign_id>/results.json` consumed by `4-judge` and
+  `5-publish`. The workflow sources inspected for
+  v3-bench-as-hive-workflow-260709-b3nc still do not show that merge, and the
+  publish summary remains unverified against merged results.
 - **Objective gates primary** for all 6 tasks (concrete gate designs are in the
   review §4.2); judges then score quality among passing diffs only.
 - **Pre-registered, replicated campaign**: campaign.yml committed before
