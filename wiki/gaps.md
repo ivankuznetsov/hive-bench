@@ -85,17 +85,32 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
 - **Bench-as-hive workflow shipped as orchestration only** — see
   [[v3-workflow]]. Remaining manual pieces: campaign authoring/commit,
   new-corpus extraction, provider-wall retry by `touch <state_file>`, website
-  publishing, and review enforcement for budgets/effort pins
-  (`timeouts.hive_seconds` IS enforced via `HB_HIVE_TIMEOUT`).
+  publishing, and review enforcement for budgets/effort pins.
+  `timeouts.hive_seconds` is enforced via `HB_HIVE_TIMEOUT`.
 - **Bench workflow smoke coverage is no-cost only** — the smoke now drives all
-  four stages to `<!-- COMPLETE -->` on stubbed fixtures (success-shaped
-  `hive_run.rb`, stub rejudge/deliberate, real `merge_results.rb`), asserts
-  the never-re-buy guard by invocation count (terminal, pending+patch,
-  failed+patch), the deliberation-union retry, the judge validation branches,
-  and validates `campaign.yml.example` through the real generate validator at
-  the real repo root. But no REAL campaign has run end to end through
-  generate -> judge -> publish yet; the paid paths (live rejudge, deliberate,
-  merge/render on real data) remain unobserved.
+  four executable stages to `<!-- COMPLETE -->` on fixtures, uses the real
+  `merge_results.rb` for generate/publish, asserts the never-re-buy guard by
+  invocation count for terminal and captured-patch states, exercises
+  deliberation-union retries and judge validation branches, and runs a campaign
+  derived from `campaign.yml.example` through the real generate validator at a
+  real-root-shaped fixture. No real paid campaign has run end to end through
+  generate -> judge -> publish; live rejudge, deliberation, merge, and render
+  behavior therefore remains unobserved.
+- **First captured-diff judge-wall recovery is unresolved** — `3-generate` now
+  correctly refuses to regenerate any cell with a `target/candidate.patch` and
+  tells the operator to backfill judges against the campaign-root result only.
+  However, an all-judges-walled first pass can persist `cells: []` plus
+  `pending[]` in the per-cell result and park before the campaign-root merge;
+  `harness/rejudge.rb` reads only `results["cells"]`. No scripted path currently
+  turns that paid artifact into a rejudgeable campaign-root cell. Verify and
+  cover this recovery before relying on it in a real campaign.
+- **Pre-registration immutability is procedural after first spend** — the
+  tracked+clean gate proves only that `campaign.yml` matches current HEAD; it
+  does not bind the campaign to the file version used for the first paid cell.
+  An amended-and-committed seed increase is not retroactive under
+  `rejudge --only-missing`, while a matrix shrink is rejected later as
+  `UNEXPECTED_CELL`. Until a first-spend fingerprint is persisted and checked,
+  start a new campaign folder instead of amending a campaign that has spent.
 - **Judge seed count is not re-verifiable from results.json** — judge records
   persist mean/interval only, not per-seed scores, so `4-judge` validation can
   require the dual-judge slate per non-empty-diff cell but must trust the
