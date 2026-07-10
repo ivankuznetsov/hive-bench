@@ -33,72 +33,68 @@ Treat the committed `campaign.yml` as frozen once generation has spent
 anything: the tracked+clean gate only proves the file matches HEAD, not that
 it is unchanged since first spend, so an amended-and-committed campaign passes
 it. Amendments silently invalidate the pre-registration — raising `seeds`
-after generation is not retroactive (`rejudge --only-missing` skips judges
-that already have scores, so existing cells retain their earlier seed count),
-and shrinking the matrix strands already-paid cells (judge validation reports
-them as `UNEXPECTED_CELL` rather than publishing de-registered cells). Start a
-new campaign folder instead of amending one that has spent.
-
-The workflow stage files contain marker-anchored bash blocks. Every stage
-instruction requires its block to be executed verbatim: the guards and single
-terminal `<!-- WAITING -->` / `<!-- COMPLETE -->` marker are part of the stage
-contract, not prose for an agent to reimplement.
+after generation is NOT applied retroactively (`rejudge --only-missing` skips
+judges that already have scores, so existing cells keep their lower seed
+count), and shrinking the matrix strands already-paid cells (judge validation
+reports them as `UNEXPECTED_CELL` rather than silently publishing
+de-registered cells). Start a new campaign folder instead of amending.
 
 ## Stage behavior
 
-- `2-extract` requires the same non-empty, single-line `source` contract as
-  generate (there is no silent `.` default that could validate the corpus
-  against the wrong checkout), checks that every `tasks[]` slug has
-  `corpus/<slug>/manifest.yml`, and loads them through `HiveBench::Corpus`. It
-  reports missing slugs and parks; it does not guess source PR coordinates for
-  `harness/extract.rb`.
+- `2-extract` requires the same `source` contract as generate (no silent
+  default to `.`, which would validate the corpus against the wrong checkout),
+  checks that every `tasks[]` slug has `corpus/<slug>/manifest.yml`, and loads
+  them through `HiveBench::Corpus`. It reports missing slugs and parks; it
+  does not guess source PR coordinates for `harness/extract.rb`.
 - `3-generate` validates the committed campaign contract (required keys, strict
   `campaign_id` slug — it becomes the `runs/<campaign_id>` path segment — with
-  the unedited `v3-example` id rejected, non-empty single-line `source`,
-  single-line scalar `corpus_version`, exclusion entry shape, at least one
-  non-excluded task/candidate cell, and `timeouts.hive_seconds`). It then runs
-  `ruby harness/hive_run.rb` once for each non-excluded cell. `HB_HIVE_TIMEOUT`
-  comes from the pre-registered timeout (use the required `timeouts: {}` form
-  to retain harness defaults; removing the key parks at WAITING); the grok
-  runner image is keyed on the candidate profile's `grok_model` field.
-  A cell is treated as already bought if its per-cell result is terminal
-  (`generated`/`empty_diff`) or if any `target/candidate.patch` exists, even
-  when the result is missing or parked in `pending[]`, `failed[]`, or a
-  non-terminal `cells[]` record. An unreadable existing result also fails
-  closed. Captured-diff states are reported as `judges_pending` and are never
-  regenerated unless the operator deliberately removes the cell directory,
-  because the hive driver starts a rerun by deleting the paid work tree.
-  Completion is stricter than the re-buy guard: every per-cell result must be
-  terminal with both `pending[]` and `failed[]` empty. Harness commands run
-  under non-login `bash -c`; bounded stderr tails are folded into a WAITING
-  status when commands fail. Once the matrix is clean, the stage merges an
-  existing campaign-root result first and the per-cell results second, which
-  preserves root-only rejudge scores while keeping per-cell run/gate data
-  authoritative. It writes `runs/<campaign_id>/results.json.next` and renames
-  it over `results.json` only after a successful merge, so the campaign-root
-  handoff consumed by `4-judge` and `5-publish` is not truncated mid-write.
-- `4-judge` extracts campaign fields in one guarded, type-checked ruby block (a
-  malformed campaign or multi-line `source` parks WAITING instead of dying
-  marker-less or misaligning the extraction), and sources
-  `~/.openrouter_key` without letting an empty file clobber a valid environment
-  key. It checks `pending[]`/`failed[]` before rejudging because rejudge output
-  does not carry those keys. Rejudge writes `results.json.next` and renames it
-  over the campaign root only on success; backfilled scores exist only in that
-  root file. Deliberation writes a scratch transcript which is unioned into
-  `deliberation.json` by `[task_id, agent_id]`, preserving paid transcripts on
-  a zero-new-cell retry. Both commands search the per-cell run directories
-  (`runs/<campaign_id>/*--*`) for artifacts. Validation requires every
-  non-excluded matrix cell, the exact judge slate by name (`fable-5` and
-  `gpt-5.5-pro`) on every non-`empty_diff` cell, deliberation coverage for each
-  dual-judged cell, and no `UNEXPECTED_CELL` outside the frozen matrix. A
-  soft-failed rejudge's stderr tail is included in the WAITING report.
+  the unedited `v3-example` id rejected, exclusion entry shape, and
+  `timeouts.hive_seconds`), then runs `ruby harness/hive_run.rb` once for each
+  non-excluded task/candidate cell. `HB_HIVE_TIMEOUT` comes from the
+  pre-registered `timeouts.hive_seconds` (harness defaults apply when unset);
+  the grok runner image is keyed on the candidate profile's `grok_model`
+  field. A cell is never re-bought once its per-cell results.json shows
+  `generated`/`empty_diff`, once the file exists but does not parse (fail
+  closed: a truncated file must not read as "never ran"), or once a diff was
+  captured but every judge walled (`pending[]` + `target/candidate.patch`) —
+  that last state is reported as `judges_pending` for rejudge backfill, never
+  regenerated (the hive driver would rm-rf the paid work tree). If a harness
+  command exits nonzero, the stage folds that note into the status and still
+  inspects every per-cell result at
+  `runs/<campaign_id>/<candidate>--<task>/results.json`, reporting unfinished
+  cells with their `pending[]`/`failed[]` reasons. When every cell is
+  `generated`/`empty_diff`, the stage merges all per-cell files into
+  `runs/<campaign_id>/results.json` via `harness/merge_results.rb` — the
+  handoff `4-judge` and `5-publish` consume.
+- `4-judge` extracts campaign fields in one guarded, type-checked ruby block
+  (a malformed campaign.yml or multi-line `source` parks WAITING instead of
+  dying marker-less or misaligning the `read` extraction), sources
+  `~/.openrouter_key` like generate (an empty key file never clobbers a valid
+  env key), and checks `pending[]`/`failed[]` are empty BEFORE rejudging —
+  rejudge output carries no pending/failed keys, so a post-rewrite check would
+  be vacuous. It then runs `harness/rejudge.rb --only-missing` writing to
+  `results.json.next` + `mv` (backfills exist only in the campaign root; the
+  sole copy is never rewritten in place) and `harness/deliberate.rb
+  --min-disagreement 0 --skip-done` to a scratch transcript that is UNIONED
+  into `deliberation.json` by `[task_id, agent_id]` (deliberate's `--out`
+  writes only newly deliberated cells, so writing it straight onto the
+  transcript would destroy prior paid deliberations on a wall retry). Both use
+  the PER-CELL run dirs (`runs/<campaign_id>/*--*`) as artifact search dirs.
+  Validation then requires every non-excluded matrix cell to be present, the
+  exact judge slate BY NAME (`fable-5` + `gpt-5.5-pro`) on every
+  non-`empty_diff` cell, deliberation-transcript coverage of every dual-judged
+  cell (deliberate silently drops cells missing from the corpus), and no
+  `UNEXPECTED_CELL` outside the pre-registered matrix; a soft-failed rejudge's
+  stderr tail is folded into the WAITING report so `MISSING_JUDGES` lines
+  carry their cause.
 - `5-publish` extracts fields with the same guarded, type-checked pattern,
-  merges the campaign root through `results.json.next` plus rename, and renders
-  the leaderboard summary to a scratch file first. A render or final state-file
-  append failure parks WAITING rather than stranding a half-written table with
-  no marker. An empty `agents` map refuses to publish. The summary covers cells,
-  cross-family judge means, judged-cell count, gate pass rate, fresh/reused
-  provenance, and total cost. There is no site generator in this repo yet.
+  runs `harness/merge_results.rb` to `results.json.next` + `mv`, and renders
+  the leaderboard summary to a scratch file first — a render failure parks
+  WAITING instead of stranding a half-written table with no marker; the final
+  state-file append is guarded the same way. An empty `agents` map refuses to
+  publish. The summary covers cells, cross-family judge means, judged-cell
+  count, gate pass rate, fresh/reused provenance, and total cost. There is no
+  site generator in this repo yet.
 
 All four stages clean up their scratch files (`.extract-*`, `.generate-*`,
 `.judge-*`, `.publish-*`) on exit, so nothing untracked leaks into hive-state
@@ -107,8 +103,7 @@ residual commits.
 Each instruction anchors from the task folder to the repo root with
 `REPO_ROOT="$(cd ../../../.. && pwd)"`. Do not replace that with
 `git rev-parse`; task folders live under `.hive-state`, which is its own git
-checkout in normal hive operation. All four scripts now define marker helpers
-before guarding that substitution, so an anchor failure parks with WAITING.
+checkout in normal hive operation.
 
 ## Provider walls and retries
 
@@ -125,14 +120,6 @@ The daemon's edit-resume policy sees the state file mtime change after its
 debounce window and may dispatch the stage again. Automatic cooldown retry is a
 hive-side feature request, not part of hive-bench v3.
 
-When a candidate patch already exists, the generate status directs judge
-backfill at the campaign-root `runs/<campaign_id>/results.json`, never at the
-per-cell result (rejudge overwrites its output and can otherwise erase the
-pending evidence that keeps generation disarmed). A first pass where every
-judge walls can still leave a paid patch in a per-cell `cells: []` plus
-`pending[]` result and park before the campaign-root merge. Rejudge consumes
-only recorded `cells`, so this recovery remains unresolved; see [[gaps]].
-
 Every retry appends a fresh `## Status` section to the state file;
 last-marker-wins keeps the semantics correct, but the file grows across
 retries — operators may truncate it to the last `## Status` section at any
@@ -147,8 +134,8 @@ time.
   does not exist here today.
 - Enforce budgets and effort pins by review. They are pre-registered in
   `campaign.yml`, but current harness flags do not enforce them per run.
-  Timeouts are the exception: `timeouts.hive_seconds` is enforced because
-  generate exports it as `HB_HIVE_TIMEOUT` for every `hive_run.rb` invocation.
+  Timeouts are the exception: `timeouts.hive_seconds` IS enforced — generate
+  exports it as `HB_HIVE_TIMEOUT` for every `hive_run.rb` invocation.
 
 The related hive-side ask for automatic cooldown retry should follow the same
 feature-request pattern as the sibling hive task
@@ -166,30 +153,39 @@ tmp/bench-workflow-smoke.sh
 
 The smoke is no-cost. It parses both descriptor copies through hive's real
 `Hive::Workflows::DescriptorParser` (asserting the broken-descriptor rejection
-is the nested-state-file rule, not an unrelated load error), verifies the
-installed workflow matches the canonical copy, and advances a throwaway task
+is the nested-state_file rule, not an unrelated load error), verifies the
+installed copy matches the canonical copy, and advances a throwaway task
 through all six stages with `Hive::Commands::Approve`. Stage scripts are
-extracted by the `<!-- bench-stage-script -->` marker. Every run gets a fake
-`$HOME`, and the duplicated campaign-id validation lines are diffed across
-generate, judge, and publish to catch drift.
+extracted by the `<!-- bench-stage-script -->` marker (never "first bash
+block"); every stage-script run gets a fake `$HOME` so the real
+`~/.openrouter_key` is never exported into stub runs, and the slug-validation
+lines duplicated across the generate/judge/publish scripts are diffed against
+each other so the three copies cannot drift silently.
 
-Failure-path fixtures cover missing/untracked/dirty/malformed campaigns,
-repo-root misanchors, extract missing-source and missing-slug paths,
-judge/publish missing-results and malformed-campaign paths, provider walls,
-nonzero command exits with bounded stderr, grok runner-image selection,
-contradictory terminal results, and judge `MISSING_CELL`, named
-`MISSING_JUDGES`, `UNEXPECTED_CELL`, and pending guards.
+Failure-path coverage: the generate gates (missing, untracked, dirty, and
+missing-required-key campaign.yml), the REPO_ROOT misanchor ERROR path,
+extract's missing-slug and missing-source WAITING paths, judge's and publish's
+missing-results and malformed-campaign WAITING paths, the wall fixture (WAITING
+with the retry note, the surfaced `pending[]` reason, the `HB_HIVE_TIMEOUT`
+env echoed back by the stub, and captured per-command stderr tails), the
+nonzero-exit run_note prefix, the grok `HB_RUNNER_IMAGE` branch, the
+contradictory terminal-plus-nonempty-buckets result, and judge's
+MISSING_CELL / MISSING_JUDGES-by-name / UNEXPECTED_CELL / pending-guard
+branches.
 
-Success fixtures drive extract, generate, judge, and publish to
-`<!-- COMPLETE -->`. Generate uses a success-shaped `hive_run.rb` stub and the
-real `merge_results.rb`; judge stubs rejudge/deliberate while exercising slate
-validation and the deliberation union; publish renders the real summary. The
-never-re-buy guard is asserted by invocation count for terminal,
-`pending[]`+patch, and `failed[]`+patch states. A campaign derived from
-`campaign.yml.example` is also passed through the real generate validator at a
-real-root-shaped fixture, and scratch cleanup is checked for every stage.
-
-This remains fixture coverage: it does not run a paid campaign, and it does not
-turn a first-pass `cells: []` plus captured patch into a rejudgeable root cell.
-The parser smoke requires `hive` before loading the descriptor parser, matching
-the real gem load path.
+Success-path coverage: all four stages run to `<!-- COMPLETE -->` — a
+success-shaped stub `hive_run.rb` drives generate through the real per-cell
+merge (`merge_results.rb` and its deps are symlinked from the real harness),
+stub rejudge/deliberate drive judge through slate validation and the
+deliberation union (a second judge run asserts the transcript survives a
+zero-new-cell retry), and publish renders the real leaderboard summary.
+The never-re-buy guard is asserted directly: re-runs over a terminal cell, a
+pending[]+patch cell, and a failed[]+patch cell must not re-invoke the stub
+(counted via an invocation log), with the latter two reported as
+`judges_pending`/do-NOT-regenerate. `campaign.yml.example` is validated by
+pointing the REAL generate contract validator at the REAL repo root (symlinked
+`harness/profiles` + `corpus`, a loudly-aborting `hive_run.rb`, and the single
+cell pre-seeded as bought), replacing the old smoke-local re-implementation of
+the candidate/task checks. Scratch-file cleanup is asserted for all four
+stages. The parser smoke requires `hive` before loading the descriptor parser,
+matching the real gem load path.
