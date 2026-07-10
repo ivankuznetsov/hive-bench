@@ -46,6 +46,17 @@ setting, so the benchmark owns those pins at the container boundary:
 `config.toml` for plugin registration plus xhigh effort. Operator-local CLI
 configuration is not used as benchmark configuration.
 
+## 2026-07-10 — freeze a campaign once paid work starts
+
+`campaign.yml` is the pre-registration contract, so a campaign that has spent
+must not be amended in place. The generate gate proves only that the file is
+tracked, clean, and valid at dispatch time; it does not prove that current HEAD
+matches the version used for the first paid cell. Increasing `seeds` later is
+not retroactive because `rejudge --only-missing` preserves existing judge
+scores, while shrinking the matrix surfaces paid cells as `UNEXPECTED_CELL`.
+Start a new campaign folder for any post-spend contract change. Persisting and
+checking a first-spend fingerprint remains a gap in [[gaps]].
+
 ## 2026-07-01 — integrity hardening round
 
 - **Gate tests must be positively observed.** A FAIL_TO_PASS or PASS_TO_PASS name absent
