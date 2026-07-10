@@ -30,6 +30,11 @@ module HiveBench
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
     CLAUDE_DIR = File.expand_path("~/.claude")
     HOME = "/home/asterio"
+    GROK_AUTH_DIR = File.expand_path(
+      ENV.fetch("HB_GROK_AUTH_DIR", "~/.local/state/hive-bench/grok-auth")
+    )
+    GROK_AUTH = File.join(GROK_AUTH_DIR, "auth.json")
+    GROK_AUTH_CONTAINER_DIR = "#{HOME}/.grok-auth".freeze
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
     def initialize(clock: -> { Time.now.utc }, runner: nil)
@@ -202,15 +207,71 @@ module HiveBench
         mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro"]
       end
       if uses?(candidate, "grok")
-        # Same tmpfs-the-dir/bind-the-credential pattern as codex; fail closed
-        # on a missing credential (the missing-source root-owned-dir trap).
-        grok = File.expand_path("~/.grok/auth.json")
-        raise "grok credentials missing or not a file: #{grok} (run `grok login`)" unless File.file?(grok)
-
+        # Keep sessions/config/leader state ephemeral per cell. Only the
+        # separately authenticated benchmark credential is shared, so Grok can
+        # atomically rotate auth.json under one cross-container lock domain.
         mounts += ["--tmpfs", "#{HOME}/.grok:exec,mode=1777",
-                   "-v", "#{grok}:#{HOME}/.grok/auth.json:ro"]
+                   "-v", "#{prepare_grok_auth_dir}:#{GROK_AUTH_CONTAINER_DIR}:rw"]
       end
       mounts
+    end
+
+    def prepare_grok_auth_dir
+      FileUtils.mkdir_p(GROK_AUTH_DIR, mode: 0o700)
+      state = File.lstat(GROK_AUTH_DIR)
+      unless state.directory? && !state.symlink? && state.uid == Process.uid
+        raise "grok benchmark auth directory is not user-owned: #{GROK_AUTH_DIR}"
+      end
+
+      File.chmod(0o700, GROK_AUTH_DIR)
+      validate_grok_auth!
+      validate_grok_auth_lock!
+      GROK_AUTH_DIR
+    end
+
+    def validate_grok_auth!
+      File.open(GROK_AUTH, File::RDONLY | File::NOFOLLOW) do |auth|
+        unless private_grok_file?(auth.stat) && valid_grok_auth_payload?(auth.read)
+          raise "grok benchmark credentials must be a user-owned mode-0600 refreshable login: #{GROK_AUTH}"
+        end
+      end
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      raise "grok benchmark credentials missing: #{GROK_AUTH} " \
+            "(run `GROK_AUTH_PATH=#{GROK_AUTH} grok login`)"
+    rescue Errno::ELOOP, Errno::EISDIR
+      raise "grok benchmark credentials are not a regular file: #{GROK_AUTH}"
+    rescue SystemCallError => e
+      raise "grok benchmark credentials cannot be read securely: #{GROK_AUTH} (#{e.class})"
+    end
+
+    def valid_grok_auth_payload?(payload)
+      data = JSON.parse(payload)
+      data.is_a?(Hash) && data.values.any? do |entry|
+        entry.is_a?(Hash) && !entry["key"].to_s.empty? && !entry["refresh_token"].to_s.empty?
+      end
+    rescue JSON::ParserError
+      false
+    end
+
+    def validate_grok_auth_lock!
+      lock_path = "#{GROK_AUTH}.lock"
+      File.open(lock_path, File::RDONLY | File::NOFOLLOW) do |lock|
+        raise "grok auth lock is not a safe regular file: #{lock_path}" unless safe_grok_lock_file?(lock.stat)
+      end
+    rescue Errno::ENOENT
+      nil # Grok creates the lock on first refresh.
+    rescue Errno::ELOOP, Errno::EISDIR
+      raise "grok auth lock is not a regular file: #{lock_path}"
+    rescue SystemCallError => e
+      raise "grok auth lock cannot be read securely: #{lock_path} (#{e.class})"
+    end
+
+    def private_grok_file?(state)
+      state.file? && state.uid == Process.uid && state.nlink == 1 && (state.mode & 0o777) == 0o600
+    end
+
+    def safe_grok_lock_file?(state)
+      state.file? && state.uid == Process.uid && state.nlink == 1 && state.mode.nobits?(0o022)
     end
 
     # OPENROUTER_API_KEY is forwarded (never echoed) when a pi/open-model stage
@@ -227,6 +288,7 @@ module HiveBench
         end
       end
       if uses?(candidate, "grok")
+        args += ["-e", "GROK_AUTH_PATH=#{GROK_AUTH_CONTAINER_DIR}/auth.json"]
         args += ["-e", "HB_GROK_MODEL=#{candidate.grok_model}"] if candidate.grok_model
         args += ["-e", "HB_GROK_EFFORT=#{candidate.grok_effort}"] if candidate.grok_effort
       end
