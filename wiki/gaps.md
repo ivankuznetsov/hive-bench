@@ -85,46 +85,17 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
 - **Bench-as-hive workflow shipped as orchestration only** — see
   [[v3-workflow]]. Remaining manual pieces: campaign authoring/commit,
   new-corpus extraction, provider-wall retry by `touch <state_file>`, website
-  publishing, and review enforcement for budgets/timeouts/effort pins.
-- **Bench workflow smoke coverage is no-cost only** — the per-cell -> campaign
-  handoff now exists (`3-generate` ends by merging
-  `runs/<campaign_id>/<candidate>--<task>/results.json` into
-  `runs/<campaign_id>/results.json` via `harness/merge_results.rb`), and the
-  smoke exercises the generate gates (missing/untracked/dirty campaign,
-  misanchor), the extract missing-slug path, the judge/publish missing-results
-  paths, and a full stubbed generate pass (real contract validator over a
-  campaign derived from the example + simulated provider-wall `pending[]` ->
-  WAITING). But no REAL campaign has run end to end through generate -> judge
-  -> publish yet; the judge/publish paid paths (rejudge, deliberate, live
-  merge/render on real data) are verified only against fixtures. The smoke also
-  predates v3-bench-as-hive-workflow-260709-b3nc's broader generate hardening:
-  it does not cover multiline source/corpus rejection, a fully excluded matrix,
-  empty key-file fallback, paid patches in failed/non-terminal/missing-result
-  states, terminal results with non-empty pending/failed buckets, bounded
-  command stderr, or preservation plus atomic replacement of an existing
-  campaign-root result.
-- **Committed workflow copy drift blocks the smoke** — at
-  v3-bench-as-hive-workflow-260709-b3nc, canonical
-  `workflows/bench/generate.md` contains the broader generate hardening while
-  `.hive-state/workflows/bench/generate.md` still contains the earlier script.
-  The smoke's initial `diff -qr` therefore exits nonzero before its scenario
-  checks. Refresh the installed copy from the canonical workflow and rerun the
-  smoke; until then, the committed installed workflow does not exercise the
-  documented hardening.
-- **First captured-diff judge-wall recovery is unresolved** — `3-generate` now
-  correctly refuses to regenerate any cell with a `target/candidate.patch` and
-  tells the operator to backfill judges against the campaign-root result only.
-  However, an all-judges-walled first pass can persist `cells: []` plus
-  `pending[]` in the per-cell result and park before the campaign-root merge;
-  `harness/rejudge.rb` reads only `results["cells"]`. No scripted path currently
-  turns that paid artifact into a rejudgeable campaign-root cell. Verify and
-  cover this recovery before relying on it in a real campaign.
-- **Generate hardening is not yet stage-wide** — extract, judge, and publish
-  still evaluate `REPO_ROOT="$(cd ../../../.. && pwd)"` under `set -e` before
-  defining their marker helpers, so an anchor `cd` failure can still exit
-  without WAITING. Judge also exports `~/.openrouter_key` verbatim; unlike the
-  hardened generate path, an empty file can overwrite a valid
-  `OPENROUTER_API_KEY` from the environment. Neither asymmetry is smoke-covered.
+  publishing, and review enforcement for budgets/effort pins
+  (`timeouts.hive_seconds` IS enforced via `HB_HIVE_TIMEOUT`).
+- **Bench workflow smoke coverage is no-cost only** — the smoke now drives all
+  four stages to `<!-- COMPLETE -->` on stubbed fixtures (success-shaped
+  `hive_run.rb`, stub rejudge/deliberate, real `merge_results.rb`), asserts
+  the never-re-buy guard by invocation count (terminal, pending+patch,
+  failed+patch), the deliberation-union retry, the judge validation branches,
+  and validates `campaign.yml.example` through the real generate validator at
+  the real repo root. But no REAL campaign has run end to end through
+  generate -> judge -> publish yet; the paid paths (live rejudge, deliberate,
+  merge/render on real data) remain unobserved.
 - **Judge seed count is not re-verifiable from results.json** — judge records
   persist mean/interval only, not per-seed scores, so `4-judge` validation can
   require the dual-judge slate per non-empty-diff cell but must trust the
