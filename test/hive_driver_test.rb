@@ -61,6 +61,20 @@ class HiveDriverTest < Minitest::Test
     HiveBench::HiveDriver.const_set(:CLAUDE_DIR, original)
   end
 
+  def with_grok_auth_dir(dir)
+    klass = HiveBench::HiveDriver
+    originals = { GROK_AUTH_DIR: klass::GROK_AUTH_DIR, GROK_AUTH: klass::GROK_AUTH }
+    originals.each_key { |name| klass.send(:remove_const, name) }
+    klass.const_set(:GROK_AUTH_DIR, dir)
+    klass.const_set(:GROK_AUTH, File.join(dir, "auth.json"))
+    yield
+  ensure
+    originals&.each do |name, value|
+      klass.send(:remove_const, name) if klass.const_defined?(name, false)
+      klass.const_set(name, value)
+    end
+  end
+
   # A runner seam that fabricates the container's side effects, then returns stdout.
   def driver(stdout: OK_STDOUT, patch: "diff --git a/app.rb b/app.rb\n", log_lines: [])
     seen = @seen_cmd = []
@@ -202,15 +216,95 @@ class HiveDriverTest < Minitest::Test
   end
 
   def test_grok_candidate_mounts_auth_and_pins_model_effort
-    skip "needs ~/.grok/auth.json" unless File.file?(File.expand_path("~/.grok/auth.json"))
+    auth_dir = File.join(@root, "grok-auth")
+    payload = '{"issuer::principal":{"key":"access","refresh_token":"refresh"}}'
+    write_grok_auth(auth_dir, payload)
     grok = HiveBench::Candidates.by_id("all-grok-4.5")
-    driver.call(entry: entry, candidate: grok, out_dir: @out)
+    with_grok_auth_dir(auth_dir) do
+      driver.call(entry: entry, candidate: grok, out_dir: @out)
+    end
 
-    assert(@seen_cmd.each_cons(2).any? { |f, v| f == "--tmpfs" && v.to_s.include?("/.grok") },
-           "grok dir must be a tmpfs (root-owned bind-parent trap)")
-    assert(@seen_cmd.any? { |a| a.to_s.end_with?(".grok/auth.json:ro") }, "auth bound ro")
+    assert(@seen_cmd.each_cons(2).any? { |flag, path| flag == "--tmpfs" && path.include?("/.grok:") },
+           "each cell must get an ephemeral Grok home")
+    assert_includes @seen_cmd, "#{auth_dir}:/home/asterio/.grok-auth:rw"
+    refute_includes @seen_cmd, "#{auth_dir}:/home/asterio/.grok:rw"
+    assert_includes @seen_cmd, "GROK_AUTH_PATH=/home/asterio/.grok-auth/auth.json"
     assert_includes @seen_cmd, "HB_GROK_MODEL=grok-4.5"
     assert_includes @seen_cmd, "HB_GROK_EFFORT=xhigh"
+  end
+
+  def test_grok_rejects_untrusted_benchmark_credentials_before_docker
+    valid_payload = '{"issuer::principal":{"key":"host","refresh_token":"refresh"}}'
+    cases = {
+      missing: nil,
+      malformed: "{",
+      missing_key: '{"issuer::principal":{"refresh_token":"refresh"}}',
+      missing_refresh: '{"issuer::principal":{"key":"host"}}'
+    }
+
+    cases.each do |name, payload|
+      auth_dir = File.join(@root, "grok-auth-#{name}")
+      write_grok_auth(auth_dir, payload) if payload
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+
+      with_grok_auth_dir(auth_dir) do
+        assert_raises(RuntimeError, name.to_s) do
+          no_docker.call(entry: entry, candidate: HiveBench::Candidates.by_id("all-grok-4.5"),
+                         out_dir: File.join(@root, "out-#{name}"))
+        end
+      end
+    end
+
+    %i[symlink hardlink permissive].each do |name|
+      auth_dir = File.join(@root, "grok-auth-#{name}")
+      FileUtils.mkdir_p(auth_dir)
+      auth = File.join(auth_dir, "auth.json")
+      real = File.join(@root, "real-auth-#{name}.json")
+      File.write(real, valid_payload)
+      File.chmod(0o600, real)
+      case name
+      when :symlink then File.symlink(real, auth)
+      when :hardlink then File.link(real, auth)
+      when :permissive
+        File.write(auth, valid_payload)
+        File.chmod(0o644, auth)
+      end
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+
+      with_grok_auth_dir(auth_dir) do
+        assert_raises(RuntimeError, name.to_s) do
+          no_docker.call(entry: entry, candidate: HiveBench::Candidates.by_id("all-grok-4.5"),
+                         out_dir: File.join(@root, "out-#{name}"))
+        end
+      end
+    end
+  end
+
+  def test_grok_accepts_cli_lock_and_rejects_symlink_lock
+    auth_dir = File.join(@root, "grok-auth")
+    write_grok_auth(auth_dir, '{"issuer::principal":{"key":"host","refresh_token":"refresh"}}')
+    lock_path = File.join(auth_dir, "auth.json.lock")
+    File.write(lock_path, "123")
+    File.chmod(0o644, lock_path)
+
+    with_grok_auth_dir(auth_dir) { driver.call(entry: entry, candidate: HiveBench::Candidates.by_id("all-grok-4.5"), out_dir: @out) }
+
+    FileUtils.rm_f(lock_path)
+    File.symlink(File.join(auth_dir, "auth.json"), lock_path)
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run" })
+
+    with_grok_auth_dir(auth_dir) do
+      assert_raises(RuntimeError) do
+        no_docker.call(entry: entry, candidate: HiveBench::Candidates.by_id("all-grok-4.5"), out_dir: @out)
+      end
+    end
+  end
+
+  def write_grok_auth(dir, payload)
+    FileUtils.mkdir_p(dir)
+    path = File.join(dir, "auth.json")
+    File.write(path, payload)
+    File.chmod(0o600, path)
   end
 
   def test_pi_candidate_gets_per_stage_model_env
