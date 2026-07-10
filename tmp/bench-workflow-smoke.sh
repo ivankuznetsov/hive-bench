@@ -51,6 +51,26 @@ assert_state() {
   fi
 }
 
+assert_absent() {
+  local file="$1" needle="$2"
+  if grep -q "$needle" "$file"; then
+    echo "FAIL: $file unexpectedly contains: $needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+}
+
+# Stage scripts must never leave scratch files to be swept into hive-state
+# residual commits.
+assert_no_scratch() {
+  local dir="$1" prefix="$2"
+  if ls "$dir/$prefix"* >/dev/null 2>&1; then
+    echo "FAIL: $dir left scratch files behind:" >&2
+    ls "$dir/$prefix"* >&2
+    exit 1
+  fi
+}
+
 parse_descriptor "workflows/bench.yml"
 parse_descriptor ".hive-state/workflows/bench.yml"
 diff -qr workflows/bench .hive-state/workflows/bench >/dev/null
@@ -74,18 +94,13 @@ if ! grep -q "must be a bare filename" "$broken_err"; then
   exit 1
 fi
 
+# campaign.yml.example itself is validated against the REAL repo by the
+# real-root generate scenario below (the real contract validator, real
+# candidate profiles, real corpus) — no re-implemented validator logic here.
 ruby -ryaml -e 'data = YAML.safe_load_file("campaign.yml.example"); abort("campaign example must be a map") unless data.is_a?(Hash)'
-ruby -I harness -ryaml -e '
-  require "profiles/candidates"
-  data = YAML.safe_load_file("campaign.yml.example")
-  known = HiveBench::Candidates.all.map(&:id)
-  abort("example candidates must be a non-empty array") unless data.fetch("candidates").is_a?(Array) && !data.fetch("candidates").empty?
-  abort("example tasks must be a non-empty array") unless data.fetch("tasks").is_a?(Array) && !data.fetch("tasks").empty?
-  missing_candidates = data.fetch("candidates") - known
-  missing_tasks = data.fetch("tasks").reject { |slug| File.file?(File.join("corpus", slug, "manifest.yml")) }
-  abort("missing candidate(s): #{missing_candidates.join(", ")}") unless missing_candidates.empty?
-  abort("missing task(s): #{missing_tasks.join(", ")}") unless missing_tasks.empty?
-'
+
+EX_TASK="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetch("tasks").first')"
+EX_CAND="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetch("candidates").first')"
 
 WORKDIR="$(mktemp -d)"
 PROJECT="$WORKDIR/project"
@@ -94,30 +109,109 @@ SLUG="bench-smoke-260709-aa11"
 mkdir -p "$STATE/workflows" "$STATE/stages/1-inbox/$SLUG" "$PROJECT/harness/profiles" "$PROJECT/corpus"
 cp -R workflows/bench.yml workflows/bench "$STATE/workflows/"
 
-# Stub hive_run.rb: satisfies the repo-root anchor AND simulates a provider
-# wall — it parks the requested cell in pending[] (no cells[] record, no
-# artifacts), exactly the U2 wall-discipline fixture.
+# Stage scripts run with HOME pointed here: the real ~/.openrouter_key must
+# never be exported into stub runs.
+FAKE_HOME="$WORKDIR/home"
+mkdir -p "$FAKE_HOME"
+printf 'smoke-test-key\n' >"$FAKE_HOME/.openrouter_key"
+
+# Stub hive_run.rb: satisfies the repo-root anchor and simulates generation
+# outcomes per HB_SMOKE_MODE (wall = judge wall in pending[], failed = failed[]
+# bucket, success = terminal dual-judged cell). Every invocation is appended to
+# hive_run.calls so the never-re-buy guard can assert "not re-invoked", and the
+# received HB_HIVE_TIMEOUT / HB_RUNNER_IMAGE env is echoed into the per-cell
+# reason so the smoke can assert the contract env actually arrived.
 cat >"$PROJECT/harness/hive_run.rb" <<'RUBY'
 require "json"
 require "fileutils"
 out = ARGV[ARGV.index("--out") + 1]
 candidate = ARGV[ARGV.index("--candidate") + 1]
 task = ARGV[ARGV.index("--task") + 1]
+File.open("hive_run.calls", "a") { |f| f.puts "#{candidate}--#{task}" }
+env_note = "timeout=#{ENV["HB_HIVE_TIMEOUT"]}; image=#{ENV["HB_RUNNER_IMAGE"]}"
 FileUtils.mkdir_p(out)
-File.write(File.join(out, "results.json"), JSON.pretty_generate(
-  "cells" => [],
-  "pending" => [{ "task_id" => task, "agent_id" => candidate, "reason" => "stub provider wall (limit_hit)" }],
-  "failed" => []
-) + "\n")
-warn "stub hive_run: parked #{candidate}/#{task} pending"
+results =
+  case ENV.fetch("HB_SMOKE_MODE", "wall")
+  when "success"
+    { "cells" => [{ "task_id" => task, "agent_id" => candidate, "mode" => "fresh",
+                    "model_version" => "stub", "run_status" => "generated", "subset" => "judged",
+                    "gate" => { "status" => "no_gate", "reason" => "stub" },
+                    "judges" => { "fable-5" => { "mean" => 7.0, "interval" => [6.5, 7.5] },
+                                  "gpt-5.5-pro" => { "mean" => 6.0, "interval" => [5.5, 6.5] } },
+                    "efficiency" => { "cost_usd" => 1.0 } }],
+      "pending" => [], "failed" => [] }
+  when "failed"
+    { "cells" => [],
+      "pending" => [],
+      "failed" => [{ "task_id" => task, "agent_id" => candidate,
+                     "reason" => "stub post-generation failure; #{env_note}" }] }
+  else
+    { "cells" => [],
+      "pending" => [{ "task_id" => task, "agent_id" => candidate,
+                      "reason" => "stub provider wall (limit_hit); #{env_note}" }],
+      "failed" => [] }
+  end
+File.write(File.join(out, "results.json"), JSON.pretty_generate(results) + "\n")
+warn "stub hive_run: #{ENV.fetch("HB_SMOKE_MODE", "wall")} #{candidate}/#{task}"
+exit(Integer(ENV.fetch("HB_SMOKE_EXIT", "0")))
 RUBY
 
-# Stub candidate profiles + corpus manifests mirroring campaign.yml.example, so
-# generate.md's REAL contract validator runs against the example's structure
-# (a required key dropped from the example fails here, not on a live campaign).
+# Stub rejudge.rb: copies the merged results through --out (Score#results
+# shape: no pending/failed keys), backfilling nothing — the fixtures below
+# control which judges each cell carries.
+cat >"$PROJECT/harness/rejudge.rb" <<'RUBY'
+require "json"
+require "fileutils"
+def arg(flag) = ARGV.include?(flag) ? ARGV[ARGV.index(flag) + 1] : nil
+results = JSON.parse(File.read(arg("--results")))
+results.delete("pending")
+results.delete("failed")
+out = arg("--out")
+FileUtils.mkdir_p(File.dirname(out))
+File.write(out, JSON.pretty_generate(results) + "\n")
+warn "stub rejudge: wrote #{results.fetch("cells", []).size} cell(s) to #{out}"
+RUBY
+
+# Stub deliberate.rb: transcribes every dual-judged cell not already covered by
+# --skip-done, writing ONLY the newly deliberated cells (like the real tool).
+cat >"$PROJECT/harness/deliberate.rb" <<'RUBY'
+require "json"
+require "fileutils"
+def arg(flag) = ARGV.include?(flag) ? ARGV[ARGV.index(flag) + 1] : nil
+results = JSON.parse(File.read(arg("--results")))
+skip = arg("--skip-done")
+seen = skip && File.file?(skip) ? JSON.parse(File.read(skip)).fetch("cells", []).map { |t| [t["task_id"], t["agent_id"]] } : []
+cells = results.fetch("cells", [])
+               .select { |c| (c["judges"] || {}).size >= 2 }
+               .reject { |c| seen.include?([c["task_id"], c["agent_id"]]) }
+               .map do |c|
+  { "task_id" => c["task_id"], "agent_id" => c["agent_id"],
+    "judges" => { "fable-5" => { "initial" => 7.0, "final" => 7.0, "delta" => 0.0 },
+                  "gpt-5.5-pro" => { "initial" => 6.0, "final" => 6.5, "delta" => 0.5 } } }
+end
+out = arg("--out")
+FileUtils.mkdir_p(File.dirname(out))
+File.write(out, JSON.pretty_generate(
+  "schema" => "hive-bench-deliberation", "schema_version" => 1,
+  "cells" => cells, "summary" => { "cells" => cells.size }
+) + "\n")
+warn "stub deliberate: wrote #{cells.size} new cell(s)"
+RUBY
+
+# The judge/publish success paths exercise the REAL merge: merge_results.rb is
+# symlinked from the real harness (its __dir__ resolves through the symlink, so
+# score.rb and lib/ load from the real repo too). lib/ itself is symlinked for
+# extract's real HiveBench::Corpus load over the stub manifests.
+ln -s "$ROOT/harness/merge_results.rb" "$PROJECT/harness/merge_results.rb"
+ln -s "$ROOT/harness/lib" "$PROJECT/harness/lib"
+
+# Stub candidate profiles + corpus manifests mirroring campaign.yml.example
+# (plus a grok-flavoured candidate so the HB_RUNNER_IMAGE branch is reachable),
+# so generate.md's contract validator accepts campaigns derived from the
+# example inside this throwaway project.
 ruby -ryaml -rfileutils -e '
   data = YAML.safe_load_file("campaign.yml.example")
-  ids = data.fetch("candidates").map(&:to_s)
+  ids = data.fetch("candidates").map(&:to_s) + ["grok-smoke"]
   stub = <<~RUBY
     module HiveBench
       module Candidates
@@ -136,12 +230,44 @@ ruby -ryaml -rfileutils -e '
 ' "$PROJECT/harness/profiles/candidates.rb" "$PROJECT/corpus"
 
 write_campaign() {
-  local id="$1" dest="$2"
+  local id="$1" dest="$2" extra_candidate="${3:-}"
   ruby -ryaml -e '
     data = YAML.safe_load_file("campaign.yml.example")
     data["campaign_id"] = ARGV.fetch(0)
+    data["candidates"] = [ARGV[2]] if ARGV[2] && !ARGV[2].empty?
     File.write(ARGV.fetch(1), data.to_yaml)
-  ' "$id" "$dest"
+  ' "$id" "$dest" "$extra_candidate"
+}
+
+# Craft a campaign-root results.json fixture for the judge validation branches.
+write_judge_fixture() {
+  local id="$1" variant="$2"
+  PROJECT="$PROJECT" ruby -rjson -rfileutils -ryaml -e '
+    id, variant = ARGV.fetch(0), ARGV.fetch(1)
+    data = YAML.safe_load_file("campaign.yml.example")
+    task = data.fetch("tasks").first
+    cand = data.fetch("candidates").first
+    full = { "fable-5" => { "mean" => 7.0 }, "gpt-5.5-pro" => { "mean" => 6.5 } }
+    cell = ->(agent, judges) do
+      { "task_id" => task, "agent_id" => agent, "mode" => "fresh",
+        "run_status" => "generated", "judges" => judges, "efficiency" => {} }
+    end
+    results =
+      case variant
+      when "missing_cell" then { "cells" => [], "pending" => [], "failed" => [] }
+      when "missing_judges" then { "cells" => [cell.(cand, { "fable-5" => { "mean" => 7.0 } })], "pending" => [], "failed" => [] }
+      when "unexpected" then { "cells" => [cell.(cand, full), cell.("rogue-candidate", full)], "pending" => [], "failed" => [] }
+      when "pending" then { "cells" => [cell.(cand, full)], "pending" => [{ "task_id" => task, "agent_id" => cand, "reason" => "stub wall" }], "failed" => [] }
+      else abort("unknown fixture variant #{variant}")
+      end
+    dir = File.join(ENV.fetch("PROJECT"), "runs", id)
+    FileUtils.mkdir_p(dir)
+    File.write(File.join(dir, "results.json"), JSON.pretty_generate(results) + "\n")
+  ' "$id" "$variant"
+}
+
+hive_run_calls() {
+  if [ -f "$PROJECT/hive_run.calls" ]; then wc -l <"$PROJECT/hive_run.calls"; else echo 0; fi
 }
 
 cat >"$STATE/config.yml" <<YAML
@@ -200,17 +326,29 @@ extract_stage_script workflows/bench/generate.md "$WORKDIR/generate.sh"
 extract_stage_script workflows/bench/judge.md "$WORKDIR/judge.sh"
 extract_stage_script workflows/bench/publish.md "$WORKDIR/publish.sh"
 
+# --- campaign_id slug validation is duplicated across three stage scripts:
+# assert the copies have not drifted.
+for stage in judge publish; do
+  for needle in 'campaign_id must be a slug' 'v3-example is the unedited example id'; do
+    if ! diff <(grep -F "$needle" "$WORKDIR/generate.sh" | sed 's/^[[:space:]]*//' | sort -u) \
+              <(grep -F "$needle" "$WORKDIR/$stage.sh" | sed 's/^[[:space:]]*//' | sort -u) >/dev/null; then
+      echo "FAIL: campaign_id validation drifted between generate.sh and $stage.sh (needle: $needle)" >&2
+      exit 1
+    fi
+  done
+done
+
 # --- generate gate: missing campaign.yml -------------------------------------
 GATE_DIR="$STATE/stages/3-generate/$SLUG-gate"
 mkdir -p "$GATE_DIR"
-(cd "$GATE_DIR" && bash "$WORKDIR/generate.sh")
+(cd "$GATE_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$GATE_DIR/generate.md" '<!-- WAITING -->' 'Missing campaign.yml'
 
 # --- generate gate: campaign.yml present but untracked ------------------------
 UNTRACKED_DIR="$STATE/stages/3-generate/$SLUG-untracked"
 mkdir -p "$UNTRACKED_DIR"
 write_campaign bench-smoke-untracked "$UNTRACKED_DIR/campaign.yml"
-(cd "$UNTRACKED_DIR" && bash "$WORKDIR/generate.sh")
+(cd "$UNTRACKED_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$UNTRACKED_DIR/generate.md" '<!-- WAITING -->' 'not committed in the hive-state checkout'
 
 # --- generate gate: campaign.yml committed but dirty ---------------------------
@@ -220,35 +358,74 @@ write_campaign bench-smoke-dirty "$DIRTY_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-dirty/campaign.yml"
 git -C "$STATE" commit -qm "smoke: dirty-gate campaign"
 printf '# local edit after commit\n' >>"$DIRTY_DIR/campaign.yml"
-(cd "$DIRTY_DIR" && bash "$WORKDIR/generate.sh")
+(cd "$DIRTY_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$DIRTY_DIR/generate.md" '<!-- WAITING -->' 'uncommitted changes'
+
+# --- generate: committed campaign missing a required key parks with the real
+# contract message ---------------------------------------------------------------
+NOBUDGET_DIR="$STATE/stages/3-generate/$SLUG-nobudget"
+mkdir -p "$NOBUDGET_DIR"
+ruby -ryaml -e '
+  data = YAML.safe_load_file("campaign.yml.example")
+  data["campaign_id"] = "bench-smoke-nobudget"
+  data.delete("budgets")
+  File.write(ARGV.fetch(0), data.to_yaml)
+' "$NOBUDGET_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-nobudget/campaign.yml"
+git -C "$STATE" commit -qm "smoke: no-budget campaign"
+(cd "$NOBUDGET_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$NOBUDGET_DIR/generate.md" '<!-- WAITING -->' 'missing required key(s): budgets'
 
 # --- generate: REPO_ROOT misanchor parks with the ERROR message ----------------
 MISANCHOR_DIR="$WORKDIR/misanchor/w/x/y/z"
 mkdir -p "$MISANCHOR_DIR"
-(cd "$MISANCHOR_DIR" && bash "$WORKDIR/generate.sh")
+(cd "$MISANCHOR_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$MISANCHOR_DIR/generate.md" '<!-- WAITING -->' 'did not resolve to the hive-bench repo root'
 
 # --- extract: missing corpus slug parks WAITING --------------------------------
 EXTRACT_DIR="$STATE/stages/2-extract/$SLUG-missing-slug"
 mkdir -p "$EXTRACT_DIR"
-printf 'tasks:\n  - no-such-task-smoke\n' >"$EXTRACT_DIR/campaign.yml"
-(cd "$EXTRACT_DIR" && bash "$WORKDIR/extract.sh")
+printf 'source: /tmp/smoke-src\ntasks:\n  - no-such-task-smoke\n' >"$EXTRACT_DIR/campaign.yml"
+(cd "$EXTRACT_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/extract.sh")
 assert_state "$EXTRACT_DIR/extract.md" '<!-- WAITING -->' 'Missing corpus task(s): no-such-task-smoke'
+assert_no_scratch "$EXTRACT_DIR" .extract-
+
+# --- extract: missing source key parks WAITING (no silent "." default) ---------
+EXTRACT_NOSRC_DIR="$STATE/stages/2-extract/$SLUG-no-source"
+mkdir -p "$EXTRACT_NOSRC_DIR"
+printf 'tasks:\n  - no-such-task-smoke\n' >"$EXTRACT_NOSRC_DIR/campaign.yml"
+(cd "$EXTRACT_NOSRC_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/extract.sh")
+assert_state "$EXTRACT_NOSRC_DIR/extract.md" '<!-- WAITING -->' 'missing required key: source'
 
 # --- judge: missing campaign results parks WAITING -----------------------------
 JUDGE_DIR="$STATE/stages/4-judge/$SLUG-no-results"
 mkdir -p "$JUDGE_DIR"
 write_campaign bench-smoke-judge "$JUDGE_DIR/campaign.yml"
-(cd "$JUDGE_DIR" && bash "$WORKDIR/judge.sh")
+(cd "$JUDGE_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
 assert_state "$JUDGE_DIR/judge.md" '<!-- WAITING -->' 'Missing runs/bench-smoke-judge/results.json'
+
+# --- judge: malformed campaign.yml parks WAITING via the guarded extraction ----
+JUDGE_BAD_DIR="$STATE/stages/4-judge/$SLUG-badyaml"
+mkdir -p "$JUDGE_BAD_DIR"
+printf 'campaign_id: BAD_Slug\nsource: /tmp/x\nseeds: 3\n' >"$JUDGE_BAD_DIR/campaign.yml"
+(cd "$JUDGE_BAD_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_BAD_DIR/judge.md" '<!-- WAITING -->' 'campaign_id must be a slug'
+assert_no_scratch "$JUDGE_BAD_DIR" .judge-
 
 # --- publish: missing campaign results parks WAITING ---------------------------
 PUBLISH_DIR="$STATE/stages/5-publish/$SLUG-no-results"
 mkdir -p "$PUBLISH_DIR"
 write_campaign bench-smoke-publish "$PUBLISH_DIR/campaign.yml"
-(cd "$PUBLISH_DIR" && bash "$WORKDIR/publish.sh")
+(cd "$PUBLISH_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/publish.sh")
 assert_state "$PUBLISH_DIR/publish.md" '<!-- WAITING -->' 'Missing runs/bench-smoke-publish/results.json'
+
+# --- publish: malformed campaign.yml parks WAITING via the guarded extraction --
+PUBLISH_BAD_DIR="$STATE/stages/5-publish/$SLUG-badyaml"
+mkdir -p "$PUBLISH_BAD_DIR"
+printf 'campaign_id: BAD_Slug\ncorpus_version: v3\n' >"$PUBLISH_BAD_DIR/campaign.yml"
+(cd "$PUBLISH_BAD_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/publish.sh")
+assert_state "$PUBLISH_BAD_DIR/publish.md" '<!-- WAITING -->' 'campaign_id must be a slug'
+assert_no_scratch "$PUBLISH_BAD_DIR" .publish-
 
 # --- generate wall discipline: pending[] fixture -> WAITING with retry note ----
 # Runs the FULL generate script past the gate: the real contract validator over
@@ -259,16 +436,226 @@ mkdir -p "$WALL_DIR"
 write_campaign bench-smoke-wall "$WALL_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-wall/campaign.yml"
 git -C "$STATE" commit -qm "smoke: wall campaign"
-(cd "$WALL_DIR" && bash "$WORKDIR/generate.sh")
+(cd "$WALL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'UNFINISHED'
-grep -q 'stub provider wall' "$WALL_DIR/generate.md"
-grep -q 'Retry: fix the condition above' "$WALL_DIR/generate.md"
-ls "$PROJECT"/runs/bench-smoke-wall/*--*/results.json >/dev/null
-# Scratch files must not survive to be swept into hive-state commits.
-if ls "$WALL_DIR"/.generate-* >/dev/null 2>&1; then
-  echo "FAIL: generate stage left scratch files behind:" >&2
-  ls "$WALL_DIR"/.generate-* >&2
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'stub provider wall'
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Retry: fix the condition above'
+# The pre-registered timeout must reach the harness invocation as HB_HIVE_TIMEOUT.
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'timeout=14400'
+# Per-command stderr must be captured and surfaced next to the outcome report.
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Generation command stderr tails:'
+if ! ls "$PROJECT"/runs/bench-smoke-wall/*--*/results.json >/dev/null 2>&1; then
+  echo "FAIL: wall run left no per-cell results.json under runs/bench-smoke-wall" >&2
   exit 1
 fi
+assert_no_scratch "$WALL_DIR" .generate-
+
+# --- never-re-buy: pending[] + captured diff must not re-run generation and
+# must be reported as judges_pending with the do-NOT-regenerate advice --------
+calls_before="$(hive_run_calls)"
+mkdir -p "$PROJECT/runs/bench-smoke-wall/$EX_CAND--$EX_TASK/$EX_TASK/cell_1/target"
+touch "$PROJECT/runs/bench-smoke-wall/$EX_CAND--$EX_TASK/$EX_TASK/cell_1/target/candidate.patch"
+(cd "$WALL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+if [ "$(hive_run_calls)" != "$calls_before" ]; then
+  echo "FAIL: generate re-invoked hive_run.rb for a pending cell with a captured diff" >&2
+  exit 1
+fi
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'judges_pending'
+assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'do NOT regenerate'
+
+# --- never-re-buy: failed[]-bucketed cell with a captured diff -----------------
+FAILED_DIR="$STATE/stages/3-generate/$SLUG-failed"
+mkdir -p "$FAILED_DIR"
+write_campaign bench-smoke-failedbucket "$FAILED_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-failed/campaign.yml"
+git -C "$STATE" commit -qm "smoke: failed-bucket campaign"
+(cd "$FAILED_DIR" && HOME="$FAKE_HOME" HB_SMOKE_MODE=failed bash "$WORKDIR/generate.sh")
+assert_state "$FAILED_DIR/generate.md" '<!-- WAITING -->' 'stub post-generation failure'
+calls_before="$(hive_run_calls)"
+mkdir -p "$PROJECT/runs/bench-smoke-failedbucket/$EX_CAND--$EX_TASK/$EX_TASK/cell_1/target"
+touch "$PROJECT/runs/bench-smoke-failedbucket/$EX_CAND--$EX_TASK/$EX_TASK/cell_1/target/candidate.patch"
+(cd "$FAILED_DIR" && HOME="$FAKE_HOME" HB_SMOKE_MODE=failed bash "$WORKDIR/generate.sh")
+if [ "$(hive_run_calls)" != "$calls_before" ]; then
+  echo "FAIL: generate re-invoked hive_run.rb for a failed[] cell with a captured diff" >&2
+  exit 1
+fi
+assert_state "$FAILED_DIR/generate.md" '<!-- WAITING -->' 'judges_pending'
+assert_state "$FAILED_DIR/generate.md" '<!-- WAITING -->' 'do NOT regenerate'
+
+# --- generate: nonzero harness exit surfaces the run_note prefix ---------------
+EXITCODE_DIR="$STATE/stages/3-generate/$SLUG-exitcode"
+mkdir -p "$EXITCODE_DIR"
+write_campaign bench-smoke-exitcode "$EXITCODE_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-exitcode/campaign.yml"
+git -C "$STATE" commit -qm "smoke: exit-code campaign"
+(cd "$EXITCODE_DIR" && HOME="$FAKE_HOME" HB_SMOKE_EXIT=3 bash "$WORKDIR/generate.sh")
+assert_state "$EXITCODE_DIR/generate.md" '<!-- WAITING -->' 'One or more generation commands exited nonzero'
+
+# --- generate: grok candidates must receive HB_RUNNER_IMAGE --------------------
+GROK_DIR="$STATE/stages/3-generate/$SLUG-grok"
+mkdir -p "$GROK_DIR"
+write_campaign bench-smoke-grok "$GROK_DIR/campaign.yml" grok-smoke
+git -C "$STATE" add "stages/3-generate/$SLUG-grok/campaign.yml"
+git -C "$STATE" commit -qm "smoke: grok campaign"
+(cd "$GROK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$GROK_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:grok'
+
+# --- generate: contradictory per-cell result (terminal + nonempty buckets) -----
+CONTRA_DIR="$STATE/stages/3-generate/$SLUG-contra"
+mkdir -p "$CONTRA_DIR"
+write_campaign bench-smoke-contra "$CONTRA_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-contra/campaign.yml"
+git -C "$STATE" commit -qm "smoke: contradictory campaign"
+mkdir -p "$PROJECT/runs/bench-smoke-contra/$EX_CAND--$EX_TASK"
+ruby -rjson -e '
+  File.write(ARGV.fetch(0), JSON.pretty_generate(
+    "cells" => [{ "task_id" => ARGV.fetch(1), "agent_id" => ARGV.fetch(2), "run_status" => "generated", "judges" => {} }],
+    "pending" => [{ "task_id" => ARGV.fetch(1), "agent_id" => ARGV.fetch(2), "reason" => "stub wall" }],
+    "failed" => []
+  ) + "\n")
+' "$PROJECT/runs/bench-smoke-contra/$EX_CAND--$EX_TASK/results.json" "$EX_TASK" "$EX_CAND"
+(cd "$CONTRA_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$CONTRA_DIR/generate.md" '<!-- WAITING -->' 'contradictory result'
+
+# --- generate success: terminal cells -> per-cell merge -> COMPLETE ------------
+SUCCESS_DIR="$STATE/stages/3-generate/$SLUG-success"
+mkdir -p "$SUCCESS_DIR"
+write_campaign bench-smoke-success "$SUCCESS_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-success/campaign.yml"
+git -C "$STATE" commit -qm "smoke: success campaign"
+(cd "$SUCCESS_DIR" && HOME="$FAKE_HOME" HB_SMOKE_MODE=success bash "$WORKDIR/generate.sh")
+assert_state "$SUCCESS_DIR/generate.md" '<!-- COMPLETE -->' 'merged campaign results written'
+if [ ! -f "$PROJECT/runs/bench-smoke-success/results.json" ]; then
+  echo "FAIL: generate COMPLETE without a campaign-root results.json" >&2
+  exit 1
+fi
+assert_no_scratch "$SUCCESS_DIR" .generate-
+
+# --- never-re-buy: terminal (generated) cells are skipped on a re-run ----------
+calls_before="$(hive_run_calls)"
+(cd "$SUCCESS_DIR" && HOME="$FAKE_HOME" HB_SMOKE_MODE=success bash "$WORKDIR/generate.sh")
+if [ "$(hive_run_calls)" != "$calls_before" ]; then
+  echo "FAIL: generate re-invoked hive_run.rb for a terminal generated cell" >&2
+  exit 1
+fi
+assert_state "$SUCCESS_DIR/generate.md" '<!-- COMPLETE -->' 'merged campaign results written'
+
+# --- judge success: full slate + deliberation transcript -> COMPLETE -----------
+JUDGE_OK_DIR="$STATE/stages/4-judge/$SLUG-success"
+mkdir -p "$JUDGE_OK_DIR"
+write_campaign bench-smoke-success "$JUDGE_OK_DIR/campaign.yml"
+(cd "$JUDGE_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'full campaign judge slate'
+if ! grep -q "$EX_CAND" "$PROJECT/runs/bench-smoke-success/deliberation.json"; then
+  echo "FAIL: deliberation transcript missing the dual-judged cell" >&2
+  cat "$PROJECT/runs/bench-smoke-success/deliberation.json" >&2
+  exit 1
+fi
+assert_no_scratch "$JUDGE_OK_DIR" .judge-
+
+# --- judge retry: the deliberation union must preserve prior transcripts even
+# when the retry deliberates zero new cells (the old overwrite lost them) ------
+(cd "$JUDGE_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'full campaign judge slate'
+if ! grep -q "$EX_CAND" "$PROJECT/runs/bench-smoke-success/deliberation.json"; then
+  echo "FAIL: judge retry wiped the deliberation transcript" >&2
+  cat "$PROJECT/runs/bench-smoke-success/deliberation.json" >&2
+  exit 1
+fi
+
+# --- judge validation branches: MISSING_CELL / MISSING_JUDGES / UNEXPECTED_CELL
+# and the pre-rejudge pending guard ---------------------------------------------
+JUDGE_MISSCELL_DIR="$STATE/stages/4-judge/$SLUG-misscell"
+mkdir -p "$JUDGE_MISSCELL_DIR"
+write_campaign bench-smoke-misscell "$JUDGE_MISSCELL_DIR/campaign.yml"
+write_judge_fixture bench-smoke-misscell missing_cell
+(cd "$JUDGE_MISSCELL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_MISSCELL_DIR/judge.md" '<!-- WAITING -->' 'MISSING_CELL'
+
+JUDGE_MISSJUDGE_DIR="$STATE/stages/4-judge/$SLUG-missjudge"
+mkdir -p "$JUDGE_MISSJUDGE_DIR"
+write_campaign bench-smoke-missjudge "$JUDGE_MISSJUDGE_DIR/campaign.yml"
+write_judge_fixture bench-smoke-missjudge missing_judges
+(cd "$JUDGE_MISSJUDGE_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_MISSJUDGE_DIR/judge.md" '<!-- WAITING -->' 'MISSING_JUDGES'
+# The slate is validated by NAME: the report must say which judge is missing.
+assert_state "$JUDGE_MISSJUDGE_DIR/judge.md" '<!-- WAITING -->' 'missing: gpt-5.5-pro'
+
+JUDGE_UNEXPECTED_DIR="$STATE/stages/4-judge/$SLUG-unexpected"
+mkdir -p "$JUDGE_UNEXPECTED_DIR"
+write_campaign bench-smoke-unexpected "$JUDGE_UNEXPECTED_DIR/campaign.yml"
+write_judge_fixture bench-smoke-unexpected unexpected
+(cd "$JUDGE_UNEXPECTED_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_UNEXPECTED_DIR/judge.md" '<!-- WAITING -->' 'UNEXPECTED_CELL rogue-candidate'
+
+JUDGE_PENDING_DIR="$STATE/stages/4-judge/$SLUG-pending"
+mkdir -p "$JUDGE_PENDING_DIR"
+write_campaign bench-smoke-pendingguard "$JUDGE_PENDING_DIR/campaign.yml"
+write_judge_fixture bench-smoke-pendingguard pending
+(cd "$JUDGE_PENDING_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_PENDING_DIR/judge.md" '<!-- WAITING -->' 're-run generate until every cell is terminal'
+
+# --- publish success: real merge + leaderboard render -> COMPLETE --------------
+PUBLISH_OK_DIR="$STATE/stages/5-publish/$SLUG-success"
+mkdir -p "$PUBLISH_OK_DIR"
+write_campaign bench-smoke-success "$PUBLISH_OK_DIR/campaign.yml"
+(cd "$PUBLISH_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/publish.sh")
+assert_state "$PUBLISH_OK_DIR/publish.md" '<!-- COMPLETE -->' '## Leaderboard Summary'
+assert_state "$PUBLISH_OK_DIR/publish.md" '<!-- COMPLETE -->' "| $EX_CAND |"
+assert_state "$PUBLISH_OK_DIR/publish.md" '<!-- COMPLETE -->' 'leaderboard summary above is appended'
+assert_no_scratch "$PUBLISH_OK_DIR" .publish-
+
+# --- extract success: real corpus manifest fixtures -> COMPLETE ----------------
+EXTRACT_OK_DIR="$STATE/stages/2-extract/$SLUG-success"
+mkdir -p "$EXTRACT_OK_DIR"
+write_campaign bench-smoke-extract "$EXTRACT_OK_DIR/campaign.yml"
+if (cd "$EXTRACT_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/extract.sh"); then
+  assert_state "$EXTRACT_OK_DIR/extract.md" '<!-- COMPLETE -->' 'load through'
+else
+  echo "FAIL: extract success scenario exited nonzero" >&2
+  exit 1
+fi
+assert_no_scratch "$EXTRACT_OK_DIR" .extract-
+
+# --- real-root validator: the REAL generate contract validator runs against the
+# REAL repo (real candidate profiles, real corpus manifests) for a campaign
+# derived from campaign.yml.example, with the single cell pre-seeded as bought
+# so no generation is attempted (the anchor hive_run.rb aborts loudly if the
+# never-re-buy guard regresses). This replaces the old smoke-local
+# re-implementation of the candidate/task checks. -------------------------------
+ANCHOR="$WORKDIR/realroot"
+mkdir -p "$ANCHOR/harness"
+ln -s "$ROOT/harness/profiles" "$ANCHOR/harness/profiles"
+ln -s "$ROOT/harness/merge_results.rb" "$ANCHOR/harness/merge_results.rb"
+ln -s "$ROOT/corpus" "$ANCHOR/corpus"
+cat >"$ANCHOR/harness/hive_run.rb" <<'RUBY'
+abort "SMOKE FAIL: the real-root generate scenario invoked hive_run.rb — the never-re-buy guard regressed"
+RUBY
+REAL_STATE="$ANCHOR/.hive-state"
+REAL_DIR="$REAL_STATE/stages/3-generate/$SLUG-real"
+mkdir -p "$REAL_DIR"
+write_campaign bench-smoke-real "$REAL_DIR/campaign.yml"
+git -C "$REAL_STATE" init -q
+git -C "$REAL_STATE" config user.email smoke@example.invalid
+git -C "$REAL_STATE" config user.name "Bench Smoke"
+git -C "$REAL_STATE" add .
+git -C "$REAL_STATE" commit -qm "seed real-root campaign"
+mkdir -p "$ANCHOR/runs/bench-smoke-real/$EX_CAND--$EX_TASK"
+ruby -rjson -e '
+  cell = { "task_id" => ARGV.fetch(1), "agent_id" => ARGV.fetch(2), "mode" => "fresh",
+           "model_version" => "stub", "run_status" => "generated", "subset" => "judged",
+           "gate" => { "status" => "no_gate", "reason" => "stub" },
+           "judges" => { "fable-5" => { "mean" => 7.0 }, "gpt-5.5-pro" => { "mean" => 6.5 } },
+           "efficiency" => { "cost_usd" => 1.0 } }
+  File.write(ARGV.fetch(0), JSON.pretty_generate("cells" => [cell], "pending" => [], "failed" => []) + "\n")
+' "$ANCHOR/runs/bench-smoke-real/$EX_CAND--$EX_TASK/results.json" "$EX_TASK" "$EX_CAND"
+(cd "$REAL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$REAL_DIR/generate.md" '<!-- COMPLETE -->' 'merged campaign results written'
+assert_absent "$REAL_DIR/generate.md" 'commands exited nonzero'
+if [ ! -f "$ANCHOR/runs/bench-smoke-real/results.json" ]; then
+  echo "FAIL: real-root generate COMPLETE without a campaign-root results.json" >&2
+  exit 1
+fi
+rm -rf "$ANCHOR/runs"
 
 echo "bench workflow smoke ok"
