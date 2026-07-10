@@ -92,7 +92,7 @@ class HiveDriverTest < Minitest::Test
       end
       stdout
     end
-    HiveBench::HiveDriver.new(runner: runner)
+    HiveBench::HiveDriver.new(runner: runner, reuse_existing: false, reuse_unverified: false)
   end
 
   def test_generated_cell_with_api_equivalent_cost
@@ -115,6 +115,77 @@ class HiveDriverTest < Minitest::Test
     cell = driver.call(entry: entry, candidate: candidate, out_dir: @out)
 
     refute cell.telemetry.key?("cost_usd"), "a telemetry gap must read as unknown, not as a $0 run"
+  end
+
+  def test_string_message_stream_event_does_not_abort_cell_capture
+    error_event = '[stream] 2026-01-01T00:00:00Z {"type":"error","message":"review failed"}'
+
+    cell = driver(log_lines: [error_event]).call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    refute cell.telemetry.key?("cost_usd")
+  end
+
+  def test_completed_artifact_is_recovered_without_rerunning_hive
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "completed artifact must not be regenerated" },
+                                         reuse_existing: true, reuse_unverified: false)
+
+    cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["recovered_artifact"]
+    assert_equal "verified", cell.telemetry["artifact_provenance"]
+    assert_nil cell.telemetry["wall_clock_sec"], "lost wall time stays unknown"
+  end
+
+  def test_legacy_artifact_requires_explicit_unverified_recovery
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    FileUtils.rm_f(File.join(@work, ".hb", HiveBench::HiveDriver::GENERATION_IDENTITY))
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "explicit legacy recovery must reuse the artifact" },
+                                         reuse_existing: true, reuse_unverified: true)
+
+    cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert_equal "legacy-unverified", cell.telemetry["artifact_provenance"]
+  end
+
+  def test_changed_candidate_identity_refuses_to_destroy_existing_artifact
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    changed = candidate.with(model_version: "changed-model")
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "mismatched artifact must not be deleted" },
+                                         reuse_existing: true, reuse_unverified: false)
+
+    error = assert_raises(HiveBench::HiveDriver::ArtifactProvenanceMismatch) do
+      no_rerun.call(entry: entry, candidate: changed, out_dir: @out)
+    end
+
+    assert_match(/--no-reuse-existing-artifacts/, error.message)
+    assert_path_exists File.join(@work, "candidate.patch")
+  end
+
+  def test_incomplete_artifact_is_not_recovered
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), "HB_STAGE plan rc=0\nHB_EXIT rc=1\n")
+    reran = false
+    fresh = HiveBench::HiveDriver.new(runner: lambda do |_cmd|
+      reran = true
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      OK_STDOUT
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = fresh.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert reran
+    refute cell.telemetry["recovered_artifact"]
   end
 
   def test_timeout_is_timed_out_not_plan_failed
@@ -159,7 +230,8 @@ class HiveDriverTest < Minitest::Test
 
     err = assert_raises(RuntimeError) do
       with_claude_dir(claude_dir) do
-        HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing auth source" })
+        HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing auth source" },
+                                  reuse_existing: false, reuse_unverified: false)
                              .call(entry: entry, candidate: candidate, out_dir: @out)
       end
     end
@@ -175,7 +247,8 @@ class HiveDriverTest < Minitest::Test
     claude_dir = File.join(@root, "claude")
     FileUtils.mkdir_p(claude_dir)
     File.write(File.join(claude_dir, ".credentials.json"), "{}")
-    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing mount source" })
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing mount source" },
+                                          reuse_existing: false, reuse_unverified: false)
 
     err = assert_raises(RuntimeError) do
       with_claude_dir(claude_dir) { no_docker.call(entry: entry, candidate: candidate, out_dir: @out) }
@@ -245,7 +318,8 @@ class HiveDriverTest < Minitest::Test
     cases.each do |name, payload|
       auth_dir = File.join(@root, "grok-auth-#{name}")
       write_grok_auth(auth_dir, payload) if payload
-      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" },
+                                            reuse_existing: false, reuse_unverified: false)
 
       with_grok_auth_dir(auth_dir) do
         assert_raises(RuntimeError, name.to_s) do
@@ -269,7 +343,8 @@ class HiveDriverTest < Minitest::Test
         File.write(auth, valid_payload)
         File.chmod(0o644, auth)
       end
-      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" },
+                                            reuse_existing: false, reuse_unverified: false)
 
       with_grok_auth_dir(auth_dir) do
         assert_raises(RuntimeError, name.to_s) do
@@ -291,7 +366,8 @@ class HiveDriverTest < Minitest::Test
 
     FileUtils.rm_f(lock_path)
     File.symlink(File.join(auth_dir, "auth.json"), lock_path)
-    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run" })
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run" },
+                                          reuse_existing: false, reuse_unverified: false)
 
     with_grok_auth_dir(auth_dir) do
       assert_raises(RuntimeError) do

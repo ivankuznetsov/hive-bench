@@ -23,6 +23,8 @@ module HiveBench
   #     installPaths resolve and `/ce-plan` is available
   #   - the target clone at /work; hive baked into the image as a gem
   class HiveDriver
+    class ArtifactProvenanceMismatch < StandardError; end
+
     Cell = Data.define(:task_id, :agent_id, :mode, :model_version, :status,
                        :diff_path, :telemetry, :reason)
 
@@ -35,11 +37,14 @@ module HiveBench
     )
     GROK_AUTH = File.join(GROK_AUTH_DIR, "auth.json")
     GROK_AUTH_CONTAINER_DIR = "#{HOME}/.grok-auth".freeze
+    GENERATION_IDENTITY = "generation-identity.json"
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
-    def initialize(clock: -> { Time.now.utc }, runner: nil)
+    def initialize(clock: -> { Time.now.utc }, runner: nil, reuse_existing:, reuse_unverified:)
       @clock = clock
       @runner = runner # injectable container runner for tests; default shells docker
+      @reuse_existing = reuse_existing
+      @reuse_unverified = reuse_unverified
     end
 
     # entry: corpus entry hash (manifest + entry_dir + checkout_source).
@@ -50,11 +55,17 @@ module HiveBench
       base = entry.dig("source", "base_commit") or raise ArgumentError, "entry has no source.base_commit"
       source = entry["checkout_source"] or raise ArgumentError, "entry has no checkout_source"
       work = File.expand_path(File.join(out_dir, "target")) # absolute: docker -v needs it
+      identity = generation_identity(entry, candidate, base)
+
+      if @reuse_existing && (recovered = recover_cell(entry, candidate, work, base, identity))
+        return recovered
+      end
 
       setup_repo(source, base, work)
       seed_task(entry, slug, work)
       File.write(File.join(work, ".hive-state", "config.yml"), HiveConfig.to_yaml(candidate))
       init_state_repo(work)
+      persist_generation_identity(work, identity)
 
       started = @clock.call
       stdout = run_container(slug, base, work, candidate, out_dir)
@@ -64,6 +75,62 @@ module HiveBench
     end
 
     private
+
+    # A completed Hive run can outlive result assembly (for example, telemetry
+    # parsing or every judge failed after generation). Reuse it only when Hive's
+    # persisted transcript and captured patch classify as a generated cell.
+    def recover_cell(entry, candidate, work, base, identity)
+      transcript = File.join(work, ".hb", "stages.out")
+      patch = File.join(work, "candidate.patch")
+      return unless File.file?(transcript) && File.file?(patch)
+
+      stdout = File.read(transcript)
+      diff = File.read(patch)
+      status, = classify(stdout, work, diff)
+      return unless status == "generated"
+
+      verified = generation_identity_matches?(work, identity)
+      unless verified || (@reuse_unverified && legacy_identity_matches?(work, candidate, base))
+        raise ArtifactProvenanceMismatch,
+              "completed artifact identity does not match this task/candidate; " \
+              "pass --no-reuse-existing-artifacts to replace it"
+      end
+
+      provenance = verified ? "verified" : "legacy-unverified"
+      build_cell(entry, candidate, work, stdout, nil, recovered: provenance)
+    end
+
+    def generation_identity(entry, candidate, base)
+      JSON.parse(JSON.generate(
+                   "schema" => "hive-bench-generation-identity",
+                   "schema_version" => 1,
+                   "task_id" => entry.fetch("task_id"),
+                   "base_commit" => base,
+                   "candidate" => candidate.to_h
+                 ))
+    end
+
+    def persist_generation_identity(work, identity)
+      dir = File.join(work, ".hb")
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, GENERATION_IDENTITY), "#{JSON.pretty_generate(identity)}\n")
+    end
+
+    def generation_identity_matches?(work, expected)
+      path = File.join(work, ".hb", GENERATION_IDENTITY)
+      File.file?(path) && JSON.parse(File.read(path)) == expected
+    rescue JSON::ParserError
+      false
+    end
+
+    # Pre-identity runs can be recovered only through the explicit legacy opt-in.
+    # Base and Hive config are still checked, but external model pins were not
+    # persisted by those runs, so the result is visibly marked unverified.
+    def legacy_identity_matches?(work, candidate, base)
+      config = File.join(work, ".hive-state", "config.yml")
+      head, _err, status = Open3.capture3("git", "-C", work, "rev-parse", "HEAD")
+      status.success? && head.strip == base && File.file?(config) && File.read(config) == HiveConfig.to_yaml(candidate)
+    end
 
     # Clone the target, reset local main to the task's base_commit, drop origin so
     # the execute worktree branches off base_commit (not origin/main).
@@ -325,10 +392,14 @@ module HiveBench
 
     # ---- result assembly ----
 
-    def build_cell(entry, candidate, work, stdout, wall)
+    def build_cell(entry, candidate, work, stdout, wall, recovered: nil)
       diff_path = File.join(work, "candidate.patch")
       diff = File.file?(diff_path) ? File.read(diff_path) : ""
       tel = telemetry(work).merge("wall_clock_sec" => wall)
+      if recovered
+        tel["recovered_artifact"] = true
+        tel["artifact_provenance"] = recovered
+      end
       price_telemetry(tel, candidate)
       # The plan ended WAITING (open questions) and the bench force-completed it —
       # a covariate of the known scope-fork variance; surfaced so it's analyzable.
@@ -435,7 +506,8 @@ module HiveBench
       logs.each do |log|
         File.foreach(log) do |line|
           obj = stream_json(line) or next
-          u = obj.dig("message", "usage") || obj["usage"]
+          message = obj["message"]
+          u = (message["usage"] if message.is_a?(Hash)) || obj["usage"]
           if u.is_a?(Hash)
             # Two stream schemas: claude's snake_case *_tokens and pi's camelCase
             # input/output/cacheRead/cacheWrite — without the aliases, open-model

@@ -64,6 +64,19 @@ execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
 - Every cell is scanned for **answer-key access** (repo-qualified reference-PR
   URL or `gh pr view/diff/checkout <n>` in the agent stream logs); a hit lands in
   telemetry as `answer_key_access_suspect` and warns loudly.
+- **Completed artifacts survive result/judge failures.** Before generation, the
+  driver persists the task, base commit, and full candidate definition in
+  `.hb/generation-identity.json`. On retry it reuses `target/candidate.patch`
+  only when that identity matches and Hive's `.hb/stages.out` transcript still
+  classifies it as generated. `--no-reuse-existing-artifacts` forces a fresh
+  generation. Legacy artifacts pre-dating the identity file require the explicit
+  `--reuse-unverified-artifacts` option (or one-time
+  `HB_REUSE_UNVERIFIED_ARTIFACTS=1`) and are marked `legacy-unverified`. If every
+  judge is unavailable, `RunAll` preserves the generated cell with an empty
+  `judges` map and also parks it in `pending`/`failed`, allowing `rejudge.rb` to
+  backfill without rebuying the run. A completed artifact with mismatched
+  provenance fails closed without deleting anything; replacing it requires the
+  explicit `--no-reuse-existing-artifacts` fresh-run option.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD`).
 

@@ -27,6 +27,7 @@ module HiveBench
   # All components are injected so a pass can be driven offline in tests.
   class RunAll
     Outcome = Data.define(:results, :pending, :failed)
+    ScoredCell = Data.define(:record, :judge_failure)
 
     # Raised when EVERY judge failed on a generated cell (nothing to score). Carries
     # whether the wall was a provider usage/credit limit, so the caller can park the
@@ -89,14 +90,9 @@ module HiveBench
         return
       end
 
-      records << score_cell(entry, profile, cell, out_dir)
-    rescue JudgesExhausted => e
-      # The diff generated fine but no judge could score it. A provider limit
-      # (drained OpenRouter balance, 429) is transient billing — park pending so a
-      # re-judge picks it up; anything else is a genuine failure.
-      bucket, label = e.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
-      warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(e.message)}"
-      bucket << park(entry, profile, e.message)
+      scored = score_cell(entry, profile, cell, out_dir)
+      records << scored.record
+      park_judge_failure(scored.judge_failure, entry, profile, pending, failed) if scored.judge_failure
     rescue StandardError => e
       reason = "#{e.class}: #{e.message}"
       warn "hive-bench: parked failed — #{profile.id} #{entry["task_id"]}: #{redact(reason)}"
@@ -105,6 +101,15 @@ module HiveBench
 
     def park(entry, profile, reason)
       { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => redact(reason) }
+    end
+
+    # The diff generated fine but no judge could score it. A provider limit
+    # (drained balance, 429) is transient; anything else is a hard judge failure.
+    # In both cases the generated record is already preserved for rejudge.
+    def park_judge_failure(error, entry, profile, pending, failed)
+      bucket, label = error.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
+      warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(error.message)}"
+      bucket << park(entry, profile, error.message)
     end
 
     # Strip provider-secret shapes from any text persisted into results.json —
@@ -128,6 +133,14 @@ module HiveBench
         end
 
       judges_res = judge_cell(entry, candidate_patch, withhold_reference: @withhold_reference || cell.mode == "reused")
+      ScoredCell.new(record: cell_record(cell, gate_res, judges_res), judge_failure: nil)
+    rescue JudgesExhausted => e
+      # Generation and gating already succeeded. Persist that paid artifact even
+      # when every judge is unavailable so rejudge can backfill it later.
+      ScoredCell.new(record: cell_record(cell, gate_res, {}), judge_failure: e)
+    end
+
+    def cell_record(cell, gate_res, judges_res)
       @scorer.cell_record(
         cell: { task_id: cell.task_id, agent_id: cell.agent_id, mode: cell.mode,
                 model_version: cell.model_version, run_status: cell.status, telemetry: cell.telemetry },
