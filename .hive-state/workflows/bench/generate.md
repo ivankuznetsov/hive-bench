@@ -6,17 +6,23 @@ campaign contract. On success it merges every per-cell result into
 `runs/<campaign_id>/results.json`, the file the judge and publish stages
 consume.
 
+Execute the `<!-- bench-stage-script -->` bash block below verbatim with
+`bash` (extract it to a file and run it, or pipe it to `bash`). Do not
+reimplement its steps, improvise around failing commands, or hand-write a
+`<!-- WAITING -->`/`<!-- COMPLETE -->` marker yourself — every guard in this
+stage lives in the script, and the script ends every path with exactly one
+marker.
+
 <!-- bench-stage-script -->
 ```bash
 set -euo pipefail
 
 STATE_FILE="generate.md"
-REPO_ROOT="$(cd ../../../.. && pwd)"
 
 # Scratch outputs are folded into the state file below; never leave them behind
 # to be swept into hive-state commits (.generate-commands carries absolute
 # source paths).
-trap 'rm -f .generate-validate.out .generate-validate.err .generate-campaign.out .generate-campaign.err .generate-commands .generate-commands.err .generate-outcome.out .generate-outcome.err .generate-merge.out .generate-merge.err' EXIT
+trap 'rm -f .generate-validate.out .generate-validate.err .generate-campaign.out .generate-campaign.err .generate-commands .generate-commands.err .generate-cmd.err .generate-run.err .generate-outcome.out .generate-outcome.err .generate-merge.out .generate-merge.err' EXIT
 
 write_waiting() {
   {
@@ -33,6 +39,13 @@ write_complete() {
     printf '%s\n\n' "$1"
     printf '<!-- COMPLETE -->\n'
   } >>"$STATE_FILE"
+}
+
+# Guarded: this substitution runs under `set -e`, and a cd failure before the
+# marker helpers existed used to die marker-less.
+REPO_ROOT="$(cd ../../../.. && pwd)" || {
+  write_waiting "ERROR: could not resolve ../../../.. from $PWD (repo-root anchor failed)."
+  exit 0
 }
 
 if [ ! -f "$REPO_ROOT/harness/hive_run.rb" ]; then
@@ -73,12 +86,23 @@ ruby -ryaml -rjson -e '
   # with published campaign dirs.
   abort("campaign_id must be a slug matching /\\A[a-z0-9][a-z0-9-]{0,63}\\z/; got #{id.inspect}") unless id.match?(/\A[a-z0-9][a-z0-9-]{0,63}\z/)
   abort("campaign_id v3-example is the unedited example id; pick a real campaign id") if id == "v3-example"
+  # source/corpus_version feed three-line `read` extractions here and in the
+  # judge/publish stages: a multi-line value would silently misalign them.
+  source = data["source"]
+  abort("source must be a non-empty single-line string; got #{source.inspect}") unless source.is_a?(String) && !source.include?("\n") && !source.strip.empty?
+  cv = data["corpus_version"]
+  abort("corpus_version must be a single-line scalar; got #{cv.inspect}") unless (cv.is_a?(String) || cv.is_a?(Integer)) && !cv.to_s.include?("\n")
   abort("tasks must be a non-empty array") unless data["tasks"].is_a?(Array) && !data["tasks"].empty?
   abort("candidates must be a non-empty array") unless data["candidates"].is_a?(Array) && !data["candidates"].empty?
   abort("seeds must be a positive integer") unless data["seeds"].is_a?(Integer) && data["seeds"].positive?
   abort("exclusions must be an array") unless data["exclusions"].is_a?(Array)
   bad_exclusions = data["exclusions"].reject { |item| item.is_a?(Hash) && item.key?("task") && item.key?("candidate") }
   abort("every exclusions entry must be a {task:, candidate:} map; bad: #{bad_exclusions.inspect}") unless bad_exclusions.empty?
+  # A fully-excluded matrix would produce zero commands, pass the outcome check
+  # vacuously, and wedge on the unmatched per-cell merge glob.
+  excluded = data["exclusions"].map { |item| [item["task"].to_s, item["candidate"].to_s] }
+  matrix = data["tasks"].flat_map { |t| data["candidates"].map { |c| [t.to_s, c.to_s] } } - excluded
+  abort("campaign matrix is empty: every tasks x candidates cell is excluded") if matrix.empty?
   abort("timeouts must be a mapping") unless data["timeouts"].is_a?(Hash)
   hive_timeout = data["timeouts"]["hive_seconds"]
   abort("timeouts.hive_seconds must be a positive integer when set") unless hive_timeout.nil? || (hive_timeout.is_a?(Integer) && hive_timeout.positive?)
@@ -107,12 +131,16 @@ ruby -ryaml -rshellwords -rjson -e '
   repo = ARGV.fetch(0)
   require File.join(repo, "harness/profiles/candidates")
   data = YAML.safe_load_file("campaign.yml")
+  terminal = %w[generated empty_diff].freeze
   exclusions = data.fetch("exclusions", []).map { |item| [item.fetch("task").to_s, item.fetch("candidate").to_s] }
-  # A cell is BOUGHT once generation succeeded (generated/empty_diff) — or once
-  # a diff was captured but every judge walled: hive_run.rb parks that cell in
-  # `pending` with no cells[] record, and its driver starts by rm-rf-ing the
-  # work tree, so re-running it would destroy the paid diff. Such cells are
-  # reported by the outcome check below for judge backfill, never regenerated.
+  # A cell is BOUGHT once generation reached a terminal status — or once ANY
+  # candidate diff was captured on disk, regardless of which bucket
+  # (pending[]/failed[]/cells[]) the run parked the cell in: hive_run.rb
+  # buckets judge walls in pending[] but non-limit judge exhaustion and
+  # post-generation errors in failed[], and its driver starts by rm-rf-ing the
+  # work tree, so re-running would destroy the paid diff either way. Such
+  # cells are reported by the outcome check below for judge backfill, never
+  # regenerated (remove the cell dir manually to force a true regeneration).
   # A parse error on an EXISTING result file fails closed (abort -> WAITING):
   # File.write is not atomic, and a truncated file must not read as "never ran".
   bought = lambda do |out_dir|
@@ -120,14 +148,15 @@ ruby -ryaml -rshellwords -rjson -e '
     begin
       result = JSON.parse(File.read(path))
     rescue Errno::ENOENT
-      next false
+      result = nil
     rescue JSON::ParserError => e
       abort("#{path} exists but does not parse (#{e.message[0, 120]}); refusing to regenerate a possibly-paid cell. Inspect it (and remove the cell dir) manually if the cell is truly dead.")
     end
-    cell = (result["cells"] || []).first
-    next true if cell && %w[generated empty_diff].include?(cell["run_status"])
-    !result.fetch("pending", []).empty? &&
-      !Dir.glob(File.join(repo, out_dir, "*", "*", "target", "candidate.patch")).empty?
+    if result
+      cell = (result["cells"] || []).first
+      next true if cell && terminal.include?(cell["run_status"])
+    end
+    !Dir.glob(File.join(repo, out_dir, "*", "*", "target", "candidate.patch")).empty?
   end
   hive_timeout = data.fetch("timeouts", {})["hive_seconds"]
   data.fetch("tasks").each do |task|
@@ -161,20 +190,35 @@ ruby -ryaml -rshellwords -rjson -e '
 }
 
 if [ -f "$HOME/.openrouter_key" ]; then
-  OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")" || {
+  sourced_key="$(cat "$HOME/.openrouter_key")" || {
     write_waiting "Failed to read $HOME/.openrouter_key; refusing to run with an empty judge key."
     exit 0
   }
-  export OPENROUTER_API_KEY
+  # An empty/whitespace key file must never clobber a valid key already in the
+  # environment (cat exits 0 on an empty file).
+  sourced_key="$(printf '%s' "$sourced_key" | tr -d '[:space:]')"
+  if [ -n "$sourced_key" ]; then
+    export OPENROUTER_API_KEY="$sourced_key"
+  elif [ -z "${OPENROUTER_API_KEY:-}" ]; then
+    write_waiting "$HOME/.openrouter_key is empty and OPENROUTER_API_KEY is unset; refusing to run without a judge key."
+    exit 0
+  fi
 fi
 
 generate_status=0
+: >.generate-run.err
 while IFS= read -r command; do
   set +e
   # </dev/null: a stdin-reading descendant must not swallow queued command lines.
-  (cd "$REPO_ROOT" && bash -lc "$command" </dev/null)
+  # bash -c, not -lc: the stage exports everything the harness needs, and a
+  # login profile would feed unattributable noise/failures into per-cell status.
+  # stderr is captured per command so a pre-spend abort (e.g. a missing judge
+  # key) can be surfaced next to the "missing" cell it caused.
+  (cd "$REPO_ROOT" && bash -c "$command" </dev/null) 2>.generate-cmd.err
   status=$?
   set -e
+  cat .generate-cmd.err >&2
+  { printf -- '--- exit %s: %s\n' "$status" "$command"; tail -n 5 .generate-cmd.err; } >>.generate-run.err
   if [ "$status" -ne 0 ]; then
     generate_status="$status"
   fi
@@ -188,6 +232,7 @@ fi
 ruby -ryaml -rjson -e '
   repo = ARGV.fetch(0)
   data = YAML.safe_load_file("campaign.yml")
+  terminal = %w[generated empty_diff].freeze
   exclusions = data.fetch("exclusions", []).map { |item| [item.fetch("task").to_s, item.fetch("candidate").to_s] }
   bad = []
   data.fetch("tasks").each do |task|
@@ -205,12 +250,21 @@ ruby -ryaml -rjson -e '
       end
       cell = (result["cells"] || []).first
       status = cell ? cell["run_status"] : "missing"
-      next if %w[generated empty_diff].include?(status)
-      if status == "missing" && !result.fetch("pending", []).empty? &&
-         !Dir.glob(File.join(dir, "*", "*", "target", "candidate.patch")).empty?
-        status = "judges_pending — diff already captured; do NOT regenerate. Backfill judges via harness/rejudge.rb against #{dir}, then retry"
+      pending = result.fetch("pending", [])
+      failed = result.fetch("failed", [])
+      if terminal.include?(status)
+        # A terminal cell may only pass with clean pending/failed buckets: a
+        # contradictory result must never merge and reach COMPLETE.
+        next if pending.empty? && failed.empty?
+        bad << "#{candidate}/#{task}: #{status} but per-cell pending=#{pending.size} failed=#{failed.size} are nonempty — contradictory result; inspect #{dir}"
+        next
       end
-      reasons = (result.fetch("pending", []) + result.fetch("failed", [])).filter_map { |entry| entry["reason"] }
+      unless Dir.glob(File.join(dir, "*", "*", "target", "candidate.patch")).empty?
+        # Applies to every bucket a walled cell can land in (pending, failed,
+        # or a non-terminal cells[] record): the diff is paid for either way.
+        status = "judges_pending (was: #{status}) — diff already captured; do NOT regenerate. Backfill judges with harness/rejudge.rb against the campaign-root runs/#{data.fetch("campaign_id")}/results.json only — never point rejudge --out at this cell'"'"'s results.json (that erases pending[] and re-arms regeneration)"
+      end
+      reasons = (pending + failed).filter_map { |entry| entry["reason"] }
       bad << "#{candidate}/#{task}: #{status}#{reasons.empty? ? "" : " — #{reasons.join("; ")}"}"
     end
   end
@@ -220,17 +274,32 @@ ruby -ryaml -rjson -e '
     exit 2
   end
 ' "$REPO_ROOT" >.generate-outcome.out 2>.generate-outcome.err || {
-  write_waiting "${run_note}$(cat .generate-outcome.err .generate-outcome.out)"
+  err_tail=""
+  if [ -s .generate-run.err ]; then
+    err_tail="$(printf '\n\nGeneration command stderr tails:\n%s' "$(tail -n 40 .generate-run.err)")"
+  fi
+  write_waiting "${run_note}$(cat .generate-outcome.err .generate-outcome.out)${err_tail}"
   exit 0
 }
 
 # Judge and publish consume ONE campaign-root results.json; hive_run.rb only
-# writes per-cell files, so merging them here is the handoff.
-(cd "$REPO_ROOT" && ruby harness/merge_results.rb --out "runs/$CAMPAIGN_ID/results.json" --corpus-version "$CORPUS_VERSION" runs/"$CAMPAIGN_ID"/*--*/results.json) \
+# writes per-cell files, so merging them here is the handoff. An EXISTING
+# campaign root is merged in FIRST: rejudge backfills live only there, and
+# rebuilding purely from per-cell files would silently discard every
+# backfilled judge score (per-cell files listed after it stay authoritative
+# for run_status/gate while judges union). Written via .next + mv so a crash
+# mid-write can never truncate the only copy of paid judge work.
+merge_inputs=()
+if [ -f "$REPO_ROOT/runs/$CAMPAIGN_ID/results.json" ]; then
+  merge_inputs+=("runs/$CAMPAIGN_ID/results.json")
+fi
+(cd "$REPO_ROOT" && ruby harness/merge_results.rb --out "runs/$CAMPAIGN_ID/results.json.next" --corpus-version "$CORPUS_VERSION" "${merge_inputs[@]}" runs/"$CAMPAIGN_ID"/*--*/results.json \
+  && mv "runs/$CAMPAIGN_ID/results.json.next" "runs/$CAMPAIGN_ID/results.json") \
   >.generate-merge.out 2>.generate-merge.err || {
+  rm -f "$REPO_ROOT/runs/$CAMPAIGN_ID/results.json.next"
   write_waiting "${run_note}Per-cell merge failed: $(cat .generate-merge.err .generate-merge.out)"
   exit 0
 }
 
-write_complete "${run_note}Every non-excluded campaign cell has a per-cell \`run_status\` of \`generated\` or \`empty_diff\`; merged campaign results written to \`runs/$CAMPAIGN_ID/results.json\`."
+write_complete "${run_note}Every non-excluded campaign cell has a per-cell \`run_status\` of \`generated\` or \`empty_diff\` with empty pending/failed buckets; merged campaign results written to \`runs/$CAMPAIGN_ID/results.json\`."
 ```

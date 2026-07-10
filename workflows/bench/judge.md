@@ -2,17 +2,25 @@
 
 Run this stage from the task folder after generation. It fills missing judge
 scores and writes deliberation transcripts without changing scoring semantics.
+Generation-time judge scores already carry the campaign seed count via
+`hive_run.rb --seeds`; the rejudge here seeds only the judges it backfills.
+
+Execute the `<!-- bench-stage-script -->` bash block below verbatim with
+`bash` (extract it to a file and run it, or pipe it to `bash`). Do not
+reimplement its steps, improvise around failing commands, or hand-write a
+`<!-- WAITING -->`/`<!-- COMPLETE -->` marker yourself — every guard in this
+stage lives in the script, and the script ends every path with exactly one
+marker.
 
 <!-- bench-stage-script -->
 ```bash
 set -euo pipefail
 
 STATE_FILE="judge.md"
-REPO_ROOT="$(cd ../../../.. && pwd)"
 
 # Scratch outputs are folded into the state file below; never leave them behind
 # to be swept into hive-state commits.
-trap 'rm -f .judge-campaign.out .judge-campaign.err .judge-rejudge.out .judge-rejudge.err .judge-deliberate.out .judge-deliberate.err .judge-validate.out .judge-validate.err' EXIT
+trap 'rm -f .judge-campaign.out .judge-campaign.err .judge-precheck.out .judge-precheck.err .judge-rejudge.out .judge-rejudge.err .judge-deliberate.out .judge-deliberate.err .judge-delibmerge.out .judge-delibmerge.err .judge-validate.out .judge-validate.err' EXIT
 
 write_waiting() {
   {
@@ -26,9 +34,16 @@ write_waiting() {
 write_complete() {
   {
     printf '\n## Status\n\n'
-    printf 'Every expected campaign cell is present; every non-empty-diff cell carries scores from both campaign judges (seed count is set by the rejudge invocation, not re-derivable from results.json); deliberation transcript is written when applicable.\n\n'
+    printf 'Every pre-registered campaign cell is present with no unexpected cells; every non-empty-diff cell carries scores from the full campaign judge slate (per-judge seed count is enforced by the `--seeds` argument at generation/rejudge time — results.json records only per-judge mean/interval, so it cannot be re-checked here) and appears in the deliberation transcript.\n\n'
     printf '<!-- COMPLETE -->\n'
   } >>"$STATE_FILE"
+}
+
+# Guarded: this substitution runs under `set -e`, and a cd failure before the
+# marker helpers existed used to die marker-less.
+REPO_ROOT="$(cd ../../../.. && pwd)" || {
+  write_waiting "ERROR: could not resolve ../../../.. from $PWD (repo-root anchor failed)."
+  exit 0
 }
 
 if [ ! -f "$REPO_ROOT/harness/hive_run.rb" ]; then
@@ -42,81 +57,189 @@ if [ ! -f campaign.yml ]; then
 fi
 
 # One guarded extraction: a malformed campaign.yml must park WAITING, not kill
-# the stage marker-less under `set -e`.
+# the stage marker-less under `set -e`. Type-guard the three-line `read`
+# extraction below: a multi-line source would silently feed a fragment into
+# SEEDS (surfacing only as a cryptic OptionParser error).
 ruby -ryaml -e '
   data = YAML.safe_load_file("campaign.yml")
   id = data.fetch("campaign_id").to_s
   abort("campaign_id must be a slug matching /\\A[a-z0-9][a-z0-9-]{0,63}\\z/; got #{id.inspect}") unless id.match?(/\A[a-z0-9][a-z0-9-]{0,63}\z/)
   abort("campaign_id v3-example is the unedited example id; pick a real campaign id") if id == "v3-example"
+  source = data.fetch("source")
+  abort("source must be a non-empty single-line string; got #{source.inspect}") unless source.is_a?(String) && !source.include?("\n") && !source.strip.empty?
+  seeds = data.fetch("seeds")
+  abort("seeds must be a positive integer; got #{seeds.inspect}") unless seeds.is_a?(Integer) && seeds.positive?
   puts id
-  puts data.fetch("source")
-  puts data.fetch("seeds")
+  puts source
+  puts seeds
 ' >.judge-campaign.out 2>.judge-campaign.err || {
   write_waiting "$(cat .judge-campaign.err .judge-campaign.out)"
   exit 0
 }
 { read -r CAMPAIGN_ID; read -r SOURCE; read -r SEEDS; } <.judge-campaign.out
 RESULTS="runs/$CAMPAIGN_ID/results.json"
+DELIB="runs/$CAMPAIGN_ID/deliberation.json"
 
 if [ ! -f "$REPO_ROOT/$RESULTS" ]; then
   write_waiting "Missing $RESULTS. Re-run generate before judge."
   exit 0
 fi
 
+# pending/failed must be checked BEFORE the rejudge rewrite: rejudge output
+# (Score#results) carries no pending/failed keys, so checking the rewritten
+# file would always vacuously see [] and silently erase surviving entries
+# under a COMPLETE.
+ruby -rjson -e '
+  data = JSON.parse(File.read(ARGV.fetch(0)))
+  pending = data.fetch("pending", [])
+  failed = data.fetch("failed", [])
+  unless pending.empty? && failed.empty?
+    abort("pending=#{pending.size} failed=#{failed.size} in #{ARGV.fetch(0)}; re-run generate until every cell is terminal before judging")
+  end
+' "$REPO_ROOT/$RESULTS" >.judge-precheck.out 2>.judge-precheck.err || {
+  write_waiting "$(cat .judge-precheck.err .judge-precheck.out)"
+  exit 0
+}
+
 if [ -f "$HOME/.openrouter_key" ]; then
-  OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")" || {
+  sourced_key="$(cat "$HOME/.openrouter_key")" || {
     write_waiting "Failed to read $HOME/.openrouter_key; refusing to run with an empty judge key."
     exit 0
   }
-  export OPENROUTER_API_KEY
+  # An empty/whitespace key file must never clobber a valid key already in the
+  # environment (cat exits 0 on an empty file).
+  sourced_key="$(printf '%s' "$sourced_key" | tr -d '[:space:]')"
+  if [ -n "$sourced_key" ]; then
+    export OPENROUTER_API_KEY="$sourced_key"
+  elif [ -z "${OPENROUTER_API_KEY:-}" ]; then
+    write_waiting "$HOME/.openrouter_key is empty and OPENROUTER_API_KEY is unset; refusing to run without a judge key."
+    exit 0
+  fi
 fi
 
 # Search dirs are the PER-CELL run dirs: rejudge/deliberate resolve artifacts at
 # <search-dir>/<task_id>/<cell>, and generation writes them under
 # runs/<campaign_id>/<candidate>--<task>/<task_id>/<cell>.
-(cd "$REPO_ROOT" && ruby harness/rejudge.rb --source "$SOURCE" --results "$RESULTS" --out "$RESULTS" --seeds "$SEEDS" --only-missing runs/"$CAMPAIGN_ID"/*--*) \
+# --out .next + mv: backfilled judge scores exist ONLY in the campaign-root
+# results.json (per-cell files never receive them), so an in-place rewrite of
+# that sole copy could lose paid judge work if it crashed mid-write.
+(cd "$REPO_ROOT" && ruby harness/rejudge.rb --source "$SOURCE" --results "$RESULTS" --out "$RESULTS.next" --seeds "$SEEDS" --only-missing runs/"$CAMPAIGN_ID"/*--* \
+  && mv "$RESULTS.next" "$RESULTS") \
   >.judge-rejudge.out 2>.judge-rejudge.err || {
+  rm -f "$REPO_ROOT/$RESULTS.next"
   write_waiting "$(cat .judge-rejudge.err .judge-rejudge.out)"
   exit 0
 }
+# rejudge fails SOFT per judge (warn + exit 0), and the EXIT trap deletes the
+# scratch stderr — keep the tail so a wall of judge failures (e.g. every
+# OpenRouter call 403ing) can be reported next to the MISSING_JUDGES lines.
+REJUDGE_ERR_TAIL="$(tail -n 15 .judge-rejudge.err)" || REJUDGE_ERR_TAIL=""
 
-# --skip-done: wall retries must not re-buy deliberation for cells the
-# transcript already covers (--out overwrites it every run).
-(cd "$REPO_ROOT" && ruby harness/deliberate.rb --source "$SOURCE" --results "$RESULTS" --out "runs/$CAMPAIGN_ID/deliberation.json" --min-disagreement 0 --skip-done "runs/$CAMPAIGN_ID/deliberation.json" runs/"$CAMPAIGN_ID"/*--*) \
+# Deliberate to a SCRATCH transcript and union below: deliberate.rb --out
+# writes ONLY the newly deliberated cells, so pointing it at the transcript
+# itself would destroy prior paid deliberations on a routine wall retry (and a
+# zero-new-cell retry would wipe the file to cells:[]). --skip-done keeps
+# retries from re-buying cells the transcript already covers.
+(cd "$REPO_ROOT" && ruby harness/deliberate.rb --source "$SOURCE" --results "$RESULTS" --out "$DELIB.next" --min-disagreement 0 --skip-done "$DELIB" runs/"$CAMPAIGN_ID"/*--*) \
   >.judge-deliberate.out 2>.judge-deliberate.err || {
+  rm -f "$REPO_ROOT/$DELIB.next"
   write_waiting "$(cat .judge-deliberate.err .judge-deliberate.out)"
   exit 0
 }
 
+# Union old+new transcript cells by [task_id, agent_id] and replace via tmp+mv;
+# the summary is recomputed over the union (mirrors DeliberateCli.summary —
+# the scratch file's summary covers only the newly deliberated cells).
+ruby -rjson -e '
+  old_path, new_path = ARGV.fetch(0), ARGV.fetch(1)
+  read = ->(path) { File.file?(path) ? JSON.parse(File.read(path)) : nil }
+  fresh = read.(new_path) or abort("deliberate wrote no transcript at #{new_path}")
+  old = read.(old_path)
+  union = ((old ? old["cells"].to_a : []) + fresh["cells"].to_a)
+          .each_with_object({}) { |t, acc| acc[[t["task_id"], t["agent_id"]]] = t }
+          .values
+  per_judge = Hash.new { |h, k| h[k] = [] }
+  spreads = { before: [], after: [] }
+  union.each do |t|
+    js = t.fetch("judges", {}).values
+    if js.size >= 2
+      spreads[:before] << (js.map { |j| j["initial"] }.max - js.map { |j| j["initial"] }.min)
+      finals = js.map { |j| j["final"] || j["initial"] }
+      spreads[:after] << (finals.max - finals.min)
+    end
+    t.fetch("judges", {}).each { |name, j| per_judge[name] << j["delta"] if j["delta"] }
+  end
+  mean = ->(values) { values.empty? ? nil : (values.sum.to_f / values.size).round(3) }
+  summary = {
+    "cells" => union.size,
+    "mean_revision_by_judge" => per_judge.transform_values { |d| (d.sum / d.size).round(3) },
+    "mean_abs_revision_by_judge" => per_judge.transform_values { |d| (d.sum(&:abs) / d.size).round(3) },
+    "mean_spread_before" => mean.(spreads[:before]),
+    "mean_spread_after" => mean.(spreads[:after])
+  }
+  merged = (old || fresh).merge("cells" => union, "summary" => summary)
+  File.write("#{old_path}.merged", "#{JSON.pretty_generate(merged)}\n")
+  File.rename("#{old_path}.merged", old_path)
+' "$REPO_ROOT/$DELIB" "$REPO_ROOT/$DELIB.next" >.judge-delibmerge.out 2>.judge-delibmerge.err || {
+  rm -f "$REPO_ROOT/$DELIB.next" "$REPO_ROOT/$DELIB.merged"
+  write_waiting "Deliberation transcript union failed: $(cat .judge-delibmerge.err .judge-delibmerge.out)"
+  exit 0
+}
+rm -f "$REPO_ROOT/$DELIB.next"
+
 ruby -ryaml -rjson -e '
   data = JSON.parse(File.read(ARGV.fetch(0)))
+  delib = File.file?(ARGV.fetch(1)) ? JSON.parse(File.read(ARGV.fetch(1))) : { "cells" => [] }
   campaign = YAML.safe_load_file("campaign.yml")
   exclusions = campaign.fetch("exclusions", []).map { |item| [item.fetch("task").to_s, item.fetch("candidate").to_s] }
   expected = campaign.fetch("tasks").flat_map { |task| campaign.fetch("candidates").map { |candidate| [task.to_s, candidate.to_s] } } - exclusions
   cells = data.fetch("cells", [])
   by_key = cells.to_h { |cell| [[cell["task_id"].to_s, cell["agent_id"].to_s], cell] }
-  # The campaign judge set is the harness dual-judge slate (fable + gpt);
-  # judges fail soft per cell during generation, so a single-judge cell is a
+  # The campaign judge slate, validated BY NAME (the harness dual-judge
+  # defaults: run_all.rb judges() and the rejudge.rb CLI both derive these keys
+  # from the pinned judge models). Counting judges instead would let stale keys
+  # from a results file spanning a slate change pass for the current slate.
+  # Judges fail soft per cell during generation, so a partial-slate cell is a
   # routine backfill target, not a success.
-  judge_slate_size = 2
+  judge_slate = %w[fable-5 gpt-5.5-pro]
+  deliberated = delib.fetch("cells", []).to_a.map { |t| [t["task_id"].to_s, t["agent_id"].to_s] }
   problems = []
-  pending = data.fetch("pending", [])
-  failed = data.fetch("failed", [])
-  problems << "pending=#{pending.size} failed=#{failed.size}" unless pending.empty? && failed.empty?
   expected.each do |task, candidate|
     cell = by_key[[task, candidate]]
     if cell.nil?
       problems << "MISSING_CELL #{candidate} #{task}"
-    elsif cell["run_status"] != "empty_diff" && cell.fetch("judges", {}).size < judge_slate_size
-      problems << "MISSING_JUDGES #{candidate} #{task} (have: #{cell.fetch("judges", {}).keys.sort.join(",")})"
+      next
     end
+    next if cell["run_status"] == "empty_diff"
+    missing_judges = judge_slate - cell.fetch("judges", {}).keys
+    unless missing_judges.empty?
+      problems << "MISSING_JUDGES #{candidate} #{task} (missing: #{missing_judges.join(",")}; have: #{cell.fetch("judges", {}).keys.sort.join(",")})"
+      next
+    end
+    # deliberate.rb silently drops cells it cannot resolve (e.g. a task_id
+    # missing from the corpus); COMPLETE must not claim transcript coverage it
+    # does not have.
+    unless deliberated.include?([task, candidate])
+      problems << "MISSING_DELIBERATION #{candidate} #{task} (dual-judged but absent from #{ARGV.fetch(1)})"
+    end
+  end
+  # A results cell outside the pre-registered matrix means campaign.yml was
+  # amended mid-campaign (matrix shrunk or exclusions grown after generation);
+  # refuse to pass de-registered paid cells silently into publish.
+  by_key.each_key do |task, candidate|
+    next if expected.include?([task, candidate])
+    problems << "UNEXPECTED_CELL #{candidate} #{task} (not in the pre-registered campaign matrix)"
   end
   unless problems.empty?
     problems.each { |line| puts line }
     exit 2
   end
-' "$REPO_ROOT/$RESULTS" >.judge-validate.out 2>.judge-validate.err || {
-  write_waiting "$(cat .judge-validate.err .judge-validate.out)"
+' "$REPO_ROOT/$RESULTS" "$REPO_ROOT/$DELIB" >.judge-validate.out 2>.judge-validate.err || {
+  err_tail=""
+  if [ -n "$REJUDGE_ERR_TAIL" ]; then
+    err_tail="$(printf '\n\nrejudge stderr tail (per-judge failures are soft; this is the only record of their cause):\n%s' "$REJUDGE_ERR_TAIL")"
+  fi
+  write_waiting "$(cat .judge-validate.err .judge-validate.out)${err_tail}"
   exit 0
 }
 

@@ -2,14 +2,21 @@
 
 Run this stage from the task folder after judging. It only uses existing
 harness publishing primitives: merge results and write a human-readable
-leaderboard summary into this state file.
+leaderboard summary into this state file (the merged results themselves stay
+at `runs/<campaign_id>/results.json`).
+
+Execute the `<!-- bench-stage-script -->` bash block below verbatim with
+`bash` (extract it to a file and run it, or pipe it to `bash`). Do not
+reimplement its steps, improvise around failing commands, or hand-write a
+`<!-- WAITING -->`/`<!-- COMPLETE -->` marker yourself — every guard in this
+stage lives in the script, and the script ends every path with exactly one
+marker.
 
 <!-- bench-stage-script -->
 ```bash
 set -euo pipefail
 
 STATE_FILE="publish.md"
-REPO_ROOT="$(cd ../../../.. && pwd)"
 
 # Scratch outputs are folded into the state file below; never leave them behind
 # to be swept into hive-state commits.
@@ -27,9 +34,16 @@ write_waiting() {
 write_complete() {
   {
     printf '\n## Status\n\n'
-    printf 'Merged results and the leaderboard summary above are published into this state file.\n\n'
+    printf 'The leaderboard summary above is appended to this state file; the merged results stay at `%s`.\n\n' "$RESULTS"
     printf '<!-- COMPLETE -->\n'
   } >>"$STATE_FILE"
+}
+
+# Guarded: this substitution runs under `set -e`, and a cd failure before the
+# marker helpers existed used to die marker-less.
+REPO_ROOT="$(cd ../../../.. && pwd)" || {
+  write_waiting "ERROR: could not resolve ../../../.. from $PWD (repo-root anchor failed)."
+  exit 0
 }
 
 if [ ! -f "$REPO_ROOT/harness/hive_run.rb" ]; then
@@ -43,14 +57,18 @@ if [ ! -f campaign.yml ]; then
 fi
 
 # One guarded extraction: a malformed campaign.yml must park WAITING, not kill
-# the stage marker-less under `set -e`.
+# the stage marker-less under `set -e`. Type-guard the two-line `read`
+# extraction below: a multi-line corpus_version would be silently truncated
+# into the merged artifact.
 ruby -ryaml -e '
   data = YAML.safe_load_file("campaign.yml")
   id = data.fetch("campaign_id").to_s
   abort("campaign_id must be a slug matching /\\A[a-z0-9][a-z0-9-]{0,63}\\z/; got #{id.inspect}") unless id.match?(/\A[a-z0-9][a-z0-9-]{0,63}\z/)
   abort("campaign_id v3-example is the unedited example id; pick a real campaign id") if id == "v3-example"
+  cv = data.fetch("corpus_version")
+  abort("corpus_version must be a single-line scalar; got #{cv.inspect}") unless (cv.is_a?(String) || cv.is_a?(Integer)) && !cv.to_s.include?("\n")
   puts id
-  puts data.fetch("corpus_version")
+  puts cv
 ' >.publish-campaign.out 2>.publish-campaign.err || {
   write_waiting "$(cat .publish-campaign.err .publish-campaign.out)"
   exit 0
@@ -63,8 +81,13 @@ if [ ! -f "$REPO_ROOT/$RESULTS" ]; then
   exit 0
 fi
 
-(cd "$REPO_ROOT" && ruby harness/merge_results.rb --out "$RESULTS" --corpus-version "$CORPUS_VERSION" "$RESULTS") \
+# --out .next + mv: judge backfills exist ONLY in this campaign-root file, so
+# an in-place rewrite of the sole copy could lose paid judge work if it
+# crashed mid-write.
+(cd "$REPO_ROOT" && ruby harness/merge_results.rb --out "$RESULTS.next" --corpus-version "$CORPUS_VERSION" "$RESULTS" \
+  && mv "$RESULTS.next" "$RESULTS") \
   >.publish-merge.out 2>.publish-merge.err || {
+  rm -f "$REPO_ROOT/$RESULTS.next"
   write_waiting "$(cat .publish-merge.err .publish-merge.out)"
   exit 0
 }
@@ -106,7 +129,11 @@ ruby -rjson -e '
   exit 0
 }
 
-printf '\n' >>"$STATE_FILE"
-cat .publish-summary.out >>"$STATE_FILE"
+# Guarded like every other state-file I/O boundary: a failed append must not
+# die marker-less under `set -e` between the render guard and write_complete.
+{ printf '\n'; cat .publish-summary.out; } >>"$STATE_FILE" || {
+  write_waiting "Failed to append the leaderboard summary to $STATE_FILE."
+  exit 0
+}
 write_complete
 ```
