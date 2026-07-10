@@ -24,7 +24,7 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 - [[gaps]] — what's unverified / left to build
 - [[log]] — work log
 
-## Status (2026-07-10)
+## Status (2026-07-09)
 
 v2 is **published** as a real-hive benchmark: plan, execute, open-pr, and
 review run in the container by default, then the final post-review diff is
@@ -32,10 +32,7 @@ judged against the merged reference PR. The slate now covers opus, codex,
 codex-xhigh, glm, kimi, mixed candidates, and grok. Three tasks have curated
 held-out reference-test gates; three remain judged-only. v3 work is about
 campaign orchestration, stronger runtime gates, replication, and calibrated
-judge presentation. Its bench-as-hive workflow now has guarded stage scripts
-and full no-cost fixture paths through extract/generate/judge/publish, but no
-paid campaign has run end to end and first-pass all-judge-wall recovery remains
-unresolved. See [[gaps]] and [[v3-workflow]].
+judge presentation. See [[gaps]] and [[v3-workflow]].
 
 ## Query protocol
 
