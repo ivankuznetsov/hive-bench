@@ -20,6 +20,12 @@ that marker at the front of the exception: the campaign's judge-backfill log is
 intentionally bounded, and the Hive lane relies on the marker to schedule a
 timed daemon retry instead of stopping at `WAITING`.
 
+`HiveBench::AgentLimit.retry_after` converts an explicit Claude UTC reset hint
+such as `resets 12am (UTC)` into the next matching boundary plus a one-minute
+grace period. Benchmark workflows should pass only diagnostics produced during
+the current lane attempt; missing, stale, malformed, or non-UTC hints retain
+the conservative one-hour fallback.
+
 ## Grok authentication
 
 `all-grok-4.5` uses a benchmark-specific OIDC login. Create it once without

@@ -59,4 +59,20 @@ class AgentLimitTest < Minitest::Test
   def test_strips_ansi_before_matching
     assert L.limit_hit?("\e[31myou've hit your usage limit\e[0m")
   end
+
+  def test_retry_after_uses_explicit_utc_reset_with_boundary_grace
+    now = Time.utc(2026, 7, 11, 22, 55)
+
+    assert_equal "2026-07-12T00:01:00Z",
+                 L.retry_after("You've hit your session limit · resets 12am (UTC)", now: now)
+    assert_equal "2026-07-11T23:31:00Z",
+                 L.retry_after("resets 11:30pm (UTC)", now: now)
+  end
+
+  def test_retry_after_falls_back_without_an_explicit_utc_hint
+    now = Time.utc(2026, 7, 11, 22, 55)
+
+    assert_equal "2026-07-11T23:55:00Z", L.retry_after("limit reached", now: now)
+    assert_equal "2026-07-11T23:55:00Z", L.retry_after("resets 12am (Europe/London)", now: now)
+  end
 end
