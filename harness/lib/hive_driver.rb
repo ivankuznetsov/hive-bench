@@ -486,7 +486,7 @@ module HiveBench
     # wall) parks the cell; an empty/failed plan or execute is surfaced honestly.
     def classify(stdout, work, diff)
       err = File.file?(f = File.join(work, ".hb", "stage.err")) ? File.read(f) : ""
-      return ["limit_hit", "provider limit during a hive stage"] if AgentLimit.limit_hit?("#{stdout}\n#{err}")
+      limit_hit = AgentLimit.limit_hit?("#{stdout}\n#{err}")
       # timeout(1) kills the whole stage script — a slow candidate, not one that
       # cannot plan. HB_EXIT comes from the run_container wrapper; any other
       # nonzero means the harness itself did not produce a trustworthy artifact.
@@ -494,6 +494,13 @@ module HiveBench
         rc = match[1].to_i
         return ["timed_out", "hive run exceeded HB_HIVE_TIMEOUT (#{PLAN_TIMEOUT}s)"] if rc == 124
         return ["execute_failed", "hive stage runner exited #{rc} before trustworthy capture"] unless rc.zero?
+      end
+      # Review is optional for generation integrity: hive_stages.sh atomically
+      # restores candidate-execute.patch when review fails. A review-only limit
+      # therefore defers review lift/Fable judging, not the already trustworthy
+      # candidate generation. Limits before plan/develop completion still park.
+      if limit_hit && (!stage_ok?(stdout, "plan") || !stage_ok?(stdout, "develop"))
+        return ["limit_hit", "provider limit during a hive stage"]
       end
       return ["plan_failed", "hive plan produced no plan.md"] unless stage_ok?(stdout, "plan")
       return ["execute_failed", "hive develop did not run"] unless stage_ok?(stdout, "develop")

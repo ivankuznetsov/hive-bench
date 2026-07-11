@@ -270,6 +270,38 @@ class HiveDriverTest < Minitest::Test
     assert_match(/trustworthy capture/, cell.reason)
   end
 
+  def test_review_limit_preserves_the_generated_execute_fallback
+    stdout = <<~OUT
+      HB_STAGE plan rc=0
+      HB_STAGE develop rc=0
+      HB_STAGE open-pr rc=0
+      HB_STAGE review rc=3
+      HB_NOTE review_fallback=execute
+      HB_DONE
+      HB_EXIT rc=0
+    OUT
+    driver(stdout: stdout, patch: "diff --git a/app.rb b/app.rb\n")
+      .call(entry: entry, candidate: candidate, out_dir: @out)
+    File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
+
+    status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+                                    .send(:classify, stdout, @work,
+                                          File.read(File.join(@work, "candidate.patch")))
+
+    assert_equal "generated", status
+  end
+
+  def test_execute_limit_still_parks_generation
+    stdout = "HB_STAGE plan rc=0\nHB_STAGE develop rc=3\nHB_EXIT rc=0\n"
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
+
+    status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+                               .send(:classify, stdout, @work, "diff --git a/app.rb b/app.rb\n")
+
+    assert_equal "limit_hit", status
+  end
+
   def test_forced_plan_completion_is_surfaced
     cell = driver(stdout: "HB_STAGE plan rc=0\nHB_NOTE plan_forced_complete\nHB_STAGE develop rc=0\nHB_EXIT rc=0\n")
            .call(entry: entry, candidate: candidate, out_dir: @out)

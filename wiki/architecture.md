@@ -52,6 +52,11 @@ execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
 `review_status` (REVIEW_COMPLETE/WAITING/STALE) and `review_changed_diff`
 (the review-lift signal).
 
+A provider limit encountered only during review does not invalidate a completed
+plan/execute result: the execute fallback remains a generated cell, while the
+missing review lift or judge score is deferred. Limits before plan or execute
+completion still park the generation.
+
 Diff capture uses intent-to-add with the same generated-tree exclusions as the
 host restorer; it does not stage those trees into the branch that review sees.
 The exclusions include Bundler's `.bundle-local/` path as well as `.bundle/`,
