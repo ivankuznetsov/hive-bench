@@ -188,6 +188,71 @@ class HiveDriverTest < Minitest::Test
     refute cell.telemetry["recovered_artifact"]
   end
 
+  def test_codex_transport_failure_resumes_identity_verified_execute_in_place
+    mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+    sentinel = File.join(@work, "resume-sentinel")
+    File.write(sentinel, "keep")
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"),
+               "<!-- ERROR reason=implementer_failed status=error marker_id=abc123 -->\n")
+    logs = File.join(@work, ".hive-state", "logs", "add-i-key")
+    FileUtils.mkdir_p(logs)
+    File.write(File.join(logs, "execute-1.log"),
+               "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected before completion: " \
+               "error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"}}\n")
+    File.write(File.join(@work, ".hb", "stages.out"),
+               "HB_STAGE plan rc=0\nHB_STAGE develop rc=3\nHB_EXIT rc=0\n")
+
+    seen = nil
+    resumed = HiveBench::HiveDriver.new(runner: lambda do |cmd|
+      seen = cmd
+      assert_path_exists sentinel, "resume must not replace the persisted target"
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
+        "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: mixed, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["execute_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=abc123"]
+  end
+
+  def test_resume_rejects_nonterminal_transport_text_auth_limits_and_identity_drift
+    mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"),
+               "<!-- ERROR reason=implementer_failed status=error marker_id=abc123 -->\n")
+    logs = File.join(@work, ".hive-state", "logs", "add-i-key")
+    FileUtils.mkdir_p(logs)
+    log = File.join(logs, "execute-1.log")
+    checker = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+    identity = checker.send(:generation_identity, entry, mixed, @base)
+
+    File.write(log, <<~LOG)
+      {"type":"turn.failed","error":{"message":"stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}}
+      {"type":"turn.failed","error":{"message":"implementation failed validation"}}
+    LOG
+    assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity)
+
+    ["401 unauthorized", "rate limit reached", "stream disconnected before completion: error sending request for url (https://example.com)"].each do |message|
+      File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":#{JSON.generate(message)}}}\n")
+      assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity), message
+    end
+
+    changed = identity.merge("base_commit" => "different")
+    File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected before completion: " \
+                    "error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"}}\n")
+    assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, changed)
+    assert_nil checker.send(:resumable_execute_marker, entry, candidate, @work, identity)
+  end
+
   def test_timeout_is_timed_out_not_plan_failed
     cell = driver(stdout: "HB_STAGE plan rc=0\nHB_EXIT rc=124\n", patch: nil)
            .call(entry: entry, candidate: candidate, out_dir: @out)

@@ -30,6 +30,7 @@ module HiveBench
 
     IMAGE = ENV.fetch("HB_RUNNER_IMAGE", "hive-bench-runner:latest")
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
+    RESUME_EXECUTE_SH = File.expand_path("hive_resume_execute.sh", __dir__)
     PI_TOOL_STREAM = File.expand_path("pi_tool_stream.ts", __dir__)
     CLAUDE_DIR = File.expand_path("~/.claude")
     HOME = "/home/asterio"
@@ -39,6 +40,11 @@ module HiveBench
     GROK_AUTH = File.join(GROK_AUTH_DIR, "auth.json")
     GROK_AUTH_CONTAINER_DIR = "#{HOME}/.grok-auth".freeze
     GENERATION_IDENTITY = "generation-identity.json"
+    RESUMABLE_EXECUTE_FAILURE = %r{\Astream\ disconnected\ before\ completion:\ (?:
+      failed\ to\ lookup\ address\ information:.*|
+      error\ sending\ request\ for\ url\ \(https://chatgpt\.com/backend-api/codex/responses\)
+    )\z}ix
+    AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
     def initialize(clock: -> { Time.now.utc }, runner: nil, reuse_existing:, reuse_unverified:)
@@ -62,14 +68,17 @@ module HiveBench
         return recovered
       end
 
-      setup_repo(source, base, work)
-      seed_task(entry, slug, work)
-      File.write(File.join(work, ".hive-state", "config.yml"), HiveConfig.to_yaml(candidate))
-      init_state_repo(work)
-      persist_generation_identity(work, identity)
+      resume_marker_id = @reuse_existing && resumable_execute_marker(entry, candidate, work, identity)
+      unless resume_marker_id
+        setup_repo(source, base, work)
+        seed_task(entry, slug, work)
+        File.write(File.join(work, ".hive-state", "config.yml"), HiveConfig.to_yaml(candidate))
+        init_state_repo(work)
+        persist_generation_identity(work, identity)
+      end
 
       started = @clock.call
-      stdout = run_container(slug, base, work, candidate, out_dir)
+      stdout = run_container(slug, base, work, candidate, out_dir, resume_marker_id: resume_marker_id)
       wall = (@clock.call - started).round(2)
 
       build_cell(entry, candidate, work, stdout, wall)
@@ -99,6 +108,39 @@ module HiveBench
 
       provenance = verified ? "verified" : "legacy-unverified"
       build_cell(entry, candidate, work, stdout, nil, recovered: provenance)
+    end
+
+    # Resume only a provenance-matched Hive task whose final Codex turn failed
+    # because model transport disappeared. Auth/usage limits and ordinary
+    # implementation failures deliberately remain ineligible.
+    def resumable_execute_marker(entry, candidate, work, identity)
+      return unless candidate.execute == "codex"
+      return unless generation_identity_matches?(work, identity)
+
+      slug = entry.fetch("task_id")
+      task_md = File.join(work, ".hive-state", "stages", "4-execute", slug, "task.md")
+      return unless File.file?(task_md)
+
+      marker = File.read(task_md)[/<!-- ERROR\b[^>]*-->/]
+      return unless marker&.match?(/\breason=implementer_failed\b/)
+
+      marker_id = marker[/\bmarker_id=([^\s>]+)/, 1]
+      return unless marker_id
+
+      logs = Dir.glob(File.join(work, ".hive-state", "logs", slug, "execute-*.log"))
+      latest = logs.max_by { |path| File.mtime(path) }
+      return unless latest
+
+      terminal = File.foreach(latest).filter_map { |line| stream_json(line) }
+                     .reverse_each.find { |event| event["type"].to_s.start_with?("turn.") }
+      return unless terminal&.fetch("type", nil) == "turn.failed"
+
+      message = terminal.dig("error", "message").to_s
+      return if AgentLimit.limit_hit?(message) || message.match?(AUTH_FAILURE)
+
+      marker_id if message.match?(RESUMABLE_EXECUTE_FAILURE)
+    rescue SystemCallError
+      nil
     end
 
     def generation_identity(entry, candidate, base)
@@ -170,9 +212,10 @@ module HiveBench
       FileUtils.cp_r(src, File.join(tdir, "assets"))
     end
 
-    def run_container(slug, base, work, candidate, out_dir)
+    def run_container(slug, base, work, candidate, out_dir, resume_marker_id: nil)
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
+             *(resume_marker_id ? ["-e", "HB_RESUME_EXECUTE=1", "-e", "HB_RESUME_MARKER_ID=#{resume_marker_id}"] : []),
              # Full-cycle by default (plan->execute->open-pr->review, the real
              # hive pipeline); HB_REVIEW=0 falls back to plan+execute only.
              "-e", "HB_REVIEW=#{ENV.fetch("HB_REVIEW", "1")}",
@@ -189,6 +232,7 @@ module HiveBench
              # so the agent gives up mid-execute. tmpfs it; the config is bound ro within.
              "--tmpfs", "#{HOME}/.claude:exec,mode=1777",
              "-v", "#{STAGES_SH}:/hive_stages.sh:ro",
+             "-v", "#{RESUME_EXECUTE_SH}:/hive_resume_execute.sh:ro",
              "-v", "#{work}:/work",
              *auth_mounts(candidate, out_dir),
              *env_args(candidate),
@@ -406,6 +450,7 @@ module HiveBench
       # The plan ended WAITING (open questions) and the bench force-completed it —
       # a covariate of the known scope-fork variance; surfaced so it's analyzable.
       tel["plan_forced_complete"] = true if stdout&.match?(/^HB_NOTE plan_forced_complete$/)
+      tel["execute_resumed"] = true if stdout&.match?(/^HB_NOTE execute_resumed$/)
       review_telemetry(tel, work, stdout)
       if (hit = answer_key_suspect(entry, work, stdout))
         # The agent appears to have touched the held-out reference PR — the score

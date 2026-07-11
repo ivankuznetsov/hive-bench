@@ -45,6 +45,11 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   inventing a duration. Persist start/end timestamps if recovered cells must enter
   time comparisons. Pre-identity artifacts also cannot prove their external model
   pins; their explicit recovery path marks `artifact_provenance: legacy-unverified`.
+- **Execute-resume crash window and CLI drift** — transport recovery fails closed
+  if Codex changes its terminal event/message shape. Also, a host/container crash
+  after the exact error marker is cleared but before `hive develop` starts can
+  leave the preserved task markerless; a durable resume-intent journal would
+  close that narrow window.
 - **Gate curation is still the biggest lever** — v2 runs a no-op gate; the objective floor
   returns only when tasks carry curated verbose gates. Corpus is now 6 accepted tasks
   (2026-07-01 extraction round); PRs #623/#624/#625 ship unit tests → best F2P candidates.

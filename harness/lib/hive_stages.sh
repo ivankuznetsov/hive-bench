@@ -183,19 +183,34 @@ force_plan_complete() {
   echo "HB_NOTE plan_forced_complete"
 }
 
-# 1. PLAN — real /ce-plan.
-HB_PI_MODEL="${HB_PI_MODEL_PLAN:-}" \
-  hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
-stage plan $?
+# 1. PLAN — real /ce-plan, or reuse the identity-verified plan when the host
+# driver resumes an execute turn interrupted only by model transport. Clear
+# exactly the persisted implementer_failed marker before asking Hive to continue.
+PLAN_TASK=""
+if [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
+  PLAN_TASK="/work/.hive-state/stages/4-execute/$SLUG"
+  bash /hive_resume_execute.sh "$PLAN_TASK" "${HB_RESUME_MARKER_ID:-}" \
+    /work/.hb/resume-clear.json /work/.hb/stage.err
+  RESUME_CLEAR_RC=$?
+  stage resume-clear "$RESUME_CLEAR_RC"
+  [ "$RESUME_CLEAR_RC" -eq 0 ] || exit 5
+  stage plan 0
+  echo "HB_NOTE plan_reused"
+  echo "HB_NOTE execute_resumed"
+else
+  HB_PI_MODEL="${HB_PI_MODEL_PLAN:-}" \
+    hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
+  stage plan $?
 
-# /ce-plan ends WAITING when it raised open questions. With no human in the loop,
-# accept the plan as-is: the plan document is the deliverable; the Q&A refinement
-# loop is out of scope for the benchmark. Flip the marker so execute can proceed.
-PLAN_MD="$(find /work/.hive-state/stages/3-plan -name plan.md 2>/dev/null | head -1)"
-if [ -n "$PLAN_MD" ] && grep -q '<!-- WAITING -->' "$PLAN_MD"; then
-  force_plan_complete "$PLAN_MD"
+  # /ce-plan ends WAITING when it raised open questions. With no human in the loop,
+  # accept the plan as-is: the plan document is the deliverable; the Q&A refinement
+  # loop is out of scope for the benchmark. Flip the marker so execute can proceed.
+  PLAN_MD="$(find /work/.hive-state/stages/3-plan -name plan.md 2>/dev/null | head -1)"
+  if [ -n "$PLAN_MD" ] && grep -q '<!-- WAITING -->' "$PLAN_MD"; then
+    force_plan_complete "$PLAN_MD"
+  fi
+  PLAN_TASK="$(dirname "$PLAN_MD" 2>/dev/null)"
 fi
-PLAN_TASK="$(dirname "$PLAN_MD" 2>/dev/null)"
 
 # 2. EXECUTE — real develop -> worktree off base_commit.
 if [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
