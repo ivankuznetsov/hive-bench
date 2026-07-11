@@ -7,4 +7,5 @@
 - Authentication, usage-limit, provenance-mismatch, and ordinary implementation
   failures remain ineligible for automatic resume.
 - Review-only provider limits now preserve the trustworthy execute fallback as
-  generated; plan/execute limits continue to park the cell.
+  generated; plan/execute limits continue to park the cell even when the stage
+  wrapper consequently exits nonzero.

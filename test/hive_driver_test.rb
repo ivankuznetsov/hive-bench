@@ -291,8 +291,8 @@ class HiveDriverTest < Minitest::Test
     assert_equal "generated", status
   end
 
-  def test_execute_limit_still_parks_generation
-    stdout = "HB_STAGE plan rc=0\nHB_STAGE develop rc=3\nHB_EXIT rc=0\n"
+  def test_execute_limit_still_parks_generation_despite_nonzero_runner_exit
+    stdout = "HB_STAGE plan rc=3\nHB_STAGE develop rc=4\nHB_EXIT rc=4\n"
     FileUtils.mkdir_p(File.join(@work, ".hb"))
     File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
 
