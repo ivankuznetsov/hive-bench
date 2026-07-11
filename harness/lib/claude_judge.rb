@@ -34,7 +34,11 @@ module HiveBench
         argv += ["--model", model] if model
         out, err, status = Open3.capture3(*argv, stdin_data: prompt.to_s)
         raise Error, "claude judge timed out after #{timeout_s}s" if status.exitstatus == 124
-        raise Error, "claude judge exited #{status.exitstatus}: #{err.strip[0, 300]}" unless status.success?
+        unless status.success?
+          detail = err.strip
+          detail = out.strip if detail.empty?
+          raise Error, "claude judge exited #{status.exitstatus}: #{detail[0, 300]}"
+        end
 
         JudgeOutput.parse_score(out)
       end
