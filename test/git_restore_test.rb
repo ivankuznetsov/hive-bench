@@ -69,6 +69,8 @@ class GitRestoreTest < Minitest::Test
     work = File.join(@root, "work-new")
     restorer.restore(source: @source, base_commit: @base, into: work)
     File.write(File.join(work, "install.sh"), "#!/bin/sh\necho hi\n") # a NEW solution file
+    File.write(File.join(work, ":(glob)**"), "PATHSPEC_MAGIC\n")
+    File.write(File.join(work, ".gitignore"), "vendor/bundle/\n")
     # Build side-effects across the bundler/npm vendoring targets an agent might pick.
     { ".gems/foo" => "GEMSCACHE", ".bundle-local/ruby/gems" => "LOCALBUNDLE",
       "vendor/bundle/ruby/gems" => "BUNDLEPATH",
@@ -82,6 +84,7 @@ class GitRestoreTest < Minitest::Test
 
     assert_includes patch, "install.sh", "a candidate that solves a task by adding files must be captured"
     assert_includes patch, "echo hi"
+    assert_includes patch, "PATHSPEC_MAGIC"
     %w[GEMSCACHE LOCALBUNDLE BUNDLEPATH GEMSPATH BUNDLECACHE NPMTREE].each do |marker|
       refute_includes patch, marker, "vendored/generated tree (#{marker}) must be excluded from the diff"
     end

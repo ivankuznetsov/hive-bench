@@ -15,3 +15,9 @@
   source-text assertion with a real temporary-Git capture test.
 - The host `GitRestore` now also rejects intent-to-add failures instead of
   returning a tracked-only patch that silently omits new solution files.
+- Capture now enumerates non-ignored, non-vendored untracked paths before
+  intent-to-add. This avoids false failures when an excluded build tree is also
+  ignored (for example `vendor/bundle/`) while preserving index-error detection.
+- Intent-to-add consumes the NUL-delimited file list with literal pathspec mode,
+  so legal filenames containing Git pathspec magic cannot expand back into an
+  excluded generated tree.

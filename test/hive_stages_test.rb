@@ -60,8 +60,12 @@ class HiveStagesTest < Minitest::Test
       sh!("git", "commit", "-qm", "base", chdir: repo)
       base = sh!("git", "rev-parse", "HEAD", chdir: repo).strip
       File.write(File.join(repo, "solution.rb"), "puts :solution\n")
+      File.write(File.join(repo, ":(glob)**"), "PATHSPEC_MAGIC\n")
+      File.write(File.join(repo, ".gitignore"), "vendor/bundle/\n")
       FileUtils.mkdir_p(File.join(repo, ".bundle-local", "gems"))
       File.write(File.join(repo, ".bundle-local", "gems", "cache.rb"), "GENERATED\n")
+      FileUtils.mkdir_p(File.join(repo, "vendor", "bundle"))
+      File.write(File.join(repo, "vendor", "bundle", "ignored.rb"), "IGNORED\n")
       File.write(File.join(state, "worktree.yml"), "path: #{repo}\nexecute_base_head: #{base}\n")
       patch = File.join(root, "candidate.patch")
 
@@ -72,6 +76,7 @@ class HiveStagesTest < Minitest::Test
 
       assert status.success?, "#{err}\n#{out}"
       assert_includes File.read(patch), "solution.rb"
+      assert_includes File.read(patch), "PATHSPEC_MAGIC"
       refute_includes File.read(patch), ".bundle-local"
       assert_empty sh!("git", "ls-files", "--", ".bundle-local", chdir: repo)
     end
@@ -94,6 +99,39 @@ class HiveStagesTest < Minitest::Test
       refute status.success?
       assert_includes err, "candidate_patch_copy_failed"
       refute_path_exists destination
+    end
+  end
+
+  def test_capture_rejects_an_index_lock_without_leaving_a_patch
+    source = File.read(SCRIPT)
+    excludes = source[/^CAPTURE_EXCLUDES=\(.*?^\)/m]
+    capture = source[/^capture\(\) \{.*?^\}/m]
+
+    Dir.mktmpdir("hb-capture-lock") do |root|
+      repo = File.join(root, "repo")
+      state = File.join(root, ".hive-state", "stages", "4-execute", "task")
+      FileUtils.mkdir_p(repo)
+      FileUtils.mkdir_p(state)
+      sh!("git", "init", "-q", "-b", "main", chdir: repo)
+      sh!("git", "config", "user.email", "t@example.com", chdir: repo)
+      sh!("git", "config", "user.name", "T", chdir: repo)
+      File.write(File.join(repo, "app.rb"), "puts :base\n")
+      sh!("git", "add", ".", chdir: repo)
+      sh!("git", "commit", "-qm", "base", chdir: repo)
+      base = sh!("git", "rev-parse", "HEAD", chdir: repo).strip
+      File.write(File.join(repo, "solution.rb"), "puts :solution\n")
+      File.write(File.join(repo, ".git", "index.lock"), "locked\n")
+      File.write(File.join(state, "worktree.yml"), "path: #{repo}\nexecute_base_head: #{base}\n")
+      patch = File.join(root, "candidate.patch")
+
+      _out, err, status = Open3.capture3(
+        "bash", "-c", "#{excludes}\n#{capture}\nBASE=\"$1\"; capture \"$2\" test \"$3\"",
+        "hive-stages-test", base, patch, root
+      )
+
+      refute status.success?
+      assert_includes err, "phase=intent_to_add"
+      refute_path_exists patch
     end
   end
 

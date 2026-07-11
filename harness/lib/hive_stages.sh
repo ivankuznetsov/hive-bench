@@ -87,20 +87,30 @@ CAPTURE_EXCLUDES=(
 
 capture() {
   local out="$1" label="$2" root="${3:-/work}"
-  local wt p b
+  local wt p b untracked
   wt="$(find "$root/.hive-state/stages" -name worktree.yml 2>/dev/null | head -1)"
   [ -n "$wt" ] || return 1
   p="$(ruby -ryaml -e 'puts(YAML.load_file(ARGV[0])["path"].to_s)' "$wt" 2>/dev/null)"
   b="$(ruby -ryaml -e 'puts(YAML.load_file(ARGV[0])["execute_base_head"].to_s)' "$wt" 2>/dev/null)"
   [ -z "$b" ] && b="$BASE"
   if [ -n "$p" ] && git -C "$p" rev-parse >/dev/null 2>&1; then
-    # Intent-to-add makes new solution files visible without staging build
-    # output into the branch that the subsequent review stage will inspect.
-    if ! git -C "$p" add --intent-to-add -- . "${CAPTURE_EXCLUDES[@]}" >/dev/null 2>&1; then
-      rm -f "$out"
+    # Enumerate only non-ignored, non-vendored new files before intent-to-add.
+    # Passing `.` directly to git add makes any ignored build tree return 1 even
+    # when an exclude pathspec keeps it out of the index.
+    untracked="$(mktemp "${TMPDIR:-/tmp}/hb-untracked.XXXXXX")" || return 1
+    if ! git -C "$p" ls-files --others --exclude-standard -z -- . "${CAPTURE_EXCLUDES[@]}" \
+      >"$untracked"; then
+      rm -f "$untracked" "$out"
+      echo "HB_ERROR capture_failed label=$label phase=untracked_scan" >&2
+      return 1
+    fi
+    if [ -s "$untracked" ] && ! git -C "$p" --literal-pathspecs add --intent-to-add \
+      --pathspec-from-file="$untracked" --pathspec-file-nul >/dev/null 2>&1; then
+      rm -f "$untracked" "$out"
       echo "HB_ERROR capture_failed label=$label phase=intent_to_add" >&2
       return 1
     fi
+    rm -f "$untracked"
     if ! git -C "$p" diff --no-ext-diff --no-textconv "$b" -- . "${CAPTURE_EXCLUDES[@]}" \
       >"$out" 2>/dev/null; then
       rm -f "$out"
