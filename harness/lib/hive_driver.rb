@@ -30,6 +30,7 @@ module HiveBench
 
     IMAGE = ENV.fetch("HB_RUNNER_IMAGE", "hive-bench-runner:latest")
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
+    PI_TOOL_STREAM = File.expand_path("pi_tool_stream.ts", __dir__)
     CLAUDE_DIR = File.expand_path("~/.claude")
     HOME = "/home/asterio"
     GROK_AUTH_DIR = File.expand_path(
@@ -271,7 +272,8 @@ module HiveBench
         pi_skills = File.expand_path("~/.pi/agent/git/github.com/EveryInc/compound-engineering-plugin/skills")
         raise "pi CE skills missing or not a directory: #{pi_skills}" unless File.directory?(pi_skills)
 
-        mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro"]
+        mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro",
+                   "-v", "#{PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro"]
       end
       if uses?(candidate, "grok")
         # Keep sessions/config/leader state ephemeral per cell. Only the

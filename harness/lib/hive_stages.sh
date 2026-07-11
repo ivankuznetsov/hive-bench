@@ -31,7 +31,7 @@ if [ -n "${HB_PI_MODEL_PLAN:-}${HB_PI_MODEL_EXECUTE:-}${HB_PI_MODEL_REVIEW:-}" ]
   PI_REAL="$(command -v pi)"
   cat >/work/.hb/bin/pi <<PI
 #!/usr/bin/env bash
-exec "$PI_REAL" \${HB_PI_MODEL:+--model "\$HB_PI_MODEL"} "\$@"
+exec "$PI_REAL" \${HB_PI_MODEL:+--model "\$HB_PI_MODEL"} --extension /opt/hb/pi-tool-stream.ts "\$@"
 PI
   chmod +x /work/.hb/bin/pi
   mkdir -p "$HOME/.pi/agent"

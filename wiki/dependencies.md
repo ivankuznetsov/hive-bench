@@ -32,3 +32,13 @@ while sessions, configuration, and leader state remain isolated per cell.
 Do not copy `~/.grok/auth.json` into the benchmark directory: OIDC refresh
 tokens rotate, so two copies with independent lock files can invalidate each
 other and cause either the host CLI or the benchmark to appear logged out.
+
+## Pi and GLM tool streaming
+
+Pi drives `all-glm-5.2` through OpenRouter. GLM tool arguments are buffered by
+default, so a large `write` call can produce no stream traffic long enough for
+OpenRouter's upstream idle timeout to close an otherwise healthy response. Pi
+cells load `harness/lib/pi_tool_stream.ts`, which adds GLM's provider-specific
+`tool_stream: true` request field for `z-ai/glm-5.2` only. This changes the
+transport framing, not the candidate model, prompt, tools, or generated tool
+arguments.

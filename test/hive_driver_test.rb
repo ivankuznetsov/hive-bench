@@ -390,6 +390,16 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, "HB_PI_MODEL_PLAN=#{HiveBench::Candidates::GLM}"
     assert_includes @seen_cmd, "HB_PI_MODEL_EXECUTE=#{HiveBench::Candidates::KIMI}"
     assert_includes @seen_cmd, "HB_PI_MODEL_REVIEW=#{HiveBench::Candidates::GLM}"
+    assert_includes @seen_cmd,
+                    "#{HiveBench::HiveDriver::PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro",
+                    "Pi cells load the GLM transport fix inside the runner"
+
+    extension = File.read(HiveBench::HiveDriver::PI_TOOL_STREAM)
+    assert_includes extension, 'pi.on("before_provider_request"'
+    assert_includes extension, "tool_stream: true"
+    assert_includes File.read(HiveBench::HiveDriver::STAGES_SH),
+                    '--extension /opt/hb/pi-tool-stream.ts',
+                    "the Pi shim must activate the mounted extension"
   end
 
   def test_claude_candidate_gets_no_pi_model_env
