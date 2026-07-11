@@ -157,6 +157,32 @@ finalize_candidate_patch() {
   fi
 }
 
+# Accept a planner's unanswered-question pause without letting Hive's runtime
+# lock files leak into the state-branch bookkeeping commit. The plan document
+# is the benchmark deliverable; only that document belongs in this commit.
+force_plan_complete() {
+  local plan_md="$1" state_root="${2:-/work/.hive-state}" plan_rel
+  plan_rel="${plan_md#"$state_root"/}"
+  if [ -z "$plan_md" ] || [ "$plan_rel" = "$plan_md" ] || [ ! -f "$plan_md" ]; then
+    echo "HB_ERROR plan_force_failed phase=path" >&2
+    return 1
+  fi
+  if ! sed -i 's/<!-- WAITING -->/<!-- COMPLETE -->/' "$plan_md"; then
+    echo "HB_ERROR plan_force_failed phase=rewrite" >&2
+    return 1
+  fi
+  if ! git -C "$state_root" add -- "$plan_rel"; then
+    echo "HB_ERROR plan_force_failed phase=stage" >&2
+    return 1
+  fi
+  if ! git -C "$state_root" -c user.email=bench@hive-bench -c user.name=hive-bench \
+    commit -qm 'bench: force plan complete (no human Q&A)' -- "$plan_rel"; then
+    echo "HB_ERROR plan_force_failed phase=commit" >&2
+    return 1
+  fi
+  echo "HB_NOTE plan_forced_complete"
+}
+
 # 1. PLAN — real /ce-plan.
 HB_PI_MODEL="${HB_PI_MODEL_PLAN:-}" \
   hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
@@ -167,11 +193,7 @@ stage plan $?
 # loop is out of scope for the benchmark. Flip the marker so execute can proceed.
 PLAN_MD="$(find /work/.hive-state/stages/3-plan -name plan.md 2>/dev/null | head -1)"
 if [ -n "$PLAN_MD" ] && grep -q '<!-- WAITING -->' "$PLAN_MD"; then
-  sed -i 's/<!-- WAITING -->/<!-- COMPLETE -->/' "$PLAN_MD"
-  git -C /work/.hive-state add -A 2>/dev/null
-  git -C /work/.hive-state -c user.email=bench@hive-bench -c user.name=hive-bench \
-    commit -qm 'bench: force plan complete (no human Q&A)' 2>/dev/null
-  echo "HB_NOTE plan_forced_complete"
+  force_plan_complete "$PLAN_MD"
 fi
 PLAN_TASK="$(dirname "$PLAN_MD" 2>/dev/null)"
 

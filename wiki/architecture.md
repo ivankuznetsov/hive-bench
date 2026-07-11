@@ -21,7 +21,9 @@ for each corpus task T, for each candidate C:
 - **`lib/hive_driver.rb`** — host orchestrator (steps 1–3, 5–6 + the docker run); returns a
   `Run::Cell`-shaped result so it flows into the existing `RunAll`/`Score`.
 - **`lib/hive_stages.sh`** — runs INSIDE the container (step 4 + capture): plan, force-complete
-  a WAITING plan (no human Q&A), develop, capture the working-tree diff.
+  a WAITING plan (no human Q&A), develop, capture the working-tree diff. Force-completion
+  commits only `plan.md`; transient Hive lock churn is deliberately left outside that
+  bookkeeping commit.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
 - **`profiles/candidates.rb`** — the v2 slate. A *candidate* is a model-per-stage config:
   `all-opus-4.8`, `all-codex`, `opus-plan→codex-exec`. `claude_model` is the CLI id
