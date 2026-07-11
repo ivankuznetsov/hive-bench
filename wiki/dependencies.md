@@ -13,6 +13,13 @@ empty. `ClaudeJudge` therefore falls back to bounded stdout text in its
 nonzero-exit diagnostic, so judge repair reports the authentication cause
 instead of `claude judge exited 1:` with no explanation.
 
+The Codex CLI can put its provider error after a long startup banner or echoed
+judge prompt. `CodexJudge` classifies the complete stderr stream before
+truncating diagnostics and prefixes usage walls with `limits_reached`. Keep
+that marker at the front of the exception: the campaign's judge-backfill log is
+intentionally bounded, and the Hive lane relies on the marker to schedule a
+timed daemon retry instead of stopping at `WAITING`.
+
 ## Grok authentication
 
 `all-grok-4.5` uses a benchmark-specific OIDC login. Create it once without

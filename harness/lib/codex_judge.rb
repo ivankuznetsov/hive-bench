@@ -3,6 +3,7 @@
 require "open3"
 require "json"
 require "lib/judge_output"
+require "lib/agent_limit"
 
 module HiveBench
   # Judge_fn backed by the codex CLI (exec mode) — rides the operator's
@@ -38,7 +39,13 @@ module HiveBench
         argv << "-"
         out, err, status = Open3.capture3(*argv, stdin_data: prompt.to_s)
         raise Error, "codex judge timed out after #{timeout_s}s" if status.exitstatus == 124
-        raise Error, "codex judge exited #{status.exitstatus}: #{err.strip[0, 300]}" unless status.success?
+        unless status.success?
+          # Codex prints a long CLI banner (and sometimes the prompt) before the
+          # provider error. Classify the complete stream before truncating it so
+          # rejudge's short warning still carries a machine-readable limit marker.
+          limit = AgentLimit.limit_hit?(err) ? "limits_reached: " : ""
+          raise Error, "#{limit}codex judge exited #{status.exitstatus}: #{err.strip[0, 300]}"
+        end
 
         JudgeOutput.parse_score(out)
       end
