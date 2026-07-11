@@ -50,6 +50,15 @@ execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
 `review_status` (REVIEW_COMPLETE/WAITING/STALE) and `review_changed_diff`
 (the review-lift signal).
 
+Diff capture uses intent-to-add with the same generated-tree exclusions as the
+host restorer; it does not stage those trees into the branch that review sees.
+The exclusions include Bundler's `.bundle-local/` path as well as `.bundle/`,
+vendored gems, and `node_modules`. A nonzero review exit atomically copies the
+saved execute patch (including a valid zero-byte patch) to the final patch
+before scoring, so partial review side effects cannot replace an otherwise
+valid implementation. Capture or fallback-copy errors fail the stage runner
+and are classified as execution failures instead of trusting a stale patch.
+
 ## Driver hardening (2026-07-01)
 
 - The gen container is **resource-capped** (`HB_CPUS`/`HB_MEMORY`/`HB_PIDS`,

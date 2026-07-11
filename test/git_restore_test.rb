@@ -70,7 +70,8 @@ class GitRestoreTest < Minitest::Test
     restorer.restore(source: @source, base_commit: @base, into: work)
     File.write(File.join(work, "install.sh"), "#!/bin/sh\necho hi\n") # a NEW solution file
     # Build side-effects across the bundler/npm vendoring targets an agent might pick.
-    { ".gems/foo" => "GEMSCACHE", "vendor/bundle/ruby/gems" => "BUNDLEPATH",
+    { ".gems/foo" => "GEMSCACHE", ".bundle-local/ruby/gems" => "LOCALBUNDLE",
+      "vendor/bundle/ruby/gems" => "BUNDLEPATH",
       "vendor/gems/gems/thor-1.0" => "GEMSPATH", "vendor/cache" => "BUNDLECACHE",
       "node_modules/leftpad" => "NPMTREE" }.each do |rel, marker|
       FileUtils.mkdir_p(File.join(work, rel))
@@ -81,7 +82,7 @@ class GitRestoreTest < Minitest::Test
 
     assert_includes patch, "install.sh", "a candidate that solves a task by adding files must be captured"
     assert_includes patch, "echo hi"
-    %w[GEMSCACHE BUNDLEPATH GEMSPATH BUNDLECACHE NPMTREE].each do |marker|
+    %w[GEMSCACHE LOCALBUNDLE BUNDLEPATH GEMSPATH BUNDLECACHE NPMTREE].each do |marker|
       refute_includes patch, marker, "vendored/generated tree (#{marker}) must be excluded from the diff"
     end
   end
@@ -102,6 +103,20 @@ class GitRestoreTest < Minitest::Test
 
     refute_path_exists sentinel, "hardened diff must NOT execute the hostile textconv driver"
     assert_includes patch, "app.rb", "the diff must still be produced"
+  end
+
+  def test_diff_fails_when_intent_to_add_cannot_update_the_index
+    work = File.join(@root, "locked-index")
+    restorer.restore(source: @source, base_commit: @base, into: work)
+    File.write(File.join(work, "app.rb"), "puts 'tracked change'\n")
+    File.write(File.join(work, "new-solution.rb"), "puts 'new solution'\n")
+    File.write(File.join(work, ".git", "index.lock"), "locked\n")
+
+    error = assert_raises(HiveBench::GitRestore::Error) do
+      restorer.diff(work_dir: work, base_commit: @base)
+    end
+
+    assert_match(/intent-to-add failed/, error.message)
   end
 
   def test_restore_refuses_a_path_traversal_into_target

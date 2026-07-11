@@ -196,6 +196,15 @@ class HiveDriverTest < Minitest::Test
     assert_match(/HB_HIVE_TIMEOUT/, cell.reason)
   end
 
+  def test_nonzero_stage_runner_exit_rejects_an_existing_patch
+    stdout = "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_NOTE final_patch_failed\nHB_EXIT rc=4\n"
+    cell = driver(stdout: stdout, patch: "diff --git a/polluted b/polluted\n")
+           .call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "execute_failed", cell.status
+    assert_match(/trustworthy capture/, cell.reason)
+  end
+
   def test_forced_plan_completion_is_surfaced
     cell = driver(stdout: "HB_STAGE plan rc=0\nHB_NOTE plan_forced_complete\nHB_STAGE develop rc=0\nHB_EXIT rc=0\n")
            .call(entry: entry, candidate: candidate, out_dir: @out)

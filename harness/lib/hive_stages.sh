@@ -74,25 +74,76 @@ fi
 
 # Capture the task worktree's diff vs base into $1: committed + uncommitted +
 # untracked (agents often leave work uncommitted), minus vendored/build trees.
-# Pathspecs mirror GitRestore::VENDORED_EXCLUDES — keep them in sync.
+# Pathspecs mirror GitRestore::VENDORED_EXCLUDES — keep them in sync. The
+# `.hive_probe_tmp` entry is container-only harness scratch state.
+CAPTURE_EXCLUDES=(
+  ':(exclude,glob).gems/**' ':(exclude).gems'
+  ':(exclude,glob)**/node_modules/**'
+  ':(exclude,glob)vendor/bundle/**' ':(exclude,glob)vendor/gems/**'
+  ':(exclude,glob)vendor/cache/**' ':(exclude,glob).bundle/**'
+  ':(exclude,glob).bundle-local/**' ':(exclude).bundle-local'
+  ':(exclude).hive-bench-prompt.md' ':(exclude).hive_probe_tmp'
+)
+
 capture() {
-  local out="$1" label="$2"
+  local out="$1" label="$2" root="${3:-/work}"
   local wt p b
-  wt="$(find /work/.hive-state/stages -name worktree.yml 2>/dev/null | head -1)"
+  wt="$(find "$root/.hive-state/stages" -name worktree.yml 2>/dev/null | head -1)"
   [ -n "$wt" ] || return 1
   p="$(ruby -ryaml -e 'puts(YAML.load_file(ARGV[0])["path"].to_s)' "$wt" 2>/dev/null)"
   b="$(ruby -ryaml -e 'puts(YAML.load_file(ARGV[0])["execute_base_head"].to_s)' "$wt" 2>/dev/null)"
   [ -z "$b" ] && b="$BASE"
   if [ -n "$p" ] && git -C "$p" rev-parse >/dev/null 2>&1; then
-    git -C "$p" add -A >/dev/null 2>&1
-    git -C "$p" diff --cached "$b" -- . \
-      ':(exclude,glob).gems/**' ':(exclude).gems' \
-      ':(exclude,glob)**/node_modules/**' \
-      ':(exclude,glob)vendor/bundle/**' ':(exclude,glob)vendor/gems/**' \
-      ':(exclude,glob)vendor/cache/**' ':(exclude,glob).bundle/**' \
-      ':(exclude).hive-bench-prompt.md' ':(exclude).hive_probe_tmp' \
-      >"$out" 2>/dev/null
+    # Intent-to-add makes new solution files visible without staging build
+    # output into the branch that the subsequent review stage will inspect.
+    if ! git -C "$p" add --intent-to-add -- . "${CAPTURE_EXCLUDES[@]}" >/dev/null 2>&1; then
+      rm -f "$out"
+      echo "HB_ERROR capture_failed label=$label phase=intent_to_add" >&2
+      return 1
+    fi
+    if ! git -C "$p" diff --no-ext-diff --no-textconv "$b" -- . "${CAPTURE_EXCLUDES[@]}" \
+      >"$out" 2>/dev/null; then
+      rm -f "$out"
+      echo "HB_ERROR capture_failed label=$label phase=diff" >&2
+      return 1
+    fi
     echo "HB_DIFF $label lines=$(wc -l <"$out") files=$(grep -c '^diff --git' "$out")"
+    return 0
+  fi
+
+  echo "HB_ERROR capture_failed label=$label phase=worktree" >&2
+  return 1
+}
+
+replace_candidate_patch() {
+  local source="$1" destination="$2" tmp="${2}.tmp.$$"
+  rm -f "$tmp"
+  if ! cp "$source" "$tmp" || ! mv -f "$tmp" "$destination"; then
+    rm -f "$tmp" "$destination"
+    echo "HB_ERROR candidate_patch_copy_failed" >&2
+    return 1
+  fi
+}
+
+# A failed review is not allowed to replace a valid implementation with its
+# partial working-tree side effects. This is the documented benchmark contract:
+# score the execute patch and surface review_ok=false in telemetry.
+finalize_candidate_patch() {
+  local review_rc="$1" work="${2:-/work}"
+  if [ -n "$review_rc" ] && [ "$review_rc" -ne 0 ]; then
+    if [ ! -f "$work/candidate-execute.patch" ]; then
+      rm -f "$work/candidate.patch"
+      echo "HB_ERROR execute_patch_missing_after_review_failure" >&2
+      return 1
+    fi
+    replace_candidate_patch "$work/candidate-execute.patch" "$work/candidate.patch" || return 1
+    echo "HB_NOTE review_fallback=execute"
+    return 0
+  fi
+
+  capture "$work/candidate.patch" final "$work" || return 1
+  if [ ! -s "$work/candidate.patch" ] && [ -f "$work/candidate-execute.patch" ]; then
+    replace_candidate_patch "$work/candidate-execute.patch" "$work/candidate.patch" || return 1
   fi
 }
 
@@ -122,7 +173,10 @@ if [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
 fi
 
 # Post-execute capture: the raw first-pass diff, kept for review-lift analysis.
-capture /work/candidate-execute.patch execute
+if ! capture /work/candidate-execute.patch execute; then
+  echo "HB_NOTE execute_patch_failed"
+  exit 4
+fi
 
 # 3-4. OPEN-PR + REVIEW — the rest of the real hive cycle (HB_REVIEW=0 skips).
 # The container has no GitHub: pushes land on a bench-local bare origin, and a
@@ -132,6 +186,7 @@ capture /work/candidate-execute.patch execute
 # re-resolve by slug instead of assuming which stage dir it landed in.
 task_dir() { find /work/.hive-state/stages -maxdepth 2 -type d -name "$SLUG" 2>/dev/null | head -1; }
 
+REVIEW_RC=""
 if [ "${HB_REVIEW:-1}" = "1" ] && [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
   git init -q --bare /work/.hb/origin.git 2>/dev/null
   git -C /work remote add origin /work/.hb/origin.git 2>/dev/null
@@ -167,7 +222,8 @@ GH
   stage open-pr $?
   HB_PI_MODEL="${HB_PI_MODEL_REVIEW:-}" \
     hive review "$(task_dir)" --json >/work/.hb/review.json 2>>/work/.hb/stage.err
-  stage review $?
+  REVIEW_RC=$?
+  stage review "$REVIEW_RC"
 
   ST="$(find /work/.hive-state/stages -name status.md -path "*$SLUG*" 2>/dev/null | head -1)"
   for m in REVIEW_COMPLETE REVIEW_WAITING REVIEW_STALE; do
@@ -175,8 +231,10 @@ GH
   done
 fi
 
-# Final capture: post-review when review ran (fix commits land in the worktree),
-# else identical to the execute diff.
-capture /work/candidate.patch final
-[ -s /work/candidate.patch ] || { [ -s /work/candidate-execute.patch ] && cp /work/candidate-execute.patch /work/candidate.patch; }
+# Final capture: post-review only when review succeeded. A failed review falls
+# back to the valid execute diff rather than scoring partial review side effects.
+if ! finalize_candidate_patch "$REVIEW_RC" /work; then
+  echo "HB_NOTE final_patch_failed"
+  exit 4
+fi
 echo "HB_DONE"

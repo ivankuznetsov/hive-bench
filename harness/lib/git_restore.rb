@@ -42,6 +42,7 @@ module HiveBench
       ":(exclude,glob)**/node_modules/**",
       ":(exclude,glob)vendor/bundle/**", ":(exclude,glob)vendor/gems/**",
       ":(exclude,glob)vendor/cache/**", ":(exclude,glob).bundle/**",
+      ":(exclude,glob).bundle-local/**", ":(exclude).bundle-local",
       ":(exclude).hive-bench-prompt.md"
     ].freeze
 
@@ -83,7 +84,10 @@ module HiveBench
       # omits untracked files, which would silently drop a candidate that solves a
       # task mostly by ADDING files (install scripts, new modules, …). Vendored
       # trees are excluded so they neither bury the solution nor explode the diff.
-      git("-C", work_dir, *HARDENED_CONFIG, "add", "--intent-to-add", "--", ".", *VENDORED_EXCLUDES)
+      _out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "add", "--intent-to-add", "--", ".",
+                          *VENDORED_EXCLUDES)
+      raise Error, "git intent-to-add failed: #{err.strip}" unless ok
+
       out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "diff", *DIFF_SAFETY,
                          base_commit.to_s, "--", ".", *VENDORED_EXCLUDES)
       raise Error, "git diff failed: #{err.strip}" unless ok
