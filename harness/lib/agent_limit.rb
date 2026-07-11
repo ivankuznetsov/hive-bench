@@ -74,14 +74,20 @@ module HiveBench
     # grace period keeps the retry off the exact boundary; absent/malformed or
     # non-UTC hints retain the conservative one-hour fallback.
     def retry_after(text, now: Time.now.utc, fallback_seconds: 3600, grace_seconds: 60)
+      now = now.utc
+      fallback = (now + fallback_seconds).iso8601
       match = normalize(text).scan(UTC_RESET_HINT).last
-      return (now.utc + fallback_seconds).iso8601 unless match
+      return fallback unless match
 
       hour, minute, meridiem = match
-      hour = Integer(hour) % 12
+      hour = Integer(hour)
+      minute = Integer(minute || 0)
+      return fallback unless (1..12).cover?(hour) && (0..59).cover?(minute)
+
+      hour %= 12
       hour += 12 if meridiem.downcase == "pm"
-      reset = Time.utc(now.year, now.month, now.day, hour, Integer(minute || 0)) + grace_seconds
-      reset += 86_400 if reset <= now.utc
+      reset = Time.utc(now.year, now.month, now.day, hour, minute) + grace_seconds
+      reset += 86_400 if reset <= now
       reset.iso8601
     end
   end

@@ -74,5 +74,14 @@ class AgentLimitTest < Minitest::Test
 
     assert_equal "2026-07-11T23:55:00Z", L.retry_after("limit reached", now: now)
     assert_equal "2026-07-11T23:55:00Z", L.retry_after("resets 12am (Europe/London)", now: now)
+    assert_equal "2026-07-11T23:55:00Z", L.retry_after("resets 13pm (UTC)", now: now)
+    assert_equal "2026-07-11T23:55:00Z", L.retry_after("resets 12:99am (UTC)", now: now)
+  end
+
+  def test_retry_after_normalizes_the_clock_to_utc_before_choosing_the_date
+    now = Time.new(2026, 7, 12, 0, 55, 0, "+02:00")
+
+    assert_equal "2026-07-12T00:01:00Z",
+                 L.retry_after("resets 12am (UTC)", now: now)
   end
 end
