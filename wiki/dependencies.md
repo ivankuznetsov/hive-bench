@@ -20,6 +20,11 @@ that marker at the front of the exception: the campaign's judge-backfill log is
 intentionally bounded, and the Hive lane relies on the marker to schedule a
 timed daemon retry instead of stopping at `WAITING`.
 
+Every persisted judge record includes `reasoning_effort` and
+`reasoning_effort_explicit`. The Codex-backed GPT-5.6-sol judge records its
+explicit `xhigh` pin. Fable 5 and the legacy OpenRouter GPT-5.5-pro judge record
+`unspecified` because their CLI/API invocations contain no effort parameter.
+
 `HiveBench::AgentLimit.retry_after` converts an explicit Claude UTC reset hint
 such as `resets 12am (UTC)` into the next matching boundary plus a one-minute
 grace period. Benchmark workflows should pass only diagnostics produced during

@@ -2,6 +2,7 @@
 
 require "json"
 require "lib/model_family"
+require "lib/judge_provenance"
 
 module HiveBench
   # Scoring tier 3 + assembly. Combines a cell's gate verdict, judge result, and
@@ -55,9 +56,10 @@ module HiveBench
 
     def judge_records(judges, cell)
       (judges || {}).to_h do |name, j|
-        [name, { "mean" => j.mean, "interval" => j.interval,
-                 "reference_withheld" => j.reference_withheld,
-                 "same_family" => ModelFamily.same_family?(name, cell[:agent_id], cell[:model_version]) }]
+        record = { "mean" => j.mean, "interval" => j.interval,
+                   "reference_withheld" => j.reference_withheld,
+                   "same_family" => ModelFamily.same_family?(name, cell[:agent_id], cell[:model_version]) }
+        [name, record.merge(JudgeProvenance.metadata(name))]
       end
     end
 

@@ -24,6 +24,7 @@ require "lib/git_restore"
 require "lib/claude_judge"
 require "lib/openrouter_judge"
 require "lib/codex_judge"
+require "lib/judge_provenance"
 
 module HiveBench
   # Offline re-judge: same scoring contract as RunAll, but the diff comes from
@@ -48,7 +49,8 @@ module HiveBench
                      withhold_reference: withhold_reference, only_missing: only_missing_judges,
                      plan_source: plan_source)
       end
-      scorer.results(records: records, corpus_version: "v2", generated_at: Time.now.utc.iso8601)
+      result = scorer.results(records: records, corpus_version: "v2", generated_at: Time.now.utc.iso8601)
+      JudgeProvenance.annotate_document!(result)
     end
 
     def rejudge_cell(old, bases, search_dirs, judges, scorer, restorer, withhold_reference:, only_missing:,

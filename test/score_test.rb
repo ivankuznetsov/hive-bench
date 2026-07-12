@@ -36,6 +36,8 @@ class ScoreTest < Minitest::Test
     assert_equal "gated", rec["subset"]
     assert_equal "pass", rec.dig("gate", "status")
     assert_in_delta(8.0, rec.dig("judges", "opus-4.8", "mean"))
+    assert_equal "unspecified", rec.dig("judges", "opus-4.8", "reasoning_effort")
+    assert_equal false, rec.dig("judges", "opus-4.8", "reasoning_effort_explicit")
     assert_in_delta(0.10, rec.dig("efficiency", "cost_usd"))
   end
 
