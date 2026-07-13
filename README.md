@@ -104,16 +104,19 @@ The maintained campaign path uses Hive's built-in named workflow (use a Hive
 release that includes `bench`):
 
 ```bash
-git clone https://github.com/ivankuznetsov/hive-bench.git
-cd hive-bench
-bundle install
-hive init . --workflow bench
-hive new hive-bench "benchmark campaign"
+hive init /path/to/benchmark-project --workflow bench
+hive new benchmark-project "benchmark campaign"
 ```
+
+Hive snapshots this repository's maintained runtime into
+`.hive-state/bench-runtime`, so a local campaign does not require a separate
+hive-bench checkout. This repository remains the public corpus, evidence,
+methodology, and contribution home.
 
 The descriptor and stage instructions ship with Hive; do not copy them into
 `.hive-state`. No Honeycomb deployment is required. Put a tracked, clean copy
-of `campaign.yml.example` in the task folder as `campaign.yml`; see
+of `.hive-state/bench-runtime/campaign.yml.example` in the task folder as
+`campaign.yml`; see
 [`wiki/v3-workflow.md`](wiki/v3-workflow.md) for the full campaign contract.
 
 For low-level harness development, a pass can also be launched directly:

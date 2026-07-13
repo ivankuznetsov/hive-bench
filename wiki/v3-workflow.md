@@ -9,30 +9,28 @@ to a toy planner/executor or a different scoring path.
 ## Running a campaign
 
 Use a Hive release that includes the named `bench` workflow, then initialize a
-fresh hive-bench clone with that workflow as its project default:
+benchmark project with that workflow as its project default:
 
 ```bash
-git clone https://github.com/ivankuznetsov/hive-bench.git
-cd hive-bench
-bundle install
-hive init . --workflow bench
+hive init /path/to/benchmark-project --workflow bench
 ```
 
-The workflow descriptor and stage instructions ship with Hive; do not copy
-them into `.hive-state`, and no Honeycomb deployment is required. Create a
-campaign task with `hive new hive-bench "benchmark
-campaign"` (substitute the project name printed by `hive init` if the clone
-directory has another name). Copy and edit `campaign.yml.example` in the task
-folder when the extract stage requests it, then commit that file in
-`.hive-state`; generate refuses to spend until it is tracked and clean. The
-workflow stages are:
+The workflow descriptor, stage instructions, campaign example, and versioned
+harness snapshot ship with Hive. The runtime is committed under
+`.hive-state/bench-runtime`; no hive-bench checkout or Honeycomb deployment is
+required. Create a campaign task with `hive new benchmark-project "benchmark
+campaign"` (substitute the project name printed by `hive init`). Copy and edit
+`.hive-state/bench-runtime/campaign.yml.example` in the task folder when the
+extract stage requests it, then commit that file in `.hive-state`; generate
+refuses to spend until it is tracked and clean. The workflow stages are:
 
 ```text
 1-inbox -> 2-extract -> 3-generate -> 4-judge -> 5-publish -> 6-done
 ```
 
-The task folder is the campaign boundary. Copy `campaign.yml.example` into that
-task folder as `campaign.yml`, edit the campaign id, source clone, tasks,
+The task folder is the campaign boundary. Copy
+`bench-runtime/campaign.yml.example` into that task folder as `campaign.yml`,
+edit the campaign id, source clone, tasks,
 candidates, exact judge backends/models/effort, judge sample count, budget
 declarations, timeout declarations, exclusions, and aggregation prose, then
 commit it in the hive-state checkout before generate. The example defaults to
@@ -66,7 +64,7 @@ contract, not prose for an agent to reimplement.
   against the wrong checkout), checks that every `tasks[]` slug has
   `corpus/<slug>/manifest.yml`, and loads them through `HiveBench::Corpus`. It
   reports missing slugs and parks; it does not guess source PR coordinates for
-  `harness/extract.rb`.
+  `bench-runtime/harness/extract.rb`.
 - `3-generate` validates the committed campaign contract (required keys, strict
   `campaign_id` slug — it becomes the `runs/<campaign_id>` path segment — with
   the unedited `v3-example` id rejected, non-empty single-line `source`,

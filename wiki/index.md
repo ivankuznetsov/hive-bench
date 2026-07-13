@@ -37,7 +37,9 @@ three-sample Sol `ultra` follow-up remains a separate campaign.
 v3 adds campaign orchestration, stronger runtime gates, replication, and
 calibrated judge presentation. The native `bench` Hive workflow has guarded,
 idempotent stages and full no-cost fixture paths through
-extract/generate/judge/publish. Its maintained defaults are Fable plus Sol
+extract/generate/judge/publish. Hive installs its versioned harness snapshot in
+the benchmark project's `.hive-state/bench-runtime`, so local users do not need
+to clone this repository merely to run the named workflow. Its maintained defaults are Fable plus Sol
 `ultra`, three samples, candidate-plan judging, and adversarial deliberation;
 the first paid campaign with that complete contract has not yet run end to end.
 See [[gaps]] and [[v3-workflow]].
