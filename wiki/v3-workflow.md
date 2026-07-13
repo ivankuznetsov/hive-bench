@@ -8,15 +8,33 @@ to a toy planner/executor or a different scoring path.
 
 ## Running a campaign
 
-Install the workflow descriptor into hive-state:
+Initialize a fresh hive-bench clone first. The `.hive-state` directory is a
+Hive-managed Git worktree, so canonical workflow files must not be tracked at
+that path in the main checkout:
+
+```bash
+git clone https://github.com/ivankuznetsov/hive-bench.git
+cd hive-bench
+bundle install
+hive init .
+```
+
+Then install and commit the workflow descriptor into the newly created state
+worktree:
 
 ```bash
 mkdir -p .hive-state/workflows
 cp -R workflows/bench.yml workflows/bench .hive-state/workflows/
+git -C .hive-state add workflows/bench.yml workflows/bench
+git -C .hive-state commit -m "Install bench workflow"
 ```
 
-Create or move a task into the `bench` workflow by setting task meta
-`workflow: bench`. The workflow stages are:
+Create a campaign task with `hive new hive-bench --workflow bench "benchmark
+campaign"` (substitute the project name printed by `hive init` if the clone
+directory has another name). Copy and edit `campaign.yml.example` in the task
+folder when the extract stage requests it, then commit that file in
+`.hive-state`; generate refuses to spend until it is tracked and clean. The
+workflow stages are:
 
 ```text
 1-inbox -> 2-extract -> 3-generate -> 4-judge -> 5-publish -> 6-done
@@ -189,14 +207,17 @@ Run:
 tmp/bench-workflow-smoke.sh
 ```
 
-The smoke is no-cost. It parses both descriptor copies through hive's real
+The smoke is no-cost. It parses the canonical descriptor through hive's real
 `Hive::Workflows::DescriptorParser` (asserting the broken-descriptor rejection
-is the nested-state-file rule, not an unrelated load error), verifies the
-installed workflow matches the canonical copy, and advances a throwaway task
-through all six stages with `Hive::Commands::Approve`. Stage scripts are
-extracted by the `<!-- bench-stage-script -->` marker. Every run gets a fake
-`$HOME`, and the duplicated campaign-id validation lines are diffed across
-generate, judge, and publish to catch drift.
+is the nested-state-file rule, not an unrelated load error), installs a copy in
+a throwaway Hive project, verifies that copy matches the canonical source, and
+advances a throwaway task through all six stages with
+`Hive::Commands::Approve`. It also fails if a workflow copy is tracked under
+the main checkout's `.hive-state`, because that would break `hive init` on a
+fresh clone. Stage scripts are extracted by the
+`<!-- bench-stage-script -->` marker. Every run gets a fake `$HOME`, and the
+duplicated campaign-id validation lines are diffed across generate, judge, and
+publish to catch drift.
 
 Failure-path fixtures cover missing/untracked/dirty/malformed campaigns,
 repo-root misanchors, extract missing-source and missing-slug paths,
