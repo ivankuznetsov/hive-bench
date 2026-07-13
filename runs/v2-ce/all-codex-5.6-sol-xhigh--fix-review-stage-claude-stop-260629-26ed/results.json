@@ -1,0 +1,88 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2-ce",
+  "generated_at": "2026-07-11T17:08:42Z",
+  "cells": [
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 7.1,
+          "interval": [
+            7.1,
+            7.1
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 29915648,
+        "output_tokens": 67028,
+        "wall_clock_sec": null,
+        "recovered_artifact": true,
+        "artifact_provenance": "verified",
+        "cost_usd": 151.5891
+      }
+    }
+  ],
+  "agents": {
+    "all-codex-5.6-sol-xhigh": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 6.0,
+          "gpt-5.6-sol": 7.1
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 6.0,
+          "gpt-5.6-sol": null
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 151.5891,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  },
+  "pending": [],
+  "failed": []
+}

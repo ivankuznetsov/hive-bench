@@ -1,0 +1,1874 @@
+diff --git a/lib/hive/cli.rb b/lib/hive/cli.rb
+index 16d461b3..e5e7717b 100644
+--- a/lib/hive/cli.rb
++++ b/lib/hive/cli.rb
+@@ -750,6 +750,7 @@ module Hive
+           Enter         contextual: agent_running opens log tail,
+                         recoverable errors rerun, ready_* dispatches
+           o             open the focused task folder in $EDITOR for browse-only inspection
++          i             open the read-only info panel for the focused task
+           s             steer the focused task manually in the configured dev agent;
+                         marks MANUAL_STEERING and archives it on agent exit
+           n             open the new-idea prompt
+@@ -761,6 +762,9 @@ module Hive
+         log_tail (entered via Enter on agent_running / error rows)
+           q / Esc       back to grid
+ 
++        card_info (entered via i on the focused row)
++          q / Esc / i   back to grid
++
+         filter (entered via /)
+           printable     append to the buffer
+           Backspace     delete one char
+diff --git a/lib/hive/tui/bubble_model.rb b/lib/hive/tui/bubble_model.rb
+index d42249e3..e866bd5b 100644
+--- a/lib/hive/tui/bubble_model.rb
++++ b/lib/hive/tui/bubble_model.rb
+@@ -30,9 +30,9 @@ require "hive/tui/views/projects_pane"
+ require "hive/tui/views/tasks_pane"
+ require "hive/tui/views/log_tail"
+ require "hive/tui/views/red_status_detail"
++require "hive/tui/views/card_info"
+ require "hive/tui/views/help_overlay"
+ require "hive/tui/views/filter_prompt"
+-require "hive/tui/views/idea_preview"
+ require "hive/tui/views/new_idea_prompt"
+ require "hive/tui/views/new_idea_project_picker"
+ 
+@@ -99,6 +99,8 @@ module Hive
+       REVIEW_RECOVERY_DETAIL_ATTRS = %w[
+         phase reason pass attempts elapsed files matches exception_class
+       ].freeze
++      CARD_INFO_BODY_MAX_BYTES = 32 * 1024
++      CARD_INFO_LOG_LINES = 50
+ 
+       def initialize(
+         hive_model: Hive::Tui::Model.initial,
+@@ -225,9 +227,9 @@ module Hive
+         when :grid then compose_two_pane_view
+         when :log_tail then Views::LogTail.render(@hive_model)
+         when :red_status_detail then Views::RedStatusDetail.render(@hive_model)
++        when :card_info then Views::CardInfo.render(@hive_model)
+         when :help then Views::HelpOverlay.render(@hive_model)
+         when :filter then compose_filter_view
+-        when :idea_preview then compose_idea_preview_view
+         when :new_idea_project then compose_new_idea_project_view
+         when :new_idea then compose_new_idea_view
+         else compose_two_pane_view
+@@ -384,8 +386,8 @@ module Hive
+           open_input_editor(message.row)
+         when Hive::Tui::Messages::OpenTaskFolder
+           open_task_folder(message.row)
+-        when Hive::Tui::Messages::OpenIdeaPreview
+-          open_idea_preview(message.row)
++        when Hive::Tui::Messages::OpenCardInfo
++          open_card_info(message.row)
+         when Hive::Tui::Messages::OpenInAgent
+           dispatch_open_in_agent_then_close_detail(message.row)
+         when Hive::Tui::Messages::AgentSteerExited
+@@ -1514,29 +1516,108 @@ module Hive
+         [ flashed("editor command invalid: #{e.message}"), nil ]
+       end
+ 
+-      def open_idea_preview(row)
+-        return [ flashed("no idea for #{row.slug}"), nil ] if row.folder.to_s.empty?
++      def open_card_info(row)
++        return [ flashed("no task folder for #{row.slug}"), nil ] if row.folder.to_s.empty?
++        return [ flashed("no task folder for #{row.slug}"), nil ] unless File.directory?(row.folder)
++
++        task = Hive::Task.new(row.folder)
++        created_at, original_text = card_info_idea_fields(task)
++        stage_file_path, stage_file_body = card_info_stage_file(task)
++        log_path, log_tail_lines = card_info_log_snapshot(
++          task, read_tail: Views::CardInfo.prefer_log_tail_for_row?(row)
++        )
++        message = Hive::Tui::Messages::OpenCardInfo.new(
++          row: row,
++          created_at: created_at,
++          original_text: original_text,
++          working_dir: card_info_working_dir(row),
++          log_path: log_path,
++          stage_file_path: stage_file_path,
++          stage_file_body: stage_file_body,
++          log_tail_lines: log_tail_lines
++        )
++        new_model, _cmd = Hive::Tui::Update.apply(@hive_model, message)
++        [ new_model, nil ]
++      rescue Hive::InvalidTaskPath
++        [ flashed("invalid task folder for #{row.slug}"), nil ]
++      rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR, Psych::Exception
++        # Errno::ENOENT covers a TOCTOU deletion between the `File.file?`
++        # guard and the `File.read` in `card_info_idea_fields` — without
++        # it, a race unwinds into the Bubbletea runner and tears down the
++        # TUI (the plan lists ENOENT in the required rescue set).
++        [ flashed("could not read info for #{row.slug}"), nil ]
++      end
++
++      def card_info_working_dir(row)
++        row.worktree_path || row.folder
++      end
+ 
+-        idea_path = File.join(row.folder, "idea.md")
+-        return [ flashed("no idea.md for #{row.slug}"), nil ] unless File.exist?(idea_path)
++      def card_info_idea_fields(task)
++        idea_path = File.join(task.folder, "idea.md")
++        return [ nil, nil ] unless File.file?(idea_path)
+ 
+         data = idea_frontmatter(File.read(idea_path))
+         original_text = data["original_text"].to_s
+-        if original_text.empty?
+-          return [ flashed("idea has no original_text for #{row.slug}"), nil ]
+-        end
++        original_text = original_text.empty? ? nil : original_text[0, Hive::Tui::Model::NEW_IDEA_BUFFER_MAX_CHARS]
++        [ card_info_timestamp(data["created_at"]), original_text ]
++      end
+ 
+-        capped_text = original_text[0, Hive::Tui::Model::NEW_IDEA_BUFFER_MAX_CHARS]
+-        [
+-          @hive_model.with(
+-            mode: :idea_preview,
+-            idea_preview_text: capped_text,
+-            idea_preview_slug: row.slug
+-          ),
+-          nil
+-        ]
+-      rescue Errno::ENOENT, Errno::EACCES, Psych::Exception
+-        [ flashed("could not read idea for #{row.slug}"), nil ]
++      def card_info_timestamp(value)
++        return nil if value.nil?
++
++        value.respond_to?(:iso8601) ? value.iso8601 : value.to_s
++      end
++
++      def card_info_stage_file(task)
++        path = task.state_file
++        return [ path, nil ] if File.basename(path) == "idea.md"
++        return [ path, nil ] unless File.file?(path)
++
++        # `File.read(path, n)` byte-caps and returns an ASCII-8BIT string;
++        # a cut at the 32 KiB boundary can split a multibyte UTF-8
++        # character, and a binary body with any non-ASCII byte makes the
++        # downstream Lipgloss.join_vertical raise Encoding::CompatibilityError
++        # and crash the runner. Re-tag as UTF-8 and scrub the invalid tail
++        # so the view always receives a valid string.
++        #
++        # The 32 KiB cap truncates silently with no marker: the view
++        # (Views::CardInfo) truncates to screen height first, so a body
++        # longer than the cap is already clipped before the byte limit
++        # would ever be visible. The cap is intentionally invisible — it
++        # bounds the read, not the display.
++        body = File.read(path, CARD_INFO_BODY_MAX_BYTES).to_s.force_encoding("UTF-8").scrub
++        [ path, body ]
++      rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR
++        # A stage file that is missing (ENOENT), unreadable (EACCES), or
++        # replaced by a directory (EISDIR) degrades to "no stage body"
++        # rather than unwinding to open_card_info's outer rescue and
++        # aborting the whole panel — the info panel opens with whatever
++        # fields ARE available (Open Q3 default b: partial read failure).
++        [ path, nil ]
++      end
++
++      # `read_tail:` gates the 64 KiB seek + 50-line tail read to the
++      # rows that actually render it (execute/running — see
++      # Views::CardInfo#prefer_log_tail?). Every other row still needs
++      # `log_path` for the `latest_log:` common field, but the tail
++      # lines would be collected and discarded, so we skip the read.
++      def card_info_log_snapshot(task, read_tail:)
++        log_path = Hive::Tui::LogTail::FileResolver.latest_in_dirs(
++          [ task.log_dir, File.join(task.folder, "logs") ]
++        )
++        return [ log_path, [] ] unless read_tail
++
++        tail = Hive::Tui::LogTail::Tail.new(
++          log_path,
++          ring_capacity: CARD_INFO_LOG_LINES,
++          backbuffer_bytes: Hive::Tui::RedStatusDetailLayout::LOG_SNAPSHOT_BACKBUFFER_BYTES
++        )
++        tail.open!
++        [ log_path, tail.lines(CARD_INFO_LOG_LINES) ]
++      rescue Hive::NoLogFiles, *Hive::Tui::LogTail::FILESYSTEM_RESCUE
++        [ nil, [] ]
++      ensure
++        tail&.close!
+       end
+ 
+       def idea_frontmatter(contents)
+@@ -2884,11 +2965,6 @@ module Hive
+         compose_two_pane_view(footer: prompt_footer(Views::FilterPrompt.render(@hive_model, width: usable), usable))
+       end
+ 
+-      def compose_idea_preview_view
+-        usable = [ @hive_model.cols.to_i - 1, 1 ].max
+-        compose_two_pane_view(footer: prompt_footer(Views::IdeaPreview.render(@hive_model, width: usable), usable))
+-      end
+-
+       # New-idea mode: same composition; footer = the inline prompt with
+       # the project label so the operator sees the resolved target.
+       # Width clamps the prompt so long titles don't overflow the
+@@ -3017,7 +3093,7 @@ module Hive
+       end
+ 
+       def footer_hint
+-        "[Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [q] quit"
++        "[Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [i] info  [q] quit"
+       end
+ 
+       # Compute pane widths and join horizontally. Left pane is clamped
+diff --git a/lib/hive/tui/help.rb b/lib/hive/tui/help.rb
+index 1fad3fbf..7a56ef39 100644
+--- a/lib/hive/tui/help.rb
++++ b/lib/hive/tui/help.rb
+@@ -38,7 +38,7 @@ module Hive
+         { mode: :grid, key: "Right",     action: :pane_focus_right,   description: "jump focus to the tasks pane" },
+         { mode: :grid, key: "Enter",     action: :open_contextual,    description: "left pane: focus right. right pane: open red-status detail on gated red rows; wall_clock REVIEW_STALE keeps direct retry, kill-class ERROR opens log tail, max_passes REVIEW_STALE opens focal escalations; non-red contextual behavior is unchanged" },
+         { mode: :grid, key: "o",         action: :open_task_folder,   description: "open the focused task's folder in $EDITOR (read-only browse — no workflow dispatch, distinct from Enter and the verb keys)" },
+-        { mode: :grid, key: "i",         action: :open_idea_preview,  description: "preview the original idea text for the focused task in the bottom strip" },
++        { mode: :grid, key: "i",         action: :open_card_info,     description: "open a read-only info panel for the focused task" },
+         { mode: :grid, key: "s",         action: :open_in_agent,      description: "steer the focused task manually — opens the project's configured development agent in the feature worktree with every stage folder for this slug preloaded as context, marks the task MANUAL_STEERING so headless runs skip it, then archives the slug on agent exit" },
+         { mode: :grid, key: "n",         action: :new_idea,           description: "open the new-idea prompt; from ★ All projects, choose a target project first; submitting runs `hive new <project> \"<title>\"`" },
+         { mode: :grid, key: "/",         action: :filter,             description: "open filter prompt" },
+@@ -50,6 +50,10 @@ module Hive
+         # Log-tail mode.
+         { mode: :log_tail, key: "q",   action: :back, description: "back to grid" },
+         { mode: :log_tail, key: "Esc", action: :back, description: "back to grid" },
++        # Card info mode.
++        { mode: :card_info, key: "q",   action: :back, description: "close the info panel and return to the grid" },
++        { mode: :card_info, key: "Esc", action: :back, description: "close the info panel and return to the grid" },
++        { mode: :card_info, key: "i",   action: :back, description: "close the info panel and return to the grid" },
+         # Red-status detail mode.
+         { mode: :red_status_detail, key: "Enter",     action: :recover,       description: "run hive's automated recovery for this task and close this screen" },
+         { mode: :red_status_detail, key: "o",         action: :open_in_agent, description: "open this task in the project's development agent and close this screen" },
+@@ -64,8 +68,6 @@ module Hive
+         # Filter prompt mode.
+         { mode: :filter, key: "Enter", action: :commit_filter, description: "commit typed filter" },
+         { mode: :filter, key: "Esc",   action: :cancel_filter, description: "discard typed buffer and return to grid (any committed filter is preserved)" },
+-        # Idea preview mode.
+-        { mode: :idea_preview, key: "any", action: :back, description: "any key dismisses the preview" },
+         # New-idea prompt mode (v2).
+         { mode: :new_idea_project, key: "j/k",     action: :project_cursor,  description: "move through projects for the new idea" },
+         { mode: :new_idea_project, key: "Up/Down", action: :project_cursor,  description: "move through projects (arrow keys)" },
+diff --git a/lib/hive/tui/key_map.rb b/lib/hive/tui/key_map.rb
+index 8233e9a4..c363b82b 100644
+--- a/lib/hive/tui/key_map.rb
++++ b/lib/hive/tui/key_map.rb
+@@ -86,9 +86,9 @@ module Hive
+         when :grid then grid_message(key: key, row: row, pane_focus: pane_focus)
+         when :log_tail then log_tail_message(key: key, row: row)
+         when :red_status_detail then red_status_detail_message(key: key, row: row)
++        when :card_info then card_info_message(key: key, row: row)
+         when :filter then filter_message(key: key, row: row)
+         when :help then help_message(key: key, row: row)
+-        when :idea_preview then idea_preview_message(key: key, row: row)
+         when :new_idea_project then new_idea_project_message(key: key, row: row)
+         when :new_idea then new_idea_message(key: key, row: row)
+         else raise ArgumentError, "unknown mode: #{mode.inspect}"
+@@ -135,7 +135,7 @@ module Hive
+         # could fire any of these against a row whose cursor they are
+         # not visually tracking.
+         return Messages::OpenTaskFolder.new(row: row) if key == "o" && pane_focus == :right
+-        return Messages::OpenIdeaPreview.new(row: row) if key == "i" && pane_focus == :right
++        return Messages::OpenCardInfo.new(row: row) if key == "i" && pane_focus == :right
+         return Messages::OpenInAgent.new(row: row) if key == "s" && pane_focus == :right
+         return verb_message(row, key) if VERB_KEYS.key?(key)
+         return enter_message(row) if ENTER_KEYS.include?(key)
+@@ -314,6 +314,12 @@ module Hive
+         Messages::NOOP
+       end
+ 
++      def card_info_message(key:, row:) # rubocop:disable Lint/UnusedMethodArgument
++        return Messages::BACK if ESCAPE_KEYS.include?(key) || key == "q" || key == "i"
++
++        Messages::NOOP
++      end
++
+       # Saturating-large amount used by Home/End to mean "scroll to the
+       # edge". `apply_red_status_detail_scroll` clamps via `[next,0].max`
+       # / `[next,max].min` so any value past the log's line count
+@@ -402,13 +408,6 @@ module Hive
+         Messages::BACK
+       end
+ 
+-      # Idea preview is read-only: every key closes it and returns to
+-      # grid, whether Bubble Tea emitted a printable String or a
+-      # special-key Symbol.
+-      def idea_preview_message(key:, row:) # rubocop:disable Lint/UnusedMethodArgument
+-        Messages::BACK
+-      end
+-
+       # New-idea prompt mode — same key shape as `:filter` mode but
+       # produces NewIdea* messages. Esc cancels (clears the buffer +
+       # returns to :grid); Enter submits (BubbleModel handles the
+diff --git a/lib/hive/tui/messages.rb b/lib/hive/tui/messages.rb
+index 980952a5..bcd932e9 100644
+--- a/lib/hive/tui/messages.rb
++++ b/lib/hive/tui/messages.rb
+@@ -179,12 +179,26 @@ module Hive
+       # (workflow-contextual) and the verb keys (subprocess dispatch).
+       OpenTaskFolder = Data.define(:row)
+ 
+-      # `i` in grid mode — read the focused row's source idea.md and
+-      # show its original_text in the bottom strip. Carries the row so
+-      # BubbleModel's side-effect handler can resolve `row.folder` at
+-      # the moment of the keystroke; this cannot be a payload-free
+-      # singleton because snapshot polling may move the live cursor.
+-      OpenIdeaPreview = Data.define(:row)
++      # `i` in grid mode — open a read-only full-screen information
++      # panel for the focused task. KeyMap emits this with only `row`;
++      # BubbleModel fills the resolved fields after reading disk, then
++      # passes the populated message through Update so that layer stays
++      # pure.
++      OpenCardInfo = Data.define(
++        :row,
++        :created_at,
++        :original_text,
++        :working_dir,
++        :log_path,
++        :stage_file_path,
++        :stage_file_body,
++        :log_tail_lines
++      ) do
++        def initialize(row:, created_at: nil, original_text: nil, working_dir: nil, log_path: nil,
++                       stage_file_path: nil, stage_file_body: nil, log_tail_lines: [])
++          super
++        end
++      end
+ 
+       # `s` in grid mode — suspend the TUI and open the focused row's
+       # configured development agent in the feature worktree. BubbleModel
+diff --git a/lib/hive/tui/model.rb b/lib/hive/tui/model.rb
+index b81a44c0..01222ee0 100644
+--- a/lib/hive/tui/model.rb
++++ b/lib/hive/tui/model.rb
+@@ -20,7 +20,7 @@ module Hive
+     # Lifted out of the Data.define block because Ruby's Data.define
+     # block-scope doesn't bind constants to the resulting class.
+     Model = Data.define(
+-      :mode,             # Symbol: :grid / :log_tail / :filter / :help / :new_idea_project / :new_idea / :idea_preview / :red_status_detail
++      :mode,             # Symbol: :grid / :log_tail / :filter / :help / :new_idea_project / :new_idea / :red_status_detail / :card_info
+       :snapshot,         # Hive::Tui::Snapshot (or nil before first poll)
+       :cursor,           # [project_idx, row_idx] (or nil for empty grid)
+       :filter,           # String or nil — committed substring filter
+@@ -40,12 +40,11 @@ module Hive
+       # asset. Resets only on open / cancel / submit.
+       :new_idea_attachment_counter,
+       :new_idea_broken_labels, # Array<String> — labels highlighted after rich-submit validation fails
+-      :idea_preview_text, # String or nil — original_text rendered in :idea_preview mode
+-      :idea_preview_slug, # String or nil — slug captured when the preview opened
+       :flash,            # String or nil — current status-line message
+       :flash_set_at,     # Time or nil — flash decay timestamp
+       :tail_state,       # Hive::Tui::LogTail::Tail or nil — :log_tail mode only
+       :red_status_detail_state, # Model::RedStatusDetailState or nil — :red_status_detail mode only
++      :card_info_state,  # Model::CardInfoState or nil — :card_info mode only
+       :cols,             # Integer — terminal width (set on WindowSized)
+       :rows,             # Integer — terminal height
+       :last_error        # Exception or nil — last poll failure
+@@ -104,6 +103,23 @@ module Hive
+       end
+     end
+ 
++    Model::CardInfoState = Data.define(
++      :row,
++      :created_at,
++      :original_text,
++      :working_dir,
++      :log_path,
++      :stage_file_path,
++      :stage_file_body,
++      :log_tail_lines
++    )
++    class Model::CardInfoState
++      def initialize(row:, created_at: nil, original_text: nil, working_dir: nil, log_path: nil,
++                     stage_file_path: nil, stage_file_body: nil, log_tail_lines: [])
++        super
++      end
++    end
++
+     class Model
+       # Boot state. App.run constructs the runner with this Model.
+       # `pane_focus` defaults to `:right` so the table is the first
+@@ -128,12 +144,11 @@ module Hive
+           new_idea_staging_tmp_root: nil,
+           new_idea_attachment_counter: 0,
+           new_idea_broken_labels: [],
+-          idea_preview_text: nil,
+-          idea_preview_slug: nil,
+           flash: nil,
+           flash_set_at: nil,
+           tail_state: nil,
+           red_status_detail_state: nil,
++          card_info_state: nil,
+           cols: cols,
+           rows: rows,
+           last_error: nil
+diff --git a/lib/hive/tui/update.rb b/lib/hive/tui/update.rb
+index f17a433b..5b3533cf 100644
+--- a/lib/hive/tui/update.rb
++++ b/lib/hive/tui/update.rb
+@@ -77,6 +77,8 @@ module Hive
+           [ apply_open_red_status_detail(model, message), nil ]
+         when Messages::RedStatusDetailScroll
+           [ apply_red_status_detail_scroll(model, message), nil ]
++        when Messages::OpenCardInfo
++          [ apply_open_card_info(model, message), nil ]
+         when Messages::Back
+           [ apply_back(model), nil ]
+         when Messages::ProjectScope
+@@ -744,6 +746,20 @@ module Hive
+         model.with(red_status_detail_state: state.with(log_scroll_offset: clamped))
+       end
+ 
++      def apply_open_card_info(model, msg)
++        state = Model::CardInfoState.new(
++          row: msg.row,
++          created_at: msg.created_at,
++          original_text: msg.original_text,
++          working_dir: msg.working_dir,
++          log_path: msg.log_path,
++          stage_file_path: msg.stage_file_path,
++          stage_file_body: msg.stage_file_body,
++          log_tail_lines: msg.log_tail_lines
++        )
++        model.with(mode: :card_info, card_info_state: state)
++      end
++
+ def red_status_detail_log_capacity(model)
+   state = model.red_status_detail_state
+   if state.nil?
+@@ -782,7 +798,7 @@ end
+           closed = model.with(mode: :grid, red_status_detail_state: nil)
+           visible = visible_snapshot(closed)
+           visible.nil? ? closed : closed.with(cursor: reclamp_cursor(visible, closed.cursor))
+-        when :idea_preview then model.with(mode: :grid, idea_preview_text: nil, idea_preview_slug: nil)
++        when :card_info then model.with(mode: :grid, card_info_state: nil)
+         when :help, :filter then model.with(mode: :grid)
+         when :new_idea_project then apply_new_idea_cancelled(model)
+         else model
+diff --git a/lib/hive/tui/views/card_info.rb b/lib/hive/tui/views/card_info.rb
+new file mode 100644
+index 00000000..fc3db8a9
+--- /dev/null
++++ b/lib/hive/tui/views/card_info.rb
+@@ -0,0 +1,179 @@
++require "lipgloss"
++require "hive/stages"
++require "hive/tui/log_tail"
++require "hive/tui/styles"
++require "hive/tui/text"
++require "hive/tui/views/format"
++
++module Hive
++  module Tui
++    module Views
++      # Full-screen read-only task detail panel. The TUI has no markdown
++      # renderer; stage files are sanitized and wrapped as plain text,
++      # matching the TUI's other text-only read surfaces.
++      module CardInfo
++        FOOTER = "[q]/[Esc]/[i] close".freeze
++        # Canonical execute stage dir (`4-execute`) from the single source
++        # of truth so the log-tail gate never drifts from the pipeline.
++        EXECUTE_STAGE_DIR = Hive::Stages::SHORT_TO_FULL.fetch("execute").freeze
++
++        module_function
++
++        def render(model)
++          state = model.card_info_state
++          return "" if state.nil?
++
++          header_width = [ model.cols.to_i - 1, 1 ].max
++          outer_width = [ model.cols.to_i - 2, 1 ].max
++          bordered = model.cols.to_i >= 40
++          inner_width = bordered ? [ outer_width - 2, 1 ].max : outer_width
++          body_height = [ model.rows.to_i - 5, 1 ].max
++          content_height = [ body_height - 2, 1 ].max
++
++          body_lines = truncate_overflow(content_lines(state, inner_width), content_height, inner_width)
++          body_lines << ""
++          body_lines << Styles::HINT.render(truncate(FOOTER, inner_width))
++          body = Lipgloss.join_vertical(Lipgloss::TOP, *body_lines)
++          panel = bordered ? Styles::PANE_FOCUSED_BORDER.width(inner_width).render(body) : body
++
++          Lipgloss.join_vertical(Lipgloss::TOP, header_bar(state, header_width), panel)
++        end
++
++        def content_lines(state, width)
++          # The outer header bar (`INFO · slug · stage`) already names the
++          # slug, and `field_lines` repeats it as `slug: …`, so there is no
++          # third "Task info · slug" title line here — it only duplicated
++          # the slug near the top.
++          lines = []
++          lines.concat(field_lines(state, width))
++          lines.concat(original_text_lines(state, width))
++          lines.concat(extra_lines(state, width))
++          lines
++        end
++
++        def field_lines(state, width)
++          [
++            "slug: #{safe(state.row.slug)}",
++            "stage: #{safe(state.row.stage)}",
++            "created_at: #{present_or_dash(state.created_at)}",
++            "working_dir: #{present_or_dash(state.working_dir)}",
++            "latest_log: #{present_or_dash(state.log_path)}"
++          ].map { |line| truncate(line, width) }
++        end
++
++        def original_text_lines(state, width)
++          text = state.original_text.to_s.strip
++          return [] if text.empty?
++
++          [ "", Styles::HEADER.render(truncate("Original idea", width)), *wrapped(text, width) ]
++        end
++
++        def extra_lines(state, width)
++          if prefer_log_tail?(state) && Array(state.log_tail_lines).any?
++            return log_tail_lines(state, width)
++          end
++          body = state.stage_file_body.to_s.strip
++          return [] if body.empty?
++
++          title = "Stage file · #{File.basename(state.stage_file_path.to_s)}"
++          [ "", Styles::HEADER.render(truncate(title, width)), *wrapped(body, width) ]
++        end
++
++        # The log tail is the execute/running extra only (plan Unit-3, A3);
++        # every other stage renders its canonical state file inline (A2),
++        # even when a prior agent run left logs under the task folder. Gate
++        # on the row's stage/status so a brainstorm/plan card with stale
++        # logs still shows `brainstorm.md`/`plan.md` rather than the tail.
++        def prefer_log_tail?(state)
++          prefer_log_tail_for_row?(state.row)
++        end
++
++        # Row-level split of `prefer_log_tail?` so the model layer
++        # (BubbleModel#open_card_info) can gate its tail-line read to the
++        # same execute/running rows the view renders it for, without
++        # duplicating the stage/status predicate and risking drift.
++        def prefer_log_tail_for_row?(row)
++          row.stage.to_s == EXECUTE_STAGE_DIR || row.action_key.to_s == "agent_running"
++        end
++
++        def log_tail_lines(state, width)
++          title = "Latest log tail · #{File.basename(state.log_path.to_s)}"
++          lines = Array(state.log_tail_lines).map do |line|
++            truncate(safe(Hive::Tui::LogTail::Formatter.format(line)), width)
++          end
++          [ "", Styles::HEADER.render(truncate(title, width)), *lines ]
++        end
++
++        def truncate_overflow(lines, height, width)
++          return lines if lines.length <= height
++
++          visible = lines.first(height)
++          visible[-1] = overflow_line(visible[-1], width)
++          visible
++        end
++
++        def overflow_line(line, width)
++          return "" if width.to_i <= 0
++          return "…" if width.to_i == 1
++
++          # Strip ANSI/control bytes before slicing: the last visible line
++          # can be a Lipgloss-styled header, and a raw byte cut at
++          # `width - 1` would split an escape sequence mid-stream on a real
++          # tty (the test env strips ANSI, so it never surfaces there).
++          # Sanitising first guarantees the slice lands on a plain-text
++          # boundary.
++          "#{safe(line)[0, width.to_i - 1]}…"
++        end
++
++        def header_bar(state, width)
++          row = state.row
++          text = "INFO · #{safe(row.slug)} · #{safe(row.stage)}"
++          Styles::HEADER.render(truncate(text, width))
++        end
++
++        def wrapped(text, width)
++          # Split on real newlines FIRST, then sanitize each line: sanitising
++          # the whole blob up front would map every 0x0A to `?` (see
++          # Text.sanitize) and collapse multi-line markdown like
++          # "# Plan\n\nDo work" into "# Plan??Do work" instead of readable
++          # per-line plain text.
++          text.to_s.lines.flat_map { |line| wrap_line(safe(line.chomp), width) }
++        end
++
++        def wrap_line(line, width)
++          return [ "" ] if line.empty?
++          return [ truncate(line, width) ] if width <= 8
++
++          words = line.split(/\s+/)
++          rows = []
++          current = +""
++          words.each do |word|
++            if current.empty?
++              current = word
++            elsif "#{current} #{word}".length <= width
++              current << " " << word
++            else
++              rows << truncate(current, width)
++              current = word
++            end
++          end
++          rows << truncate(current, width) unless current.empty?
++          rows
++        end
++
++        def present_or_dash(value)
++          text = safe(value).strip
++          text.empty? ? "-" : text
++        end
++
++        def safe(value)
++          Hive::Tui::Text.sanitize(value.to_s)
++        end
++
++        def truncate(string, width)
++          Views::Format.truncate(string, width)
++        end
++      end
++    end
++  end
++end
+diff --git a/lib/hive/tui/views/help_overlay.rb b/lib/hive/tui/views/help_overlay.rb
+index 93f9e2a2..1606d995 100644
+--- a/lib/hive/tui/views/help_overlay.rb
++++ b/lib/hive/tui/views/help_overlay.rb
+@@ -18,8 +18,8 @@ module Hive
+         MODE_HEADERS = {
+           grid: "Grid mode",
+           log_tail: "Log tail mode (Enter on an 'agent_running' row)",
++          card_info: "Card info (i)",
+           filter: "Filter prompt",
+-          idea_preview: "Idea preview (i)",
+           new_idea: "New-idea prompt (n)"
+         }.freeze
+ 
+diff --git a/lib/hive/tui/views/idea_preview.rb b/lib/hive/tui/views/idea_preview.rb
+deleted file mode 100644
+index c9fdfb09..00000000
+--- a/lib/hive/tui/views/idea_preview.rb
++++ /dev/null
+@@ -1,60 +0,0 @@
+-require "hive/tui/styles"
+-require "hive/tui/views/format"
+-
+-module Hive
+-  module Tui
+-    module Views
+-      # Bottom-strip preview for a task's source idea.md original_text.
+-      # Read-only: KeyMap routes every key in :idea_preview mode back
+-      # to grid; this view only renders the captured model fields.
+-      module IdeaPreview
+-        DISMISS_HINT = "press any key to dismiss".freeze
+-        MAX_VISIBLE_ROWS = 6
+-
+-        module_function
+-
+-        def render(model, width: model.cols.to_i)
+-          usable = [ width.to_i, 1 ].max
+-          rows = [
+-            Styles::HINT.render(truncate("Idea for #{model.idea_preview_slug}:", usable)),
+-            *body_rows(model.idea_preview_text.to_s, usable),
+-            Styles::HINT.render(truncate(DISMISS_HINT, usable))
+-          ]
+-          rows.join("\n")
+-        end
+-
+-        def body_rows(text, width)
+-          return [] if text.empty?
+-
+-          wrap_text(text, width).first(MAX_VISIBLE_ROWS).map { |line| truncate(line, width) }
+-        end
+-
+-        # Intentional local copy of NewIdeaPrompt's simple chunking shape.
+-        # NewIdeaPrompt's helper is cursor-aware and attachment-aware;
+-        # extracting it would widen this read-only view change.
+-        def chunk_buffer(buffer, capacity)
+-          return [ "" ] if buffer.empty?
+-
+-          chunks = []
+-          offset = 0
+-          while offset < buffer.length
+-            chunks << buffer[offset, capacity].to_s
+-            offset += capacity
+-          end
+-          chunks
+-        end
+-
+-        def wrap_text(text, width)
+-          capacity = [ width.to_i, 1 ].max
+-          text.each_line(chomp: true).flat_map do |line|
+-            chunk_buffer(line, capacity)
+-          end
+-        end
+-
+-        def truncate(line, width)
+-          Views::Format.truncate(line, width.to_i)
+-        end
+-      end
+-    end
+-  end
+-end
+diff --git a/test/integration/tui_command_test.rb b/test/integration/tui_command_test.rb
+index 316437c8..23be8536 100644
+--- a/test/integration/tui_command_test.rb
++++ b/test/integration/tui_command_test.rb
+@@ -30,10 +30,16 @@ class TuiCommandTest < Minitest::Test
+   # running TUI — invisible to agents that have only --help to read.
+   def test_help_for_tui_lists_every_mode_keymap
+     out, _err = capture_io { Hive::CLI.start([ "help", "tui" ]) }
+-    %w[grid log_tail filter].each do |mode|
++    %w[grid log_tail card_info filter].each do |mode|
+       assert_match(/#{mode}/, out, "long_desc must list the '#{mode}' mode keymap")
+     end
+     assert_match(/printable/, out, "filter mode editing keys must appear in --help output")
++    # The `i` info-panel gesture must be documented in the grid keymap so
++    # it is discoverable outside the running TUI (agents read only --help).
++    # Thor reflows/wraps the long_desc, so tolerate whitespace (incl. a
++    # wrap) between words rather than anchoring to a line.
++    assert_match(/i open the\s+read-only info panel for the focused task/, out,
++                 "grid keymap must document the 'i' info-panel binding")
+   end
+ 
+   def test_json_flag_is_rejected_with_usage_exit_code
+diff --git a/test/integration/tui_smoke_charm_test.rb b/test/integration/tui_smoke_charm_test.rb
+index 63b134a9..5e90bba4 100644
+--- a/test/integration/tui_smoke_charm_test.rb
++++ b/test/integration/tui_smoke_charm_test.rb
+@@ -84,4 +84,63 @@ class TuiSmokeCharmTest < Minitest::Test
+   rescue Errno::EIO
+     raise unless $!.message.include?("Input/output error")
+   end
++
++  def test_charm_tui_i_opens_info_panel_and_close_keys_return_to_grid
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        capture_io { Hive::Commands::Init.new(dir).call }
++        project = File.basename(dir)
++        capture_io { Hive::Commands::New.new(project, "smoke probe").call }
++        project_prefix = project[0, 12]
++
++        env = { "TERM" => "xterm-256color", "HIVE_TUI_BACKEND" => "charm" }
++        PTY.spawn(env, "ruby", "-I", HIVE_LIB, HIVE_BIN, "tui") do |reader, writer, pid|
++          reader.winsize = [ 30, 120 ]
++
++          first = read_until(reader, deadline_seconds: 10.0) do |buf|
++            buf.include?(project_prefix) && buf.include?("[?] help  [i] info  [q] quit")
++          end
++          assert_includes first, "[?] help  [i] info  [q] quit"
++
++          writer.write("i")
++          writer.flush
++          info = read_until(reader, deadline_seconds: 5.0) do |buf|
++            buf.include?("INFO") && buf.include?("Original idea") && buf.include?("smoke probe")
++          end
++          assert_includes info, "INFO"
++          assert_includes info, "created_at:"
++          assert_includes info, "smoke probe"
++
++          close_and_reopen_card_info_with(reader, writer, pid, "q")
++          close_and_reopen_card_info_with(reader, writer, pid, "\e")
++          close_and_reopen_card_info_with(reader, writer, pid, "i")
++          writer.write("i")
++          writer.flush
++          assert_nil wait_for_pid_exit(pid, deadline_seconds: 0.5),
++                     "`i` from card info must close to grid, not quit"
++
++          writer.write("q")
++          writer.flush
++          status = wait_for_pid_exit(pid, deadline_seconds: 3.0)
++          refute_nil status, "charm TUI must exit within 3s of pressing 'q' from grid"
++          assert_equal 0, status.exitstatus, "clean quit exits 0"
++        end
++      end
++    end
++  rescue Errno::EIO
++    raise unless $!.message.include?("Input/output error")
++  end
++
++  def close_and_reopen_card_info_with(reader, writer, pid, key)
++    writer.write(key)
++    writer.flush
++    assert_nil wait_for_pid_exit(pid, deadline_seconds: 0.5),
++               "#{key.inspect} from card info must return to grid, not quit"
++
++    sleep 0.1
++    writer.write("i")
++    writer.flush
++    info = read_until(reader, deadline_seconds: 5.0) { |buf| buf.include?("INFO") }
++    assert_includes info, "INFO", "#{key.inspect} must return to grid so `i` can reopen card info"
++  end
+ end
+diff --git a/test/unit/tui/bubble_model_test.rb b/test/unit/tui/bubble_model_test.rb
+index bfc3e63b..f9ffe7e8 100644
+--- a/test/unit/tui/bubble_model_test.rb
++++ b/test/unit/tui/bubble_model_test.rb
+@@ -24,10 +24,11 @@ class HiveTuiBubbleModelTest < Minitest::Test
+                     state_file: "/tmp/hive/some-slug/brainstorm.md",
+                     suggested_command: "hive brainstorm some-slug --from 2-brainstorm",
+                     marker: "waiting", attrs: {}, folder: nil,
+-                    action_label: "Needs your input", next_action: nil)
++                    action_label: "Needs your input", next_action: nil,
++                    worktree_path: nil)
+     Hive::Tui::Snapshot::Row.new(
+       project_name: "demo", stage: stage, slug: slug, folder: folder || "/tmp/hive/#{slug}",
+-      state_file: state_file, marker: marker, attrs: attrs, mtime: nil,
++      state_file: state_file, worktree_path: worktree_path, marker: marker, attrs: attrs, mtime: nil,
+       age_seconds: 0, claude_pid: nil, claude_pid_alive: nil,
+       action_key: action_key, action_label: action_label,
+       suggested_command: suggested_command, next_action: next_action,
+@@ -68,6 +69,24 @@ class HiveTuiBubbleModelTest < Minitest::Test
+     path
+   end
+ 
++  def with_card_info_task(stage_dir:, slug: "info-card-260522-aaaa", worktree_path: nil)
++    with_tmp_dir do |project_root|
++      folder = File.join(project_root, ".hive-state", "stages", stage_dir, slug)
++      FileUtils.mkdir_p(folder)
++      write_idea_md(folder, original_text: "Build task from user note")
++      state_basename = Hive::Task::STATE_FILES.fetch(stage_dir.split("-", 2).last)
++      state_file = File.join(folder, state_basename)
++      row = make_task_row(
++        slug: slug,
++        stage: stage_dir,
++        folder: folder,
++        state_file: state_file,
++        worktree_path: worktree_path
++      )
++      yield(project_root, folder, state_file, row)
++    end
++  end
++
+   def write_review_doc(path, accepted: false)
+     mark = accepted ? "x" : " "
+     File.write(path, "## High\n- [#{mark}] First finding: useful rationale\n")
+@@ -345,20 +364,6 @@ class HiveTuiBubbleModelTest < Minitest::Test
+     assert_includes out, "/auth"
+   end
+ 
+-  def test_view_composes_idea_preview_onto_grid_in_idea_preview_mode
+-    @model = Hive::Tui::BubbleModel.new(
+-      hive_model: Hive::Tui::Model.initial.with(
+-        mode: :idea_preview,
+-        idea_preview_slug: "some-slug",
+-        idea_preview_text: "original idea"
+-      ),
+-      dispatch: @dispatch
+-    )
+-    out = @model.view
+-    assert_includes out, "Idea for some-slug:"
+-    assert_includes out, "original idea"
+-  end
+-
+   # Regression: paste-truncated / paste-timeout / overflow flashes
+   # raised inside :filter mode were invisible because compose_filter_view
+   # passed the filter prompt as the footer, replacing default_footer
+@@ -566,6 +571,36 @@ class HiveTuiBubbleModelTest < Minitest::Test
+     assert_includes out, "Project: demo"
+   end
+ 
++  def test_view_renders_card_info_mode
++    row = make_task_row(stage: "3-plan", slug: "info-card")
++    state = Hive::Tui::Model::CardInfoState.new(
++      row: row,
++      created_at: "2026-05-20T00:00:00Z",
++      original_text: "Original card idea",
++      working_dir: "/tmp/info-card-worktree",
++      log_path: nil,
++      stage_file_path: "/tmp/info-card/plan.md",
++      stage_file_body: "# Plan\nRender card info.",
++      log_tail_lines: []
++    )
++    @model = Hive::Tui::BubbleModel.new(
++      hive_model: Hive::Tui::Model.initial.with(
++        mode: :card_info,
++        card_info_state: state,
++        cols: 100,
++        rows: 24
++      ),
++      dispatch: @dispatch
++    )
++
++    out = @model.view
++
++    assert_includes out, "INFO · info-card · 3-plan"
++    assert_includes out, "created_at: 2026-05-20T00:00:00Z"
++    assert_includes out, "Original card idea"
++    assert_includes out, "Render card info."
++  end
++
+   def test_view_falls_back_to_grid_for_unknown_mode
+     @model = Hive::Tui::BubbleModel.new(
+       hive_model: Hive::Tui::Model.initial.with(mode: :unknown_mode, cols: 100),
+@@ -603,28 +638,14 @@ class HiveTuiBubbleModelTest < Minitest::Test
+     refute_includes out, "[Enter] open",   "Enter is not only an open action"
+   end
+ 
+-  def test_default_footer_hint_omits_o_at_70_col_budget
+-    # Plan R6: `[o] open` is included in the footer only if it fits
+-    # the 70-col budget without wrapping or pushing primary actions
+-    # onto a second line. At 70 cols the current hint string is
+-    # already ~69 chars; adding ten more (separator + "[o] open")
+-    # would exceed the budget. We rely on the `?` overlay for
+-    # discoverability instead. This test pins that decision so a
+-    # future contributor doesn't silently re-add the hint and break
+-    # 70-col rendering.
++  def test_default_footer_hint_includes_info_between_help_and_quit
+     hint = @model.send(:footer_hint)
+-    assert_equal "[Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [q] quit",
++    assert_equal "[Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [i] info  [q] quit",
+                  hint,
+-                 "footer hint must remain the pre-`o` literal; `o` is documented in `?` only"
++                 "footer hint must surface the info panel in the required slot"
++    assert_includes hint, "[?] help  [i] info  [q] quit"
+     refute_includes hint, "[o] open",
+-                    "70-col budget can't absorb `[o] open` alongside primary hints"
+-    # Width guard: pin the actual character count so a future contributor
+-    # who adds a hint and (correctly) bumps the literal above also has to
+-    # acknowledge they're spending bytes against the 70-col budget. If
+-    # this assertion fires alongside an updated literal, the contributor
+-    # MUST verify default_footer truncation behavior at cols == 70.
+-    assert hint.length <= 70,
+-           "footer hint must fit the 70-col budget without truncation; got #{hint.length} chars"
++                    "`o` remains documented in help only"
+   end
+ 
+   def test_grid_mode_collapses_to_single_pane_below_min_cols
+@@ -3658,120 +3679,254 @@ class HiveTuiBubbleModelTest < Minitest::Test
+       "OpenTaskFolder must not dispatch any follow-up message — no auto-continue, no InputEditorExited"
+   end
+ 
+-  # ---- OpenIdeaPreview → bottom-strip preview (read-only) ----
++  # ---- OpenCardInfo → full-screen read-only task info ----
+ 
+-  def test_open_idea_preview_reads_original_text_and_enters_preview_mode
+-    with_tmp_dir do |dir|
+-      write_idea_md(dir, original_text: "Build task from user note")
+-      row = make_task_row(folder: dir, slug: "some-slug")
++  def test_open_card_info_reads_brainstorm_state_file
++    with_card_info_task(stage_dir: "2-brainstorm") do |_project_root, folder, state_file, row|
++      File.write(state_file, "# Brainstorm\n\nRequirements here.\n")
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+       assert_nil cmd
+-      assert_equal :idea_preview, @model.hive_model.mode
+-      assert_equal "Build task from user note", @model.hive_model.idea_preview_text
+-      assert_equal "some-slug", @model.hive_model.idea_preview_slug
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal "info-card-260522-aaaa", state.row.slug
++      assert_equal "2026-05-20T00:00:00Z", state.created_at
++      assert_equal "Build task from user note", state.original_text
++      assert_equal folder, state.working_dir
++      assert_equal state_file, state.stage_file_path
++      assert_includes state.stage_file_body, "Requirements here."
+     end
+   end
+ 
+-  def test_open_idea_preview_flashes_when_folder_empty
+-    row = make_task_row(folder: "")
++  def test_open_card_info_reads_plan_state_file
++    with_card_info_task(stage_dir: "3-plan") do |_project_root, _folder, state_file, row|
++      File.write(state_file, "# Plan\n\nDo the implementation.\n")
+ 
+-    _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+-    assert_nil cmd
+-    assert_equal :grid, @model.hive_model.mode
+-    assert_match(/no idea for some-slug/, @model.hive_model.flash.to_s)
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal state_file, state.stage_file_path
++      assert_includes state.stage_file_body, "Do the implementation."
++    end
+   end
+ 
+-  def test_open_idea_preview_flashes_when_idea_md_missing
+-    with_tmp_dir do |dir|
+-      row = make_task_row(folder: dir)
++  def test_open_card_info_reads_execute_log_tail_and_worktree_path
++    worktree = "/tmp/hive-worktrees/info-card-260522-aaaa"
++    with_card_info_task(stage_dir: "4-execute", worktree_path: worktree) do |_project_root, folder, state_file, row|
++      File.write(state_file, "# Task\n\nImplement it.\n")
++      logs = File.join(folder, "logs")
++      FileUtils.mkdir_p(logs)
++      log_path = File.join(logs, "execute.log")
++      File.write(log_path, (1..80).map { |i| "line-#{i}" }.join("\n") + "\n")
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+-      assert_nil cmd
+-      assert_equal :grid, @model.hive_model.mode
+-      assert_match(/no idea\.md for some-slug/, @model.hive_model.flash.to_s)
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal worktree, state.working_dir
++      assert_equal log_path, state.log_path
++      assert_equal 50, state.log_tail_lines.length
++      assert_equal "line-31", state.log_tail_lines.first
++      assert_equal "line-80", state.log_tail_lines.last
+     end
+   end
+ 
+-  def test_open_idea_preview_flashes_when_original_text_missing
+-    with_tmp_dir do |dir|
+-      File.write(File.join(dir, "idea.md"), "---\nslug: some-slug\n---\n")
+-      row = make_task_row(folder: dir)
++  def test_open_card_info_inbox_omits_stage_file_body
++    with_card_info_task(stage_dir: "1-inbox") do |_project_root, _folder, state_file, row|
++      @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
++
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal state_file, state.stage_file_path
++      assert_nil state.stage_file_body
++      assert_equal "Build task from user note", state.original_text
++    end
++  end
++
++  def test_open_card_info_opens_with_available_fields_when_idea_md_is_missing
++    with_card_info_task(stage_dir: "3-plan") do |_project_root, folder, state_file, row|
++      File.delete(File.join(folder, "idea.md"))
++      File.write(state_file, "# Plan survives\n")
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+       assert_nil cmd
+-      assert_equal :grid, @model.hive_model.mode
+-      assert_match(/idea has no original_text for some-slug/, @model.hive_model.flash.to_s)
++      assert_equal :card_info, @model.hive_model.mode
++      assert_nil state.created_at
++      assert_nil state.original_text
++      assert_includes state.stage_file_body, "Plan survives"
+     end
+   end
+ 
+-  def test_open_idea_preview_flashes_on_unreadable_idea_md
+-    with_tmp_dir do |dir|
+-      File.write(File.join(dir, "idea.md"), "---\noriginal_text: [broken\n---\n")
+-      row = make_task_row(folder: dir)
++  def test_open_card_info_keeps_empty_log_state_when_no_logs_exist
++    with_card_info_task(stage_dir: "4-execute") do |_project_root, _folder, state_file, row|
++      File.write(state_file, "# Task\n")
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+       assert_nil cmd
+-      assert_equal :grid, @model.hive_model.mode
+-      assert_match(/could not read idea for some-slug/, @model.hive_model.flash.to_s)
++      assert_equal :card_info, @model.hive_model.mode
++      assert_nil state.log_path
++      assert_equal [], state.log_tail_lines
+     end
+   end
+ 
+-  def test_open_idea_preview_does_not_dispatch_or_mutate_marker
+-    with_tmp_dir do |dir|
+-      idea_path = write_idea_md(dir, original_text: "Read only")
+-      before = File.read(idea_path)
+-      row = make_task_row(folder: dir)
++  # Regression: a stage file at/above the 32 KiB byte cap whose boundary
++  # splits a multibyte UTF-8 character (em-dash) must not leave an
++  # invalid-encoding body — `File.read(path, n)` returns ASCII-8BIT, and
++  # without the force_encoding("UTF-8").scrub the downstream
++  # Lipgloss.join_vertical raises Encoding::CompatibilityError and crashes
++  # the runner.
++  def test_open_card_info_scrubs_oversize_non_ascii_stage_file
++    with_card_info_task(stage_dir: "2-brainstorm") do |_project_root, _folder, state_file, row|
++      # 32767 ASCII bytes + em-dashes (3 bytes each) so the 32768-byte cap
++      # slices the first em-dash mid-character.
++      File.write(state_file, ("a" * 32_767) + ("—" * 200))
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
+ 
+       assert_nil cmd
+-      assert_empty @messages
+-      assert_equal before, File.read(idea_path)
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal Encoding::UTF_8, state.stage_file_body.encoding
++      assert state.stage_file_body.valid_encoding?,
++             "byte-capped stage body must be scrubbed to a valid UTF-8 string"
++      # The view must render the scrubbed body without raising an
++      # Encoding::CompatibilityError.
++      rendered = Hive::Tui::Views::CardInfo.render(
++        @model.hive_model.with(cols: 100, rows: 24)
++      )
++      assert_includes rendered, "Stage file · brainstorm.md"
+     end
+   end
+ 
+-  def test_open_idea_preview_truncates_oversized_original_text
+-    with_tmp_dir do |dir|
+-      original = "x" * (Hive::Tui::Model::NEW_IDEA_BUFFER_MAX_CHARS + 20)
+-      write_idea_md(dir, original_text: original)
+-      row = make_task_row(folder: dir)
++  # A stage body larger than the 32 KiB read cap is silently truncated
++  # at the data layer with no marker. This is intentionally invisible:
++  # the view (Views::CardInfo) truncates to screen height first, so the
++  # cap only ever bounds the read, never the display. Pin the truncation
++  # so a future bump/removal of CARD_INFO_BODY_MAX_BYTES is a conscious
++  # choice rather than an accident.
++  def test_open_card_info_truncates_stage_file_body_at_byte_cap
++    with_card_info_task(stage_dir: "2-brainstorm") do |_project_root, _folder, state_file, row|
++      File.write(state_file, "a" * (40 * 1024))
++
++      @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
++
++      assert_equal :card_info, @model.hive_model.mode
++      assert_equal 32 * 1024, state.stage_file_body.bytesize,
++                   "stage body must be silently truncated at the 32 KiB read cap"
++    end
++  end
++
++  # Perf gate: a non-execute/non-running row (here brainstorm) still needs
++  # `log_path` for the `latest_log:` common field, but the 64 KiB seek +
++  # 50-line tail read is skipped because Views::CardInfo#prefer_log_tail?
++  # never renders the tail for it. Regressing the gate would re-collect
++  # the tail only to discard it.
++  def test_open_card_info_skips_log_tail_read_for_non_execute_rows
++    with_card_info_task(stage_dir: "2-brainstorm") do |_project_root, folder, state_file, row|
++      File.write(state_file, "# Brainstorm\n")
++      logs = File.join(folder, "logs")
++      FileUtils.mkdir_p(logs)
++      log_path = File.join(logs, "brainstorm.log")
++      File.write(log_path, (1..80).map { |i| "line-#{i}" }.join("\n") + "\n")
++
++      @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++      state = @model.hive_model.card_info_state
++
++      assert_equal :card_info, @model.hive_model.mode
++      # log_path surfaces for the `latest_log:` field...
++      assert_equal log_path, state.log_path
++      # ...but the tail lines are not read for a non-execute/non-running row.
++      assert_equal [], state.log_tail_lines
++    end
++  end
++
++  # A6 read-only invariant: opening the info panel dispatches no command
++  # and mutates no files. `open_card_info` now reads a stage file and a
++  # log tail in addition to idea.md, so an accidental write/dispatch
++  # regression against the plan's "mutates no files, no stage change"
++  # requirement needs a dedicated guard.
++  def test_open_card_info_is_read_only_and_dispatches_nothing
++    with_card_info_task(stage_dir: "3-plan") do |_project_root, folder, state_file, row|
++      File.write(state_file, "# Plan\n\nDo the implementation.\n")
++      idea_path = File.join(folder, "idea.md")
++      idea_before = File.binread(idea_path)
++      stage_before = File.binread(state_file)
+ 
+-      _, cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
+ 
+       assert_nil cmd
+-      assert_equal :idea_preview, @model.hive_model.mode
+-      assert_equal Hive::Tui::Model::NEW_IDEA_BUFFER_MAX_CHARS,
+-                   @model.hive_model.idea_preview_text.length
++      assert_equal :card_info, @model.hive_model.mode
++      assert_empty @messages, "opening card info must not dispatch any message"
++      assert_equal idea_before, File.binread(idea_path),
++                   "idea.md must be byte-for-byte unchanged after opening card info"
++      assert_equal stage_before, File.binread(state_file),
++                   "stage file must be byte-for-byte unchanged after opening card info"
+     end
+   end
+ 
+-  def test_idea_preview_roundtrip_open_then_any_key_dismisses
+-    with_tmp_dir do |dir|
+-      write_idea_md(dir, original_text: "Roundtrip idea")
+-      row = make_task_row(folder: dir)
++  # A stage file that exists but is unreadable (EACCES) must degrade to
++  # "no stage body" and still open the panel with the fields that ARE
++  # available (Open Q3 default b) — NOT unwind to open_card_info's outer
++  # rescue and abort the whole panel with a flash. The internal rescue in
++  # card_info_stage_file widened from ENOENT-only to cover EACCES/EISDIR.
++  def test_open_card_info_degrades_when_stage_file_unreadable
++    skip "skip-as-root: chmod 000 doesn't restrict root" if Process.uid.zero?
++    with_card_info_task(stage_dir: "3-plan") do |_project_root, _folder, state_file, row|
++      File.write(state_file, "# Plan\n\nDo the implementation.\n")
++      File.chmod(0, state_file)
+ 
+-      _, open_cmd = @model.update(Hive::Tui::Messages::OpenIdeaPreview.new(row: row))
++      begin
++        _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++        state = @model.hive_model.card_info_state
++
++        assert_nil cmd
++        assert_equal :card_info, @model.hive_model.mode,
++                     "an unreadable stage file must not abort the whole panel"
++        assert_equal state_file, state.stage_file_path
++        assert_nil state.stage_file_body
++        # idea.md is still readable, so its fields survive the partial failure.
++        assert_equal "Build task from user note", state.original_text
++      ensure
++        File.chmod(0o600, state_file) if File.exist?(state_file)
++      end
++    end
++  end
+ 
+-      assert_nil open_cmd
+-      assert_equal :idea_preview, @model.hive_model.mode
+-      assert_equal "Roundtrip idea", @model.hive_model.idea_preview_text
++  # The InvalidTaskPath rescue branch in open_card_info: a row whose
++  # folder is a real, readable directory (passing the File.directory?
++  # guard) but does NOT match Hive::Task's
++  # <project>/.hive-state/stages/<N>-<name>/<slug>/ shape flashes
++  # "invalid task folder". Distinct from the missing-folder guard, which
++  # trips File.directory? first.
++  def test_open_card_info_flashes_for_folder_failing_task_path_validation
++    with_tmp_dir do |dir|
++      row = make_task_row(folder: dir)
+ 
+-      _, dismiss_cmd = @model.update(Bubbletea::KeyMessage.new(key_type: 0, runes: [ "x".ord ]))
++      _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
+ 
+-      assert_nil dismiss_cmd
++      assert_nil cmd
+       assert_equal :grid, @model.hive_model.mode
+-      assert_nil @model.hive_model.idea_preview_text
+-      assert_nil @model.hive_model.idea_preview_slug
+-      assert_empty @messages
++      assert_match(/invalid task folder for some-slug/, @model.hive_model.flash.to_s)
+     end
+   end
+ 
++  def test_open_card_info_flashes_for_missing_task_folder
++    row = make_task_row(folder: "/tmp/not-a-real-hive-task-folder")
++
++    _, cmd = @model.update(Hive::Tui::Messages::OpenCardInfo.new(row: row))
++
++    assert_nil cmd
++    assert_equal :grid, @model.hive_model.mode
++    assert_match(/no task folder for some-slug/, @model.hive_model.flash.to_s)
++  end
++
+   # ---- OpenInAgent → configured agent foreground takeover ----
+ 
+   def test_open_in_agent_marks_manual_steering_and_spawns_in_worktree_with_context_dirs
+diff --git a/test/unit/tui/help_test.rb b/test/unit/tui/help_test.rb
+index f143e9c9..5ee40039 100644
+--- a/test/unit/tui/help_test.rb
++++ b/test/unit/tui/help_test.rb
+@@ -56,7 +56,7 @@ class TuiHelpTest < Minitest::Test
+   end
+ 
+   def test_modes_are_drawn_from_a_known_set
+-    expected_modes = %i[grid triage log_tail red_status_detail filter idea_preview new_idea_project new_idea].to_set
++    expected_modes = %i[grid triage log_tail red_status_detail card_info filter new_idea_project new_idea].to_set
+     actual_modes = Hive::Tui::Help::BINDINGS.map { |b| b[:mode] }.to_set
+     extra = actual_modes - expected_modes
+     assert_empty extra, "unexpected modes in BINDINGS: #{extra.inspect}"
+@@ -134,7 +134,7 @@ class TuiHelpTest < Minitest::Test
+   def test_no_grid_mode_binding_references_a_nonexistent_verb
+     known_non_verb_actions = %i[
+       cursor_down cursor_up cursor_jump_top cursor_jump_bottom
+-      open_contextual open_task_folder open_idea_preview open_in_agent
++      open_contextual open_task_folder open_card_info open_in_agent
+       filter project_scope help quit
+       pane_focus_toggle pane_focus_left pane_focus_right new_idea
+       drop_task
+@@ -157,8 +157,8 @@ class TuiHelpTest < Minitest::Test
+     entry = Hive::Tui::Help::BINDINGS.find { |b| b[:mode] == :grid && b[:key] == "i" }
+ 
+     refute_nil entry, "expected a grid-mode binding for `i`"
+-    assert_equal :open_idea_preview, entry[:action]
+-    assert_match(/original idea/i, entry[:description])
++    assert_equal :open_card_info, entry[:action]
++    assert_match(/info panel/i, entry[:description])
+   end
+ 
+   def test_binding_for_capital_x_documents_task_drop
+@@ -170,11 +170,14 @@ class TuiHelpTest < Minitest::Test
+     assert_match(/no undo/i, entry[:description])
+   end
+ 
+-  def test_idea_preview_mode_has_a_dismiss_entry
+-    entry = Hive::Tui::Help::BINDINGS.find { |b| b[:mode] == :idea_preview && b[:key] == "any" }
++  def test_card_info_mode_has_close_entries
++    entries = Hive::Tui::Help::BINDINGS.select { |b| b[:mode] == :card_info }
++    keys = entries.map { |b| b[:key] }
+ 
+-    refute_nil entry, "expected an idea-preview dismissal binding"
+-    assert_equal :back, entry[:action]
+-    assert_match(/dismiss/i, entry[:description])
++    assert_equal %w[Esc i q].sort, keys.sort
++    entries.each do |entry|
++      assert_equal :back, entry[:action]
++      assert_match(/close/i, entry[:description])
++    end
+   end
+ end
+diff --git a/test/unit/tui/key_map_test.rb b/test/unit/tui/key_map_test.rb
+index d58b283e..f6d3cfb9 100644
+--- a/test/unit/tui/key_map_test.rb
++++ b/test/unit/tui/key_map_test.rb
+@@ -155,11 +155,11 @@ class TuiKeyMapMessageForTest < Minitest::Test
+     assert_same Hive::Tui::Messages::NOOP, msg
+   end
+ 
+-  def test_grid_i_with_row_returns_open_idea_preview
++  def test_grid_i_with_row_returns_open_card_info
+     row = make_row(action_key: "ready_to_plan")
+     msg = Hive::Tui::KeyMap.message_for(mode: :grid, key: "i", row: row)
+ 
+-    assert_kind_of Hive::Tui::Messages::OpenIdeaPreview, msg
++    assert_kind_of Hive::Tui::Messages::OpenCardInfo, msg
+     assert_equal row, msg.row
+   end
+ 
+@@ -258,13 +258,6 @@ class TuiKeyMapMessageForTest < Minitest::Test
+     assert_equal "i", msg.char
+   end
+ 
+-  def test_idea_preview_any_key_returns_back
+-    [ "i", "x", :key_enter, :key_escape, "q", :space ].each do |key|
+-      msg = Hive::Tui::KeyMap.message_for(mode: :idea_preview, key: key, row: nil)
+-      assert_same Hive::Tui::Messages::BACK, msg, "#{key.inspect} must dismiss idea preview"
+-    end
+-  end
+-
+   def test_log_tail_o_is_noop
+     # Mode isolation R7: in :log_tail mode the `o` key falls through
+     # to NOOP (only q/Esc are bound — back to grid). Pins that
+@@ -278,6 +271,20 @@ class TuiKeyMapMessageForTest < Minitest::Test
+     assert_same Hive::Tui::Messages::NOOP, msg
+   end
+ 
++  def test_card_info_close_keys_return_back
++    [ "q", "i", :key_escape, "\e" ].each do |key|
++      msg = Hive::Tui::KeyMap.message_for(mode: :card_info, key: key, row: nil)
++      assert_same Hive::Tui::Messages::BACK, msg, "#{key.inspect} must close card info"
++    end
++  end
++
++  def test_card_info_unmapped_keys_are_noops
++    [ "x", :key_enter, "j", "?", :space ].each do |key|
++      msg = Hive::Tui::KeyMap.message_for(mode: :card_info, key: key, row: nil)
++      assert_same Hive::Tui::Messages::NOOP, msg, "#{key.inspect} must not close card info"
++    end
++  end
++
+   # ---- :new_idea mode keystroke routing ----
+ 
+   def test_new_idea_esc_cancels
+@@ -933,7 +940,8 @@ class TuiKeyMapMessageForTest < Minitest::Test
+       [ :log_tail, "q",        make_row(action_key: "agent_running") ],
+       [ :log_tail, :key_escape, make_row(action_key: "agent_running") ],
+       [ :filter, :key_escape,  nil ],
+-      [ :idea_preview, "x",    nil ]
++      [ :card_info, "i",       nil ],
++      [ :card_info, "x",       nil ]
+     ]
+ 
+     fixtures.each do |mode, key, row|
+diff --git a/test/unit/tui/messages_test.rb b/test/unit/tui/messages_test.rb
+index 322dce55..ea1e9b21 100644
+--- a/test/unit/tui/messages_test.rb
++++ b/test/unit/tui/messages_test.rb
+@@ -59,12 +59,42 @@ class HiveTuiMessagesTest < Minitest::Test
+     assert_same row, msg.row
+   end
+ 
+-  def test_open_idea_preview_carries_row
++  def test_open_card_info_defaults_to_row_only
+     row = Object.new
+-    msg = Hive::Tui::Messages::OpenIdeaPreview.new(row: row)
++    msg = Hive::Tui::Messages::OpenCardInfo.new(row: row)
+ 
+     assert_same row, msg.row
+-    assert_includes Hive::Tui::Messages::OpenIdeaPreview.members, :row
++    assert_nil msg.created_at
++    assert_nil msg.original_text
++    assert_nil msg.working_dir
++    assert_nil msg.log_path
++    assert_nil msg.stage_file_path
++    assert_nil msg.stage_file_body
++    assert_equal [], msg.log_tail_lines
++    assert_includes Hive::Tui::Messages::OpenCardInfo.members, :row
++  end
++
++  def test_open_card_info_carries_resolved_panel_fields
++    row = Object.new
++    msg = Hive::Tui::Messages::OpenCardInfo.new(
++      row: row,
++      created_at: "2026-05-20T00:00:00Z",
++      original_text: "Build the thing",
++      working_dir: "/work/tree",
++      log_path: "/logs/latest.log",
++      stage_file_path: "/task/plan.md",
++      stage_file_body: "# Plan",
++      log_tail_lines: [ "one", "two" ]
++    )
++
++    assert_same row, msg.row
++    assert_equal "2026-05-20T00:00:00Z", msg.created_at
++    assert_equal "Build the thing", msg.original_text
++    assert_equal "/work/tree", msg.working_dir
++    assert_equal "/logs/latest.log", msg.log_path
++    assert_equal "/task/plan.md", msg.stage_file_path
++    assert_equal "# Plan", msg.stage_file_body
++    assert_equal [ "one", "two" ], msg.log_tail_lines
+   end
+ 
+   def test_open_in_agent_carries_row
+diff --git a/test/unit/tui/model_test.rb b/test/unit/tui/model_test.rb
+index efcf5716..7ef180da 100644
+--- a/test/unit/tui/model_test.rb
++++ b/test/unit/tui/model_test.rb
+@@ -26,12 +26,11 @@ class HiveTuiModelTest < Minitest::Test
+     assert_nil model.new_idea_staging_dir
+     assert_nil model.new_idea_staging_tmp_root
+     assert_equal [], model.new_idea_broken_labels
+-    assert_nil model.idea_preview_text
+-    assert_nil model.idea_preview_slug
+     assert_nil model.flash
+     assert_nil model.flash_set_at
+     assert_nil model.tail_state
+     assert_nil model.red_status_detail_state
++    assert_nil model.card_info_state
+     assert_nil model.last_error
+   end
+ 
+@@ -65,17 +64,6 @@ class HiveTuiModelTest < Minitest::Test
+     assert_equal 2, b.scope
+   end
+ 
+-  def test_with_updates_idea_preview_fields
+-    a = Hive::Tui::Model.initial
+-    b = a.with(idea_preview_text: "original idea", idea_preview_slug: "ship-preview")
+-
+-    assert_nil a.idea_preview_text
+-    assert_nil a.idea_preview_slug
+-    assert_equal "original idea", b.idea_preview_text
+-    assert_equal "ship-preview", b.idea_preview_slug
+-    refute_same a, b
+-  end
+-
+   def test_model_is_immutable
+     # Data.define records freeze themselves. Verify reassignment raises.
+     model = Hive::Tui::Model.initial
+@@ -129,8 +117,8 @@ class HiveTuiModelTest < Minitest::Test
+     expected = %i[mode snapshot cursor filter filter_buffer scope pane_focus new_idea_project_name
+                   new_idea_project_cursor new_idea_buffer new_idea_cursor
+                   new_idea_attachments new_idea_staging_dir new_idea_staging_tmp_root new_idea_attachment_counter
+-                  new_idea_broken_labels idea_preview_text idea_preview_slug flash flash_set_at
+-                  tail_state red_status_detail_state
++                  new_idea_broken_labels flash flash_set_at
++                  tail_state red_status_detail_state card_info_state
+                   cols rows last_error]
+     assert_equal expected, Hive::Tui::Model.members
+   end
+@@ -187,4 +175,18 @@ class HiveTuiModelTest < Minitest::Test
+     assert_equal [], state.log_lines
+     assert_equal 0, state.log_scroll_offset
+   end
++
++  def test_card_info_state_defaults_optional_fields
++    row = Object.new
++    state = Hive::Tui::Model::CardInfoState.new(row: row)
++
++    assert_same row, state.row
++    assert_nil state.created_at
++    assert_nil state.original_text
++    assert_nil state.working_dir
++    assert_nil state.log_path
++    assert_nil state.stage_file_path
++    assert_nil state.stage_file_body
++    assert_equal [], state.log_tail_lines
++  end
+ end
+diff --git a/test/unit/tui/update_test.rb b/test/unit/tui/update_test.rb
+index 53fc23ab..f4cef9b8 100644
+--- a/test/unit/tui/update_test.rb
++++ b/test/unit/tui/update_test.rb
+@@ -152,6 +152,35 @@ class HiveTuiUpdateTest < Minitest::Test
+                  new_model.red_status_detail_state.agent_label
+   end
+ 
++  def test_open_card_info_enters_mode_with_resolved_state
++    row = red_detail_row
++    new_model, cmd = Hive::Tui::Update.apply(
++      model,
++      Hive::Tui::Messages::OpenCardInfo.new(
++        row: row,
++        created_at: "2026-05-20T00:00:00Z",
++        original_text: "Build task detail",
++        working_dir: "/work/tree",
++        log_path: "/logs/latest.log",
++        stage_file_path: "/task/plan.md",
++        stage_file_body: "# Plan",
++        log_tail_lines: [ "line-1" ]
++      )
++    )
++
++    assert_nil cmd
++    assert_equal :card_info, new_model.mode
++    state = new_model.card_info_state
++    assert_same row, state.row
++    assert_equal "2026-05-20T00:00:00Z", state.created_at
++    assert_equal "Build task detail", state.original_text
++    assert_equal "/work/tree", state.working_dir
++    assert_equal "/logs/latest.log", state.log_path
++    assert_equal "/task/plan.md", state.stage_file_path
++    assert_equal "# Plan", state.stage_file_body
++    assert_equal [ "line-1" ], state.log_tail_lines
++  end
++
+   def test_red_status_detail_scroll_down_reduces_offset
+     state = Hive::Tui::Model::RedStatusDetailState.new(
+       row: red_detail_row,
+@@ -1250,6 +1279,21 @@ class HiveTuiUpdateTest < Minitest::Test
+     assert_equal [ 0, 0 ], new_model.cursor
+   end
+ 
++  def test_back_from_card_info_closes_and_preserves_cursor
++    row = red_detail_row
++    starting = model.with(
++      mode: :card_info,
++      cursor: [ 1, 2 ],
++      card_info_state: Hive::Tui::Model::CardInfoState.new(row: row)
++    )
++
++    new_model, _cmd = Hive::Tui::Update.apply(starting, Hive::Tui::Messages::BACK)
++
++    assert_equal :grid, new_model.mode
++    assert_nil new_model.card_info_state
++    assert_equal [ 1, 2 ], new_model.cursor
++  end
++
+   def test_back_from_new_idea_project_cancels_composer_state
+     starting = model.with(
+       mode: :new_idea_project,
+@@ -1338,33 +1382,6 @@ class HiveTuiUpdateTest < Minitest::Test
+     assert_equal :grid, new_model.mode
+   end
+ 
+-  def test_back_from_idea_preview_clears_text_and_returns_to_grid
+-    starting = model.with(
+-      mode: :idea_preview,
+-      idea_preview_text: "original idea",
+-      idea_preview_slug: "some-slug"
+-    )
+-    new_model, _cmd = Hive::Tui::Update.apply(starting, Hive::Tui::Messages::BACK)
+-
+-    assert_equal :grid, new_model.mode
+-    assert_nil new_model.idea_preview_text
+-    assert_nil new_model.idea_preview_slug
+-  end
+-
+-  def test_back_from_idea_preview_preserves_cursor_and_scope
+-    starting = model.with(
+-      mode: :idea_preview,
+-      idea_preview_text: "original idea",
+-      idea_preview_slug: "some-slug",
+-      cursor: [ 1, 2 ],
+-      scope: 2
+-    )
+-    new_model, _cmd = Hive::Tui::Update.apply(starting, Hive::Tui::Messages::BACK)
+-
+-    assert_equal [ 1, 2 ], new_model.cursor
+-    assert_equal 2, new_model.scope
+-  end
+-
+   def test_project_scope_sets_scope_and_resets_cursor
+     starting = model.with(snapshot: snap_with_two_projects_three_rows_each, cursor: [ 0, 2 ])
+     new_model, _cmd = Hive::Tui::Update.apply(starting, Hive::Tui::Messages::ProjectScope.new(n: 2))
+diff --git a/test/unit/tui/views/card_info_test.rb b/test/unit/tui/views/card_info_test.rb
+new file mode 100644
+index 00000000..7bb2da89
+--- /dev/null
++++ b/test/unit/tui/views/card_info_test.rb
+@@ -0,0 +1,139 @@
++require "test_helper"
++require "hive/tui/model"
++require "hive/tui/snapshot"
++require "hive/tui/views/card_info"
++
++class HiveTuiViewsCardInfoTest < Minitest::Test
++  def row(stage: "2-brainstorm", slug: "info-card", worktree_path: "/tmp/info-card-worktree")
++    folder = "/tmp/demo/.hive-state/stages/#{stage}/#{slug}"
++    Hive::Tui::Snapshot::Row.new(
++      project_name: "demo",
++      stage: stage,
++      slug: slug,
++      folder: folder,
++      worktree_path: worktree_path,
++      state_file: File.join(folder, "brainstorm.md"),
++      marker: "waiting",
++      attrs: {},
++      mtime: nil,
++      age_seconds: 0,
++      claude_pid: nil,
++      claude_pid_alive: nil,
++      action_key: "needs_input",
++      action_label: "Needs input",
++      suggested_command: nil,
++      next_action: nil,
++      diagnostic: nil
++    )
++  end
++
++  def model_for(state, cols: 100, rows: 24)
++    Hive::Tui::Model.initial.with(mode: :card_info, card_info_state: state, cols: cols, rows: rows)
++  end
++
++  def state_for(**overrides)
++    defaults = {
++      row: row,
++      created_at: "2026-05-20T00:00:00Z",
++      original_text: "Build a task info panel for the TUI.",
++      working_dir: "/tmp/info-card-worktree",
++      log_path: "/tmp/demo/.hive-state/logs/info-card/execute.log",
++      stage_file_path: "/tmp/demo/.hive-state/stages/2-brainstorm/info-card/brainstorm.md",
++      stage_file_body: "# Brainstorm\n\nRequirements and constraints.",
++      log_tail_lines: []
++    }
++    Hive::Tui::Model::CardInfoState.new(**defaults.merge(overrides))
++  end
++
++  def test_renders_common_fields_and_stage_file_body
++    output = Hive::Tui::Views::CardInfo.render(model_for(state_for))
++
++    assert_includes output, "INFO · info-card · 2-brainstorm"
++    assert_includes output, "slug: info-card"
++    assert_includes output, "stage: 2-brainstorm"
++    assert_includes output, "created_at: 2026-05-20T00:00:00Z"
++    assert_includes output, "working_dir: /tmp/info-card-worktree"
++    assert_includes output, "latest_log: /tmp/demo/.hive-state/logs/info-card/execute.log"
++    assert_includes output, "Original idea"
++    assert_includes output, "Build a task info panel"
++    assert_includes output, "Stage file · brainstorm.md"
++    assert_includes output, "Requirements and constraints."
++    assert_includes output, "[q]/[Esc]/[i] close"
++  end
++
++  def test_log_tail_takes_precedence_over_stage_file_body_for_execute_rows
++    state = state_for(row: row(stage: "4-execute"), log_tail_lines: [ "line-1", "line-2" ])
++    output = Hive::Tui::Views::CardInfo.render(model_for(state))
++
++    assert_includes output, "Latest log tail · execute.log"
++    assert_includes output, "line-1"
++    assert_includes output, "line-2"
++    refute_includes output, "Stage file · brainstorm.md"
++  end
++
++  def test_log_tail_takes_precedence_for_running_rows
++    running = row(stage: "2-brainstorm")
++    running = Hive::Tui::Snapshot::Row.new(**running.to_h.merge(action_key: "agent_running"))
++    state = state_for(row: running, log_tail_lines: [ "line-1", "line-2" ])
++    output = Hive::Tui::Views::CardInfo.render(model_for(state))
++
++    assert_includes output, "Latest log tail · execute.log"
++    refute_includes output, "Stage file · brainstorm.md"
++  end
++
++  # Regression: a non-execute, non-running card (brainstorm/plan) whose
++  # stage agent already ran has logs on disk, but `i` must still render
++  # its canonical stage file inline (acceptance A2), NOT the log tail.
++  def test_non_execute_row_with_logs_still_renders_stage_file
++    state = state_for(log_tail_lines: [ "line-1", "line-2" ])
++    output = Hive::Tui::Views::CardInfo.render(model_for(state))
++
++    assert_includes output, "Stage file · brainstorm.md"
++    assert_includes output, "Requirements and constraints."
++    refute_includes output, "Latest log tail"
++  end
++
++  # Regression: multi-line stage/idea bodies must wrap as separate visible
++  # lines, not collapse newlines into `?` (Text.sanitize maps 0x0A→`?`).
++  def test_multiline_stage_body_preserves_line_breaks
++    state = state_for(stage_file_body: "# Plan\n\nDo work")
++    output = Hive::Tui::Views::CardInfo.render(model_for(state))
++
++    refute_includes output, "# Plan??Do work"
++    assert_includes output, "# Plan"
++    assert_includes output, "Do work"
++    assert output.lines.any? { |line| line.include?("# Plan") && !line.include?("Do work") },
++           "the heading and body must render on separate lines"
++  end
++
++  def test_inbox_state_omits_extras_section_when_body_is_nil
++    state = state_for(
++      row: row(stage: "1-inbox"),
++      stage_file_path: "/tmp/demo/.hive-state/stages/1-inbox/info-card/idea.md",
++      stage_file_body: nil,
++      log_tail_lines: []
++    )
++    output = Hive::Tui::Views::CardInfo.render(model_for(state))
++
++    refute_includes output, "Stage file"
++    refute_includes output, "Latest log tail"
++    assert_includes output, "Original idea"
++  end
++
++  def test_narrow_terminal_renders_without_border
++    output = Hive::Tui::Views::CardInfo.render(model_for(state_for, cols: 36, rows: 12))
++
++    assert_includes output, "INFO · info-card"
++    assert_includes output, "slug: info-card"
++    refute_match(/[╭╮╰╯]/, output)
++  end
++
++  def test_overlong_content_is_truncated_with_ellipsis
++    long_body = (1..40).map { |i| "section line #{i}" }.join("\n")
++    state = state_for(stage_file_body: long_body, original_text: "short")
++    output = Hive::Tui::Views::CardInfo.render(model_for(state, cols: 80, rows: 12))
++
++    assert output.lines.any? { |line| line.chomp.delete("│").rstrip.end_with?("…") },
++           "overflowing card info content must end a visible line with an ellipsis"
++  end
++end
+diff --git a/test/unit/tui/views/help_overlay_test.rb b/test/unit/tui/views/help_overlay_test.rb
+index b4d00ac2..f1ef7be6 100644
+--- a/test/unit/tui/views/help_overlay_test.rb
++++ b/test/unit/tui/views/help_overlay_test.rb
+@@ -20,16 +20,16 @@ class HiveTuiViewsHelpOverlayTest < Minitest::Test
+     out = Hive::Tui::Views::HelpOverlay.render(model)
+     assert_includes out, "Grid mode"
+     assert_includes out, "Log tail mode"
++    assert_includes out, "Card info (i)"
+     assert_includes out, "Filter prompt"
+-    assert_includes out, "Idea preview (i)"
+     assert_includes out, "New-idea prompt",
+                     "v2 :new_idea bindings must surface in the help overlay; without this " \
+                     "header, the n / Enter / Esc bindings in :new_idea mode are invisible"
+   end
+ 
+-  def test_renders_idea_preview_section_header
++  def test_renders_card_info_section_header
+     out = Hive::Tui::Views::HelpOverlay.render(model)
+-    assert_includes out, "Idea preview (i)"
++    assert_includes out, "Card info (i)"
+   end
+ 
+   def test_renders_v2_pane_focus_and_navigation_keys
+diff --git a/test/unit/tui/views/idea_preview_test.rb b/test/unit/tui/views/idea_preview_test.rb
+deleted file mode 100644
+index b18b8def..00000000
+--- a/test/unit/tui/views/idea_preview_test.rb
++++ /dev/null
+@@ -1,59 +0,0 @@
+-require "test_helper"
+-require "hive/tui/model"
+-require "hive/tui/views/idea_preview"
+-
+-class HiveTuiViewsIdeaPreviewTest < Minitest::Test
+-  include HiveTestHelper
+-
+-  def model_with(text: "Original idea", slug: "some-slug", cols: 80)
+-    Hive::Tui::Model.initial.with(
+-      mode: :idea_preview,
+-      idea_preview_text: text,
+-      idea_preview_slug: slug,
+-      cols: cols
+-    )
+-  end
+-
+-  def render_lines(**kwargs)
+-    Hive::Tui::Views::IdeaPreview.render(model_with(**kwargs), width: kwargs.fetch(:cols, 80)).lines(chomp: true)
+-  end
+-
+-  def test_renders_header_with_slug
+-    out = Hive::Tui::Views::IdeaPreview.render(model_with(slug: "preview-me"))
+-    assert_includes out, "Idea for preview-me:"
+-  end
+-
+-  def test_renders_original_text_verbatim
+-    out = Hive::Tui::Views::IdeaPreview.render(model_with(text: "keep [image1] plain"))
+-    assert_includes out, "keep [image1] plain"
+-  end
+-
+-  def test_renders_dismiss_hint
+-    out = Hive::Tui::Views::IdeaPreview.render(model_with)
+-    assert out.end_with?(Hive::Tui::Views::IdeaPreview::DISMISS_HINT),
+-           "dismiss hint must be the final rendered line"
+-  end
+-
+-  def test_truncates_long_lines_to_width
+-    lines = render_lines(text: "x" * 80, cols: 20)
+-
+-    assert lines.all? { |line| line.length <= 20 },
+-           "all rendered lines must fit width: #{lines.inspect}"
+-  end
+-
+-  def test_caps_visible_rows_for_oversized_text
+-    text = (1..10).map { |i| "line #{i}" }.join("\n")
+-    lines = render_lines(text: text)
+-    body_lines = lines[1...-1]
+-
+-    assert_operator body_lines.length, :<=, Hive::Tui::Views::IdeaPreview::MAX_VISIBLE_ROWS
+-  end
+-
+-  def test_handles_nil_text_gracefully
+-    lines = render_lines(text: nil, slug: "nil-text")
+-
+-    assert_equal 2, lines.length
+-    assert_includes lines.first, "Idea for nil-text:"
+-    assert_equal Hive::Tui::Views::IdeaPreview::DISMISS_HINT, lines.last
+-  end
+-end
+diff --git a/wiki/commands/tui.md b/wiki/commands/tui.md
+index f46a0504..7c649e6a 100644
+--- a/wiki/commands/tui.md
++++ b/wiki/commands/tui.md
+@@ -28,7 +28,7 @@ The legacy curses backend was removed in plan #003 U11. `HIVE_TUI_BACKEND=curses
+ │  myapp          │  ⚠  oauth-…       6-review      Needs recovery      1h │
+ │  appcrawl       │                                                        │
+ ├─────────────────┴────────────────────────────────────────────────────────┤
+-│ Footer: [Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [q]│
++│ Footer: [Tab] switch  [Enter] action  [n] new  [/] filter  [?] help  [i] info  [q] quit │
+ └──────────────────────────────────────────────────────────────────────────┘
+ ```
+ 
+@@ -40,6 +40,7 @@ Pane focus is keyboard-only; the focused pane border is bright cyan, the inactiv
+ |------|-----------|-----------|
+ | Two-pane dashboard (default) | boot | `q` |
+ | Red-status detail | `Enter` on selected red recovery/error rows | `q` / `Esc` |
++| Card info | `i` on the selected task row | `q` / `Esc` / `i` |
+ | Agent log tail | `Enter` on an `agent_running` row | `q` / `Esc` |
+ | Input editor | `Enter` on a `needs_input` row | editor exit; completed brainstorm answers auto-continue; plan rows auto-advance to `develop` (or auto-revise if user added feedback) |
+ | Filter prompt | `/` | `Esc` (cancels typed buffer; any committed filter is preserved) / `Enter` (commits) |
+@@ -65,6 +66,7 @@ Pane focus is keyboard-only; the focused pane border is bright cyan, the inactiv
+ | `a` | run `hive archive` |
+ | `Enter` | from left pane: focus right pane. From right pane: perform the row's contextual action: input editor on `needs_input` (completed brainstorm answer rounds auto-run; plan rows auto-advance to `develop` or auto-revise on user feedback), log tail on `agent_running` (and on `error` rows still in a kill-class auto-heal window), red-status detail on selected review-recovery and non-kill-class `error` rows, direct retry/browse for the legacy review-stale exceptions, and suggested-command dispatch for ready rows |
+ | `o` | open the focused row's hive-state task folder in `$VISUAL` / `$EDITOR` / `vi` for read-only browsing — no marker change, no workflow dispatch. Distinct from `Enter` (workflow-contextual) and the verb keys (subprocess dispatch). Useful for revisiting investigation outputs in `9-done` (or any stage). |
++| `i` | open a full-screen, read-only info panel for the focused row. The panel shows common task fields (`slug`, `stage`, `created_at`, original idea text, working directory, latest log path) plus the canonical stage state file from `Hive::Task::STATE_FILES`, or the latest log tail when a task has log lines. `1-inbox` omits an extras section because `idea.md` is already represented by the common fields. |
+ | `s` | steer the focused task manually: open the configured `execute.agent` in the feature worktree with every existing stage folder for that slug passed as agent context, mark the row `MANUAL_STEERING`, and archive the slug under `archived-manual/` when the agent exits |
+ | `n` | open the new-idea flow; if scope is `★ All projects`, first show a project picker, then submit with `hive new <project> "<title>"` against the chosen concrete project |
+ | `/` | open filter prompt |
+@@ -195,9 +197,9 @@ Note that `REVIEW_STALE reason=wall_clock` deliberately retries even when no rev
+ 
+ - `test/integration/tui_command_test.rb` — Thor help-text registration, `--json` rejection, non-tty boundary check.
+ - `test/unit/tui/*_test.rb` — pure-Ruby state machines (`StateSource`, `Snapshot`, `KeyMap`, `GridState`, `LogTail::FileResolver`, `Help`, `Model`, `Messages`, `Update`, `BubbleModel`).
+-- `test/unit/tui/views/*_test.rb` — pure-function view tests for every Lipgloss-rendered frame (`ProjectsPane`, `TasksPane`, `LogTail`, `RedStatusDetail`, `HelpOverlay`, `FilterPrompt`, `NewIdeaPrompt`). Layout/text content is pinned; visual styling (color/bold/reverse) is validated by manual dogfood — lipgloss-ruby v0.2.2 strips ANSI in non-tty test environments (gap tracked in `docs/solutions/2026-04-27-charm-bubbletea-api-gaps.md`). Selection / cursor highlight predicates (`ProjectsPane#selected?`, `TasksPane#highlight?`) are exposed for unit-test assertion since the rendered output cannot distinguish them in non-tty.
++- `test/unit/tui/views/*_test.rb` — pure-function view tests for every Lipgloss-rendered frame (`ProjectsPane`, `TasksPane`, `LogTail`, `RedStatusDetail`, `CardInfo`, `HelpOverlay`, `FilterPrompt`, `NewIdeaPrompt`). Layout/text content is pinned; visual styling (color/bold/reverse) is validated by manual dogfood — lipgloss-ruby v0.2.2 strips ANSI in non-tty test environments (gap tracked in `docs/solutions/2026-04-27-charm-bubbletea-api-gaps.md`). Selection / cursor highlight predicates (`ProjectsPane#selected?`, `TasksPane#highlight?`) are exposed for unit-test assertion since the rendered output cannot distinguish them in non-tty.
+ - `test/integration/tui_subprocess_test.rb` — `Subprocess.takeover_command` / `run_quiet!` against a fake child binary.
+-- `test/integration/tui_smoke_test.rb` + `test/integration/tui_smoke_charm_test.rb` — PTY-based boot smokes: `bin/hive tui` paints, the seeded project name appears, `q` exits 0.
++- `test/integration/tui_smoke_test.rb` + `test/integration/tui_smoke_charm_test.rb` — PTY-based boot smokes: `bin/hive tui` paints, the seeded project name appears, the Charm path opens the `i` info panel and returns to the grid via its close keys, and `q` exits 0.
+ 
+ No render-layer snapshot tests beyond layout pinning; mainstream Ruby tooling does not provide cell-perfect terminal-snapshot diffing.
+ 
+diff --git a/wiki/log.md b/wiki/log.md
+index 7c8465bc..a5c9a713 100644
+--- a/wiki/log.md
++++ b/wiki/log.md
+@@ -1855,3 +1855,10 @@ chruby and RVM are intentionally not handled — they modify PATH per-shell and
+ 
+ **Refreshed pages:**
+ - [[testing]] — documented the CI foreground/daemonization coverage pitfall and reload-safe enum caveat.
++
++## [2026-07-10T17:47:12Z] tui — task info panel on i
++
++**Action:** Replaced the old `i` bottom-strip idea preview with a full-screen, read-only task info panel. The panel keeps the same selected row, closes with `q` / `Esc` / `i`, shows common fields plus the canonical stage state file from `Hive::Task::STATE_FILES`, and prefers a latest-log tail when log lines are available. The footer legend now advertises `[i] info` between `[?] help` and `[q] quit`.
++
++**Refreshed pages:**
++- [[commands/tui]] — documented the card-info mode, default `i` binding, footer legend, and updated test surface.

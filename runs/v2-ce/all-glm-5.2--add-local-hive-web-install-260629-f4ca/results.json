@@ -1,0 +1,87 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-13T08:52:34Z",
+  "cells": [
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 4574516,
+        "output_tokens": 591993,
+        "cached_tokens": 88693017,
+        "wall_clock_sec": 10411.1,
+        "cost_usd": 22.0865,
+        "open_pr_ok": true,
+        "review_ok": true
+      }
+    }
+  ],
+  "agents": {
+    "all-glm-5.2": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 3.0,
+          "gpt-5.6-sol": 3.0
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 3.0,
+          "gpt-5.6-sol": 3.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 22.0865,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

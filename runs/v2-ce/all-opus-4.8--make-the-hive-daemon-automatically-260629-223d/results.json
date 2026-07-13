@@ -1,0 +1,93 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2-ce",
+  "generated_at": "2026-07-11T20:41:03Z",
+  "cells": [
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 193085,
+        "output_tokens": 225400,
+        "cached_tokens": 109883831,
+        "cache_creation_tokens": 2347515,
+        "wall_clock_sec": 5097.35,
+        "cost_usd_reported": 30.34956,
+        "cost_usd": 73.2799,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-opus-4.8": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 7.0,
+          "gpt-5.6-sol": 5.0
+        },
+        "mean_quality_cross_family": {
+          "fable-5": null,
+          "gpt-5.6-sol": 5.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 73.2799,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  },
+  "pending": [],
+  "failed": []
+}

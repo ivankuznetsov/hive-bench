@@ -1,0 +1,84 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-11T15:50:55Z",
+  "cells": [
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 8.5,
+          "interval": [
+            8.5,
+            8.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 9.0,
+          "interval": [
+            9.0,
+            9.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 32316062,
+        "output_tokens": 52902,
+        "wall_clock_sec": 2443.67,
+        "cost_usd": 163.1674
+      }
+    }
+  ],
+  "agents": {
+    "all-codex-5.6-sol-xhigh": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "gpt-5.6-sol": 8.5,
+          "fable-5": 9.0
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": null,
+          "fable-5": 9.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 163.1674,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}
