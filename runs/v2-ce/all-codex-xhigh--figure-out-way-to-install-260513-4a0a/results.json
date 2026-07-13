@@ -1,0 +1,87 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-11T10:08:14Z",
+  "cells": [
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.5,
+          "interval": [
+            2.5,
+            2.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 28471144,
+        "output_tokens": 116995,
+        "wall_clock_sec": 4017.04,
+        "cost_usd": 145.8656,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-codex-xhigh": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "gpt-5.6-sol": 2.5,
+          "fable-5": 5.0
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": null,
+          "fable-5": 5.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 145.8656,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

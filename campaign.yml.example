@@ -21,6 +21,18 @@ effort_pins: {}
 # Judge samples. Use at least 3 for published results.
 seeds: 3
 
+# Judge backends and exact invocation provenance. The default mirrors the
+# maintained campaign: Fable plus GPT-5.6 Sol at ultra. Set a backend to null
+# to disable it; keep at least two enabled for blind cross-checking and
+# deliberation. OpenRouter is optional and disabled by default.
+judges:
+  claude:
+    model: claude-fable-5
+  codex:
+    model: gpt-5.6-sol
+    reasoning_effort: ultra
+  openrouter:
+
 # Review-enforced caps. The current harness does not enforce these as per-run
 # flags.
 budgets:

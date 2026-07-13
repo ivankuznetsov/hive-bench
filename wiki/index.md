@@ -24,18 +24,23 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 - [[gaps]] — what's unverified / left to build
 - [[log]] — work log
 
-## Status (2026-07-10)
+## Status (2026-07-13)
 
 v2 is **published** as a real-hive benchmark: plan, execute, open-pr, and
 review run in the container by default, then the final post-review diff is
-judged against the merged reference PR. The slate now covers opus, codex,
-codex-xhigh, glm, kimi, mixed candidates, and grok. Three tasks have curated
-held-out reference-test gates; three remain judged-only. v3 work is about
-campaign orchestration, stronger runtime gates, replication, and calibrated
-judge presentation. Its bench-as-hive workflow now has guarded stage scripts
-and full no-cost fixture paths through extract/generate/judge/publish, but no
-paid campaign has run end to end and first-pass all-judge-wall recovery remains
-unresolved. See [[gaps]] and [[v3-workflow]].
+judged against the merged reference PR. The current preliminary publication is
+the complete 36-cell matrix across six tasks and six candidates: Opus 4.8,
+Codex 5.5 xhigh, GPT-5.6 Sol xhigh, GLM 5.2, Grok 4.5, and Opus-plan → Codex
+xhigh. It uses one Fable 5 and one Sol xhigh score per non-empty cell; the
+three-sample Sol `ultra` follow-up remains a separate campaign.
+
+v3 adds campaign orchestration, stronger runtime gates, replication, and
+calibrated judge presentation. The native `bench` Hive workflow has guarded,
+idempotent stages and full no-cost fixture paths through
+extract/generate/judge/publish. Its maintained defaults are Fable plus Sol
+`ultra`, three samples, candidate-plan judging, and adversarial deliberation;
+the first paid campaign with that complete contract has not yet run end to end.
+See [[gaps]] and [[v3-workflow]].
 
 ## Query protocol
 

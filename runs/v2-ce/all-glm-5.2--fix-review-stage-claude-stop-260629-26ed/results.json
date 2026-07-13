@@ -1,0 +1,91 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2-ce",
+  "generated_at": "2026-07-10T02:49:42Z",
+  "cells": [
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 1.5,
+          "interval": [
+            1.5,
+            1.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 11528438,
+        "output_tokens": 157356,
+        "cached_tokens": 5366263,
+        "wall_clock_sec": 1784.8,
+        "cost_usd": 12.39,
+        "plan_forced_complete": true,
+        "open_pr_ok": false,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    }
+  ],
+  "agents": {
+    "all-glm-5.2": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 1.5,
+          "gpt-5.6-sol": 1.0
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 1.5,
+          "gpt-5.6-sol": 1.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 12.39,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  },
+  "pending": [],
+  "failed": []
+}

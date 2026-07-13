@@ -1,0 +1,373 @@
+{
+  "schema": "hive-bench-evidence-manifest",
+  "schema_version": 1,
+  "campaign_id": "v2-ce",
+  "canonical_results": "runs/v2-ce/results.json",
+  "cell_count": 36,
+  "published_artifacts": [
+    "per-cell results.json",
+    "candidate.patch"
+  ],
+  "cells": [
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 85821,
+      "candidate_patch_sha256": "77b611410189218745e9af2721d593a5ea3d61e0a2dfc5d297b907610188b18c"
+    },
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 486616,
+      "candidate_patch_sha256": "b8538c7bb8323b2203164fd8f6101b9a69ca2e51a6c56a4bd5ed5ea753a19026"
+    },
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 533042,
+      "candidate_patch_sha256": "c8b6063a8ad8613a2b85e0b472f913c4216e84fd7b62658f388fee535e8afd8f"
+    },
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 18126,
+      "candidate_patch_sha256": "b4e8445ef7acb3b7d187446aed1d904ee58aec1f5ff6c53866b5cbfccba9c0c5"
+    },
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 110991,
+      "candidate_patch_sha256": "32b0b6f3a5ddfd88bc468a1aed89314cabd4d9fb0dab838abac9acc6b8d2a584"
+    },
+    {
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-5.6-sol-xhigh--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-5.6-sol-xhigh--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 203563,
+      "candidate_patch_sha256": "fcbb89459da70c028ee83f1d8c98d5cea825fd835d1900fb3bd73fae05c85a57"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 68287,
+      "candidate_patch_sha256": "d3a38279face394f0fd79723a6cb3bb2ba923e12f9431b5c007856207a28e4da"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 141573,
+      "candidate_patch_sha256": "4a78c432f392b79d6f04609a11f50d6d375b4825518abbb502028b9051e945a1"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 165700,
+      "candidate_patch_sha256": "717799c40f450f5376f9a9b28ea2425437c512662fab9cf0f139b192d85e6cb6"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 32718,
+      "candidate_patch_sha256": "1bfdaec64f44bc7585e9c3d24e57201abed4315d01b19aa031bfe68af089841b"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 113884,
+      "candidate_patch_sha256": "3f9c46cb707bd78dd47d0ffad16d73303a654bd880b484ed4a09dd92c0933a6b"
+    },
+    {
+      "agent_id": "all-codex-xhigh",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-codex-xhigh--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-codex-xhigh--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 116423,
+      "candidate_patch_sha256": "807d48f390ba3928b02edcffd1523614cac355f95cb792799466ee100ce5dfa9"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 83394,
+      "candidate_patch_sha256": "df3a3d0ef7c7bbaa2b62fa1e457e9498985d5fb2680d070602cac90d931e8a6e"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 146083,
+      "candidate_patch_sha256": "aa2a1c99828fc4d81a700725a4eba4c7ad5d633948acfa6d8542a6533f03af6e"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 162504,
+      "candidate_patch_sha256": "c7e9b05d4f52046aa952fc1480908bbb67534e5416c3f7b0ef6a2b8995f737ef"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 40286,
+      "candidate_patch_sha256": "4a054e89184965fccdd1163a0d971e53bbdb5dc5dd7cf1e022737d6e0e5e6164"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 14497,
+      "candidate_patch_sha256": "05ebbfd08e3c4982b11a98ac5172ba680943a7fdf29dc745d232dad34874c9ac"
+    },
+    {
+      "agent_id": "all-glm-5.2",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-glm-5.2--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-glm-5.2--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 205750,
+      "candidate_patch_sha256": "d7fc71c7b5f5f7d423a03e615bd48dd1419c4790cdf395f206801ab73818d565"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 71332,
+      "candidate_patch_sha256": "1b4dfdb346dbbe836ce323a9e4ebfd6008f5913a61e2c8d3edc1ed42218ccb56"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 212753,
+      "candidate_patch_sha256": "1498e063314c719899031fe9d0746c4fbada557ba810b0b8475ef564a3ef2de6"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 175956,
+      "candidate_patch_sha256": "8b5f0500feb696ccbc1e7b960b29336f380e12d764723bcf108b2724127ffc63"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 29191,
+      "candidate_patch_sha256": "bda92b83afc1f12f89027c0dbea6d62be3ff14624a076c152295ea0894811373"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 92755,
+      "candidate_patch_sha256": "8d59abef10a3ece4756b507a55e88edbca92a79566fe369f7575a799a9aa3e28"
+    },
+    {
+      "agent_id": "all-grok-4.5",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-grok-4.5--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-grok-4.5--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 157554,
+      "candidate_patch_sha256": "217dfde1a2ccc1a183be814a1be3f7c8e4746dc97577e8a63155abefae692e0b"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 74121,
+      "candidate_patch_sha256": "fd1057c99ccb0431f8be22555cc7051adb694c227f06e90e27e964591d398167"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 122452,
+      "candidate_patch_sha256": "9999ad0077d3d42186aef3cfd83de540d065297ce632d16b8e1819772cbf75d7"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 282502,
+      "candidate_patch_sha256": "865071af1df6c7ecfd144f1bf976fc56842e825d7a382e899a717c611d37bd89"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 35006,
+      "candidate_patch_sha256": "5726b62c2f9d4cde3e64fa7fd9a3de3d16e0b8dbc328b1a790a1def80705a722"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 56007,
+      "candidate_patch_sha256": "401d33f23371a5b1a94d638e22aa793568be0e1b87894eaff4683c1e8eca1139"
+    },
+    {
+      "agent_id": "all-opus-4.8",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "result": "runs/v2-ce/all-opus-4.8--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/all-opus-4.8--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 138746,
+      "candidate_patch_sha256": "52b68d1c83de36ddda37db3bad22d839054490ca13609d79c689626b9d0f5de4"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--add-i-key-with-legend-260522-ca28/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--add-i-key-with-legend-260522-ca28/candidate.patch",
+      "candidate_patch_bytes": 86816,
+      "candidate_patch_sha256": "d245a3c4134c30cd03ef5f0d3395124197a94a95785d6a14f93bbbabeb0ef6ce"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--add-local-hive-web-install-260629-f4ca/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--add-local-hive-web-install-260629-f4ca/candidate.patch",
+      "candidate_patch_bytes": 151491,
+      "candidate_patch_sha256": "c64f86ab63af08c1fb400913e76025e311a766e5c2e1243a730603ba869d8ffe"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--figure-out-way-to-install-260513-4a0a/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--figure-out-way-to-install-260513-4a0a/candidate.patch",
+      "candidate_patch_bytes": 135671,
+      "candidate_patch_sha256": "c77945e1fe0bb312a74e453bc44de238eb2e4f54da0195e5f381bde1d0375ead"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--fix-claude-tmux-ready-detector-260629-50cc/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--fix-claude-tmux-ready-detector-260629-50cc/candidate.patch",
+      "candidate_patch_bytes": 48492,
+      "candidate_patch_sha256": "8454590042b63c58fb221d68bee3964f1ba0087537782d0f22136933acbb167a"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--fix-review-stage-claude-stop-260629-26ed/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--fix-review-stage-claude-stop-260629-26ed/candidate.patch",
+      "candidate_patch_bytes": 43991,
+      "candidate_patch_sha256": "f2c19680a08190b2b2923502d1153d8e074a539296d4749f5312a2c7799c7f18"
+    },
+    {
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "result": "runs/v2-ce/opus-plan->codex-exec-xhigh--make-the-hive-daemon-automatically-260629-223d/results.json",
+      "candidate_patch": "runs/v2-ce/cells/opus-plan->codex-exec-xhigh--make-the-hive-daemon-automatically-260629-223d/candidate.patch",
+      "candidate_patch_bytes": 116355,
+      "candidate_patch_sha256": "7043fd175e231e07dc1dc7607cba58afc741d8d884f0e2da4171844db20d2c2d"
+    }
+  ]
+}

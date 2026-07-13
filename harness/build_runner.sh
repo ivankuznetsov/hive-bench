@@ -21,5 +21,5 @@ git -C "$HIVE_SRC" archive --format=tar HEAD >hive-src.tar
 trap 'rm -f hive-src.tar' EXIT
 
 IMAGE_TAG="${IMAGE_TAG:-hive-bench-runner:latest}"
-docker build -f Dockerfile.runner -t "$IMAGE_TAG" .
+docker build -f Dockerfile.runner -t "$IMAGE_TAG" ${IMAGE_BUILD_ARGS:-} .
 echo "built $IMAGE_TAG with hive tool @ $rev"

@@ -1,0 +1,319 @@
+diff --git a/lib/hive/claude_launcher.rb b/lib/hive/claude_launcher.rb
+index b6820a41..92fcb4a8 100644
+--- a/lib/hive/claude_launcher.rb
++++ b/lib/hive/claude_launcher.rb
+@@ -126,9 +126,16 @@ module Hive
+       /\Atmux \S+ below minimum/
+     ].freeze
+ 
+-    SessionHandle = Struct.new(:task, :runner, :reestablish, keyword_init: true) do
++    # `completion_fallback` is an optional caller-supplied predicate
++    # (see `run_completion_fallback`). It is carried on the handle so a
++    # shared-session caller that invokes `send_and_wait!` multiple times
++    # (e.g. sequential reviewers) gets the same fallback for every turn
++    # without re-passing it; a single-shot caller (review-fix) sets it
++    # once via `launch!` / `with_shared_session`.
++    SessionHandle = Struct.new(:task, :runner, :reestablish, :completion_fallback, keyword_init: true) do
+       def send_and_wait!(prompt:, expected_output: nil, timeout_sec:,
+-                         status_mode: nil, log_label: nil, deadline: nil)
++                         status_mode: nil, log_label: nil, deadline: nil,
++                         completion_fallback: nil)
+         Hive::ClaudeLauncher.send_prompt_and_wait!(
+           task: task,
+           runner: runner,
+@@ -138,7 +145,8 @@ module Hive
+           status_mode: status_mode,
+           log_label: log_label,
+           deadline: deadline,
+-          reestablish: reestablish
++          reestablish: reestablish,
++          completion_fallback: completion_fallback || self.completion_fallback
+         )
+       end
+     end
+@@ -151,7 +159,8 @@ module Hive
+                 allowed_tools: nil,
+                 disallowed_tools: nil,
+                 permission_mode: nil, mcp_config_path: nil,
+-                strict_mcp_config: false)
++                strict_mcp_config: false,
++                completion_fallback: nil)
+       profile ||= Hive::AgentProfiles.lookup(:claude, cfg: cfg)
+       ensure_claude_profile!(profile)
+       permission_mode ||= Hive::Config.claude_permission_mode(cfg)
+@@ -195,7 +204,8 @@ module Hive
+         permission_mode: permission_mode,
+         mcp_config_path: mcp_config_path,
+         strict_mcp_config: strict_mcp_config,
+-        cli_flags: cli_flags
++        cli_flags: cli_flags,
++        completion_fallback: completion_fallback
+       ) do |handle|
+         result = handle.send_and_wait!(
+           prompt: prompt,
+@@ -212,7 +222,8 @@ module Hive
+                             profile: nil, allowed_tools: DEFAULT_ALLOWED_TOOLS,
+                             disallowed_tools: nil,
+                             permission_mode: nil, mcp_config_path: nil,
+-                            strict_mcp_config: false, cli_flags: nil)
++                            strict_mcp_config: false, cli_flags: nil,
++                            completion_fallback: nil)
+       profile ||= Hive::AgentProfiles.lookup(:claude, cfg: cfg)
+       ensure_claude_profile!(profile)
+       permission_mode ||= Hive::Config.claude_permission_mode(cfg)
+@@ -261,7 +272,9 @@ module Hive
+         end
+         establish.call
+         prepare_claude_session!(runner)
+-        yield SessionHandle.new(task: task, runner: runner, reestablish: establish)
++        yield SessionHandle.new(task: task, runner: runner,
++                               reestablish: establish,
++                               completion_fallback: completion_fallback)
+       ensure
+         # Send `/quit` to claude inside the pane and give it a brief
+         # window to exit cleanly before SIGKILL'ing the tmux session.
+@@ -281,7 +294,8 @@ module Hive
+ 
+     def send_prompt_and_wait!(task:, runner:, prompt:, timeout_sec:,
+                               expected_output: nil, status_mode: nil,
+-                              log_label: nil, deadline: nil, reestablish: nil)
++                              log_label: nil, deadline: nil, reestablish: nil,
++                              completion_fallback: nil)
+       reset_signal_files(task)
+       cleanup_expected_output(expected_output)
+       reestablish_dead_session!(runner, reestablish)
+@@ -305,7 +319,7 @@ module Hive
+                           started: Time.now.utc.iso8601)
+       end
+       runner.send_prompt(prompt)
+-      result = wait_for_status(task, runner, effective_timeout_sec, status_mode, expected_output, log_label)
++      result = wait_for_status(task, runner, effective_timeout_sec, status_mode, expected_output, log_label, completion_fallback)
+       # Headless launches drop a `<log_label>-<ts>.log` under
+       # `task.log_dir`; tmux launches need the same shared log path so
+       # downstream Claude-driven stages can find per-invocation output.
+@@ -364,15 +378,15 @@ module Hive
+       nil
+     end
+ 
+-    def wait_for_status(task, runner, timeout, status_mode, expected_output, log_label)
++    def wait_for_status(task, runner, timeout, status_mode, expected_output, log_label, completion_fallback = nil)
+       case status_mode || :state_file_marker
+       when :state_file_marker
+-        marker = wait_for_terminal_marker(task, runner, timeout)
++        marker = wait_for_terminal_marker(task, runner, timeout, completion_fallback, log_label)
+         { status: marker.name, log_label: log_label }
+       when :output_file_exists
+-        wait_for_expected_output(task, runner, timeout, expected_output, log_label)
++        wait_for_expected_output(task, runner, timeout, expected_output, log_label, completion_fallback)
+       when :exit_code_only
+-        wait_for_done_signal(task, runner, timeout, log_label)
++        wait_for_done_signal(task, runner, timeout, log_label, completion_fallback)
+       else
+         raise ArgumentError, "unknown status_mode: #{status_mode.inspect}"
+       end
+@@ -841,7 +855,7 @@ module Hive
+       ""
+     end
+ 
+-    def wait_for_done_signal(task, runner, timeout, log_label)
++    def wait_for_done_signal(task, runner, timeout, log_label, completion_fallback = nil)
+       deadline = Time.now + timeout
+       loop do
+         # A usage/credit wall stalls claude WITHOUT ever touching `.done`,
+@@ -883,6 +897,17 @@ module Hive
+         end
+ 
+         if Time.now >= deadline
++          proven = run_completion_fallback(
++            task: task,
++            context: completion_fallback_context(
++              task: task, runner: runner, log_label: log_label,
++              status_mode: :exit_code_only, expected_output: nil
++            ),
++            fallback: completion_fallback,
++            log_label: log_label
++          )
++          return { status: :ok, log_label: log_label, completion_fallback: proven } if proven
++
+           return { status: :timeout, error_message: "claude stop hook did not signal completion" }
+         end
+ 
+@@ -890,6 +915,71 @@ module Hive
+       end
+     end
+ 
++    # Consult a caller-supplied completion predicate on the missing-signal
++    # path. The launcher calls this ONLY at a wait deadline when the
++    # Stop-hook sentinel (`.done` / `result.json`) never appeared — never on
++    # a genuine crash / exit!=0 / unreadable-tmux path (those bypass the
++    # fallback). `context` is the hash handed to the predicate
++    # (`{task:, runner:, result_path:, done_path:, log_label:, status_mode:,
++    # expected_output:, session_name:}`). A predicate returns `nil` (cannot
++    # prove) or `{proven: true, reason:, evidence: {…}}`. On proof the
++    # launcher emits a `claude_completion_fallback` audit event and returns
++    # the payload; the caller then returns `:ok` instead of `:timeout`.
++    # A predicate that raises is treated as not-proven so a buggy predicate
++    # can never mask a real timeout.
++    def run_completion_fallback(task:, context:, fallback:, log_label:)
++      return nil unless fallback
++
++      result =
++        begin
++          fallback.call(context)
++        rescue StandardError => e
++          warn "[hive] completion_fallback predicate raised for " \
++               "#{task_slug(task)}: #{e.class}: #{e.message}"
++          nil
++        end
++      return nil unless result.is_a?(Hash) && result[:proven]
++
++      payload = {
++        slug: task_slug(task),
++        log_label: log_label,
++        status_mode: context[:status_mode]&.to_s,
++        sentinel_path: context[:done_path],
++        result_path: context[:result_path],
++        reason: result[:reason].to_s,
++        evidence: result[:evidence] || {}
++      }
++      payload[:session_name] = context[:session_name] if context[:session_name]
++      payload[:pid] = context[:pid] if context[:pid]
++      emit_completion_fallback!(task, payload)
++      payload
++    end
++
++    # Emit the non-error `claude_completion_fallback` audit event. The
++    # `message` is a compact single-line summary (Events truncates it to
++    # MAX_MESSAGE_BYTES / 1 KiB); the full structured payload is returned to
++    # the caller and carried on the result hash (`result[:completion_fallback]`)
++    # so no evidence is lost to truncation. Best-effort: an emit failure
++    # must not alter the spawn's outcome.
++    def emit_completion_fallback!(task, payload)
++      stage = task.respond_to?(:stage_name) ? "#{task.stage_index}-#{task.stage_name}" : nil
++      summary = "slug=#{payload[:slug]} reason=#{payload[:reason]} " \
++                "sentinel=#{payload[:sentinel_path]} evidence=#{payload[:evidence].inspect}"
++      Hive::Events.emit(
++        task_folder: task.folder,
++        slug: payload[:slug],
++        stage: stage.to_s,
++        event_type: :claude_completion_fallback,
++        agent: :claude,
++        message: summary
++      )
++      payload
++    rescue StandardError => e
++      warn "[hive] failed to emit claude_completion_fallback for " \
++           "#{payload[:slug]}: #{e.class}: #{e.message}"
++      payload
++    end
++
+     # Read `result.json` (if present) and translate `status` into the
+     # caller's symbol vocabulary. Unknown / unparseable shapes return
+     # nil so the caller can fall through to its default success path.
+diff --git a/lib/hive/events.rb b/lib/hive/events.rb
+index 31ecc07a..2e17e548 100644
+--- a/lib/hive/events.rb
++++ b/lib/hive/events.rb
+@@ -14,6 +14,17 @@ module Hive
+       round_waiting
+       round_complete
+       clean_exit_auto_committed
++      # Non-error audit event: a tmux-launched Claude phase reached the
++      # wait deadline WITHOUT the Stop-hook completion sentinel (`.done` /
++      # `result.json`) ever appearing, but a caller-supplied completion
++      # predicate proved the work actually completed (idle prompt observed,
++      # required artifacts present, commit/no-change evidence). Severity is
++      # conveyed by the event_type name itself — `Events#emit` has no
++      # separate `level` field, so WARN/non-error semantics live in the
++      # `claude_completion_fallback` name. The stage proceeds to SUCCESS;
++      # no new terminal marker is written. See
++      # `ClaudeLauncher#emit_completion_fallback!`.
++      claude_completion_fallback
+     ].freeze
+ 
+     STATUS_TAIL_LINES = 20
+diff --git a/test/unit/claude_launcher_test.rb b/test/unit/claude_launcher_test.rb
+index 1d6b2589..23b281b7 100644
+--- a/test/unit/claude_launcher_test.rb
++++ b/test/unit/claude_launcher_test.rb
+@@ -1304,6 +1304,50 @@ class ClaudeLauncherTest < Minitest::Test
+     end
+   end
+ 
++  def test_emit_completion_fallback_writes_event_and_returns_payload
++    with_tmp_task do |task|
++      payload = {
++        slug: task.slug,
++        log_label: "review-fix-pass01",
++        status_mode: "exit_code_only",
++        sentinel_path: Hive::ClaudeLauncher.done_path(task),
++        result_path: Hive::ClaudeLauncher.result_path(task),
++        reason: "stop_hook_absent_idle_prompt",
++        evidence: { idle_prompt: true, new_commit: "abc1234" }
++      }
++
++      returned = Hive::ClaudeLauncher.emit_completion_fallback!(task, payload)
++
++      assert_equal payload, returned
++      lines = File.readlines(File.join(task.folder, "events.jsonl"))
++      parsed = JSON.parse(lines.last)
++      assert_equal "claude_completion_fallback", parsed.fetch("event_type")
++      assert_equal "claude", parsed.fetch("agent")
++      assert_match(/stop_hook_absent_idle_prompt/, parsed.fetch("message"))
++      assert_match(/abc1234/, parsed.fetch("message"))
++      assert_equal "#{task.stage_index}-#{task.stage_name}", parsed.fetch("stage")
++    end
++  end
++
++  def test_emit_completion_fallback_truncates_large_payload_message
++    with_tmp_task do |task|
++      payload = {
++        slug: task.slug,
++        log_label: "review-fix-pass01",
++        sentinel_path: Hive::ClaudeLauncher.done_path(task),
++        result_path: Hive::ClaudeLauncher.result_path(task),
++        reason: "x" * (Hive::Events::MAX_MESSAGE_BYTES + 500),
++        evidence: { big: "y" * 2000 }
++      }
++
++      Hive::ClaudeLauncher.emit_completion_fallback!(task, payload)
++
++      parsed = JSON.parse(File.readlines(File.join(task.folder, "events.jsonl")).last)
++      assert_operator parsed.fetch("message").bytesize, :<=, Hive::Events::MAX_MESSAGE_BYTES
++      assert parsed.fetch("message").end_with?(Hive::Events::MESSAGE_TRUNCATION_SUFFIX)
++    end
++  end
++
+   def test_wait_for_terminal_marker_preserves_pane_unreadable_error_on_timeout
+     with_tmp_task do |task|
+       Hive::Markers.set(task.state_file, :error, reason: "tmux_pane_unreadable", message: "pane gone")
+diff --git a/test/unit/events_test.rb b/test/unit/events_test.rb
+index 9d5471ad..f40860a8 100644
+--- a/test/unit/events_test.rb
++++ b/test/unit/events_test.rb
+@@ -39,6 +39,25 @@ class EventsTest < Minitest::Test
+     end
+   end
+ 
++  def test_claude_completion_fallback_event_is_emittable_and_renders
++    with_tmp_dir do |dir|
++      record = Hive::Events.emit(
++        task_folder: dir, slug: "fix-review-260629-abcd", stage: "6-review",
++        agent: "claude", event_type: :claude_completion_fallback,
++        message: "slug=fix-review-260629-abcd reason=stop_hook_absent_idle_prompt"
++      )
++
++      parsed = JSON.parse(File.read(File.join(dir, "events.jsonl")))
++      assert_equal "claude_completion_fallback", parsed.fetch("event_type")
++      assert_equal "claude", parsed.fetch("agent")
++      assert_match(/stop_hook_absent_idle_prompt/, parsed.fetch("message"))
++      # status.md renders the new type generically without crashing.
++      status = File.read(File.join(dir, "status.md"))
++      assert_match(/claude_completion_fallback/, status)
++      assert record
++    end
++  end
++
+   def test_unknown_event_type_raises
+     with_tmp_dir do |dir|
+       assert_raises(ArgumentError) do

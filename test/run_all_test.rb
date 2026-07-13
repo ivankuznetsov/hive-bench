@@ -228,15 +228,16 @@ class RunAllTest < Minitest::Test
     assert_nil cell.dig("judges", "bad"), "the failed judge is absent, not recorded as zero"
   end
 
-  # If the ONLY judge is credit-limited (OpenRouter 402), the generated cell is
-  # parked PENDING (re-judge after billing), never scored and never a hard failure.
+  # If the ONLY judge is credit-limited (OpenRouter 402), the generated artifact
+  # is preserved with no score and parked PENDING for a later re-judge.
   def test_all_judges_credit_limited_parks_pending
     err = RuntimeError.new('openrouter judge HTTP 402: {"error":{"message":"Insufficient credits"}}')
     out = run_matrix(judges: { "or" => raising_judge(error: err) })
 
     assert_equal 4, out.pending.size, "credit-limited judging parks the cell pending"
     assert_empty out.failed, "a billing wall is not a failure"
-    assert_empty out.results["cells"], "nothing is scored when no judge succeeded"
+    assert_equal 4, out.results["cells"].size, "paid generation artifacts survive a judge outage"
+    assert(out.results["cells"].all? { |cell| cell["judges"].empty? })
   end
 
   # When every judge fails for a NON-limit reason, the cell is a genuine failure.
@@ -246,5 +247,7 @@ class RunAllTest < Minitest::Test
     assert_equal 4, out.failed.size, "no judge could score → failed"
     assert_empty out.pending
     assert(out.failed.all? { |f| f["reason"].include?("judge handshake exploded") })
+    assert_equal 4, out.results["cells"].size, "a judge failure must not discard generated patches"
+    assert(out.results["cells"].all? { |cell| cell["judges"].empty? })
   end
 end

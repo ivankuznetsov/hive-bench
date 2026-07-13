@@ -46,6 +46,8 @@ class DeliberationTest < Minitest::Test
     assert_includes lenient_r2, "referee-B", "others are anonymized"
     refute_includes lenient_r2, "strict", "judge names must never leak into the discussion"
     refute_includes lenient_r2, "lenient"
+    assert_includes lenient_r2, "strongest evidence-based case that your own"
+    assert_includes lenient_r2, "initial score is wrong"
   end
 
   def test_round_one_failure_sits_the_judge_out

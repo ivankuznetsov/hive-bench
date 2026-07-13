@@ -68,8 +68,10 @@ These live in `harness/lib/hive_driver.rb` (comments) + `harness/lib/hive_stages
   OWN git repo — `git init` it. Resolve the task by **path** (not bare slug — avoids hive's
   project registry). `claude.model` must be the CLI id **`claude-opus-4-8`** (hive's short
   `opus-4.8` is rejected). `git config --global --add safe.directory '*'`.
-- Capture the **working-tree** diff (`git add -A` then `diff --cached <base>`, vendored-
-  excluded) — the execute agent often leaves work uncommitted. Telemetry: parse hive's
+- Capture the **working-tree** diff (`git add --intent-to-add` then `diff <base>`, with one
+  shared generated-tree exclusion list) — the execute agent often leaves work uncommitted,
+  while build output must not be staged into review. Failed review restores the execute patch
+  exactly. Telemetry: parse hive's
   `.hive-state/logs/<slug>/<stage>-*.log` (`[stream] <ts> {json}` lines) for tokens + cost.
 
 ## Variance finding (resolved — no hack needed)

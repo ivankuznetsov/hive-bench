@@ -77,7 +77,7 @@ ruby -ryaml -rjson -e '
   repo = ARGV.fetch(0)
   data = YAML.safe_load_file("campaign.yml")
   abort("campaign.yml must be a YAML mapping") unless data.is_a?(Hash)
-  required = %w[campaign_id source corpus_version tasks candidates effort_pins seeds budgets timeouts exclusions aggregation]
+  required = %w[campaign_id source corpus_version tasks candidates effort_pins seeds judges budgets timeouts exclusions aggregation]
   missing = required.reject { |key| data.key?(key) }
   abort("campaign.yml missing required key(s): #{missing.join(", ")}") unless missing.empty?
   id = data["campaign_id"].to_s
@@ -95,6 +95,25 @@ ruby -ryaml -rjson -e '
   abort("tasks must be a non-empty array") unless data["tasks"].is_a?(Array) && !data["tasks"].empty?
   abort("candidates must be a non-empty array") unless data["candidates"].is_a?(Array) && !data["candidates"].empty?
   abort("seeds must be a positive integer") unless data["seeds"].is_a?(Integer) && data["seeds"].positive?
+  judges = data["judges"]
+  abort("judges must be a mapping") unless judges.is_a?(Hash)
+  unknown_judges = judges.keys.map(&:to_s) - %w[claude codex openrouter]
+  abort("unknown judge backend(s): #{unknown_judges.join(", ")}") unless unknown_judges.empty?
+  enabled_judges = judges.reject { |_backend, config| config.nil? || config == false }
+  abort("at least two judge backends must be enabled") if enabled_judges.size < 2
+  enabled_judges.each do |backend, config|
+    abort("judges.#{backend} must be a mapping or null") unless config.is_a?(Hash)
+    model = config["model"]
+    abort("judges.#{backend}.model must be a non-empty single-line string") unless model.is_a?(String) && !model.include?("\n") && !model.strip.empty?
+  end
+  judge_names = enabled_judges.map do |backend, config|
+    backend.to_s == "claude" ? config.fetch("model").sub(/\Aclaude-/, "") : config.fetch("model").split("/").last
+  end
+  abort("enabled judges must produce unique result keys; got #{judge_names.inspect}") unless judge_names.uniq.size == judge_names.size
+  if enabled_judges.key?("codex")
+    effort = enabled_judges.dig("codex", "reasoning_effort")
+    abort("judges.codex.reasoning_effort must be a non-empty single-line string") unless effort.is_a?(String) && !effort.include?("\n") && !effort.strip.empty?
+  end
   abort("exclusions must be an array") unless data["exclusions"].is_a?(Array)
   bad_exclusions = data["exclusions"].reject { |item| item.is_a?(Hash) && item.key?("task") && item.key?("candidate") }
   abort("every exclusions entry must be a {task:, candidate:} map; bad: #{bad_exclusions.inspect}") unless bad_exclusions.empty?
@@ -118,14 +137,19 @@ ruby -ryaml -rjson -e '
 }
 
 ruby -ryaml -e '
+  repo = ARGV.fetch(0)
   data = YAML.safe_load_file("campaign.yml")
   puts data.fetch("campaign_id")
   puts data.fetch("corpus_version")
-' >.generate-campaign.out 2>.generate-campaign.err || {
+  require File.join(repo, "harness/profiles/candidates")
+  needs_openrouter = data.dig("judges", "openrouter").is_a?(Hash) ||
+                      data.fetch("candidates").any? { |id| HiveBench::Candidates.by_id(id.to_s)&.pi_models }
+  puts needs_openrouter
+' "$REPO_ROOT" >.generate-campaign.out 2>.generate-campaign.err || {
   write_waiting "$(cat .generate-campaign.err .generate-campaign.out)"
   exit 0
 }
-{ read -r CAMPAIGN_ID; read -r CORPUS_VERSION; } <.generate-campaign.out
+{ read -r CAMPAIGN_ID; read -r CORPUS_VERSION; read -r NEEDS_OPENROUTER; } <.generate-campaign.out
 
 ruby -ryaml -rshellwords -rjson -e '
   repo = ARGV.fetch(0)
@@ -175,6 +199,23 @@ ruby -ryaml -rshellwords -rjson -e '
         "--seeds", data.fetch("seeds").to_s,
         "--corpus-version", data.fetch("corpus_version").to_s
       ]
+      judges = data.fetch("judges")
+      if (claude = judges["claude"]).is_a?(Hash)
+        args += ["--claude-judge", "--judge-model", claude.fetch("model").to_s]
+      else
+        args << "--no-claude-judge"
+      end
+      if (codex = judges["codex"]).is_a?(Hash)
+        args += ["--codex-judge", "--codex-judge-model", codex.fetch("model").to_s,
+                 "--codex-judge-effort", codex.fetch("reasoning_effort").to_s]
+      else
+        args << "--no-codex-judge"
+      end
+      if (openrouter = judges["openrouter"]).is_a?(Hash)
+        args += ["--openrouter-judge", "--openrouter-judge-model", openrouter.fetch("model").to_s]
+      else
+        args << "--no-openrouter-judge"
+      end
       env = ["env"]
       # Timeout comes from the pre-registered contract (timeouts.hive_seconds);
       # when unset, harness defaults apply, as campaign.yml.example documents.
@@ -189,7 +230,7 @@ ruby -ryaml -rshellwords -rjson -e '
   exit 0
 }
 
-if [ -f "$HOME/.openrouter_key" ]; then
+if [ "$NEEDS_OPENROUTER" = "true" ] && [ -f "$HOME/.openrouter_key" ]; then
   sourced_key="$(cat "$HOME/.openrouter_key")" || {
     write_waiting "Failed to read $HOME/.openrouter_key; refusing to run with an empty judge key."
     exit 0
@@ -203,6 +244,11 @@ if [ -f "$HOME/.openrouter_key" ]; then
     write_waiting "$HOME/.openrouter_key is empty and OPENROUTER_API_KEY is unset; refusing to run without a judge key."
     exit 0
   fi
+fi
+
+if [ "$NEEDS_OPENROUTER" = "true" ] && [ -z "${OPENROUTER_API_KEY:-}" ]; then
+  write_waiting "OPENROUTER_API_KEY is required by an enabled OpenRouter judge or pi-backed candidate."
+  exit 0
 fi
 
 generate_status=0

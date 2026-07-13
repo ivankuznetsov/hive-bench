@@ -11,6 +11,7 @@ require "gate"
 require "judge"
 require "score"
 require "lib/agent_limit"
+require "lib/codex_judge"
 
 module HiveBench
   # The benchmark-pass driver (plan U8): runs the full corpus × slate matrix and
@@ -27,6 +28,7 @@ module HiveBench
   # All components are injected so a pass can be driven offline in tests.
   class RunAll
     Outcome = Data.define(:results, :pending, :failed)
+    ScoredCell = Data.define(:record, :judge_failure)
 
     # Raised when EVERY judge failed on a generated cell (nothing to score). Carries
     # whether the wall was a provider usage/credit limit, so the caller can park the
@@ -89,14 +91,9 @@ module HiveBench
         return
       end
 
-      records << score_cell(entry, profile, cell, out_dir)
-    rescue JudgesExhausted => e
-      # The diff generated fine but no judge could score it. A provider limit
-      # (drained OpenRouter balance, 429) is transient billing — park pending so a
-      # re-judge picks it up; anything else is a genuine failure.
-      bucket, label = e.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
-      warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(e.message)}"
-      bucket << park(entry, profile, e.message)
+      scored = score_cell(entry, profile, cell, out_dir)
+      records << scored.record
+      park_judge_failure(scored.judge_failure, entry, profile, pending, failed) if scored.judge_failure
     rescue StandardError => e
       reason = "#{e.class}: #{e.message}"
       warn "hive-bench: parked failed — #{profile.id} #{entry["task_id"]}: #{redact(reason)}"
@@ -105,6 +102,15 @@ module HiveBench
 
     def park(entry, profile, reason)
       { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => redact(reason) }
+    end
+
+    # The diff generated fine but no judge could score it. A provider limit
+    # (drained balance, 429) is transient; anything else is a hard judge failure.
+    # In both cases the generated record is already preserved for rejudge.
+    def park_judge_failure(error, entry, profile, pending, failed)
+      bucket, label = error.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
+      warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(error.message)}"
+      bucket << park(entry, profile, error.message)
     end
 
     # Strip provider-secret shapes from any text persisted into results.json —
@@ -128,6 +134,14 @@ module HiveBench
         end
 
       judges_res = judge_cell(entry, candidate_patch, withhold_reference: @withhold_reference || cell.mode == "reused")
+      ScoredCell.new(record: cell_record(cell, gate_res, judges_res), judge_failure: nil)
+    rescue JudgesExhausted => e
+      # Generation and gating already succeeded. Persist that paid artifact even
+      # when every judge is unavailable so rejudge can backfill it later.
+      ScoredCell.new(record: cell_record(cell, gate_res, {}), judge_failure: e)
+    end
+
+    def cell_record(cell, gate_res, judges_res)
       @scorer.cell_record(
         cell: { task_id: cell.task_id, agent_id: cell.agent_id, mode: cell.mode,
                 model_version: cell.model_version, run_status: cell.status, telemetry: cell.telemetry },
@@ -206,6 +220,7 @@ module HiveBench
 
       outcome = build(opts).call(entries: entries, profiles: profiles,
                                  out_root: opts[:out], corpus_version: opts[:corpus_version])
+      JudgeProvenance.annotate_document!(outcome.results, efforts: judge_efforts(opts))
       write_and_report(outcome, opts)
     end
 
@@ -213,6 +228,8 @@ module HiveBench
       opts = { corpus: "corpus", out: "runs", source: nil, agent: nil,
                seeds: 1, corpus_version: "v1", withhold_reference: true,
                claude_judge: true, judge_bin: "claude", judge_model: nil,
+               codex_judge: false, codex_judge_model: CodexJudge::DEFAULT_MODEL,
+               codex_judge_effort: CodexJudge::DEFAULT_EFFORT,
                openrouter_judge: true, openrouter_judge_model: "openai/gpt-5.5-pro" }
       OptionParser.new do |o|
         o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/run_all.rb --source <clone> [opts]"
@@ -226,6 +243,9 @@ module HiveBench
         o.on("--[no-]claude-judge", "score with the local claude judge (default: on)") { |v| opts[:claude_judge] = v }
         o.on("--judge-bin BIN", "claude judge CLI binary (default: claude)") { |v| opts[:judge_bin] = v }
         o.on("--judge-model M", "claude judge model (default: claude-fable-5)") { |v| opts[:judge_model] = v }
+        o.on("--[no-]codex-judge", "score through the Codex CLI") { |v| opts[:codex_judge] = v }
+        o.on("--codex-judge-model M") { |v| opts[:codex_judge_model] = v }
+        o.on("--codex-judge-effort LEVEL") { |v| opts[:codex_judge_effort] = v }
         o.on("--[no-]openrouter-judge", "score with the OpenRouter judge (default: on)") { |v| opts[:openrouter_judge] = v }
         o.on("--openrouter-judge-model M", "default: openai/gpt-5.5-pro") { |v| opts[:openrouter_judge_model] = v }
         o.separator ""
@@ -263,10 +283,12 @@ module HiveBench
       )
     end
 
-    # The independent judges, keyed by the name recorded in results.json. Both on
-    # by default — the dual-judge slate (maintainer decision, 2026-07-01):
-    # fable-5 (local claude CLI, anthropic-family) + gpt-5.5-pro (OpenRouter,
-    # openai-family). Two judges is the slate; no third. The key DERIVES from the
+    # The independent judges, keyed by the name recorded in results.json. The
+    # dual-judge slate (maintainer decision 2026-07-09, superseding 2026-07-01):
+    # fable-5 (local claude CLI, anthropic-family) + gpt-5.6-sol@xhigh (codex
+    # CLI, openai-family) — both subscription, so judging costs no API balance.
+    # gpt-5.5-pro via OpenRouter remains available behind --openrouter-judge
+    # (off by default). Two judges is the slate; no third. Keys DERIVE from the
     # pinned judge model so results.json never claims a model that didn't judge.
     def judges(opts)
       j = {}
@@ -275,12 +297,24 @@ module HiveBench
         j[model.sub(/\Aclaude-/, "")] =
           Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: model), seeds: opts[:seeds])
       end
+      if opts[:codex_judge]
+        model = opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL
+        effort = opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT
+        j[model] = Judge.new(judge_fn: CodexJudge.judge_fn(model: model, effort: effort), seeds: opts[:seeds])
+      end
       if opts[:openrouter_judge]
         j[opts[:openrouter_judge_model].split("/").last] =
           Judge.new(judge_fn: OpenRouterJudge.judge_fn(model: opts[:openrouter_judge_model]), seeds: opts[:seeds])
       end
-      abort("no judges enabled (need --claude-judge and/or --openrouter-judge)") if j.empty?
+      abort("no judges enabled (need --claude-judge, --codex-judge and/or --openrouter-judge)") if j.empty?
       j
+    end
+
+    def judge_efforts(opts)
+      return {} unless opts[:codex_judge]
+
+      { opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL =>
+          opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT }
     end
 
     def write_and_report(outcome, opts)

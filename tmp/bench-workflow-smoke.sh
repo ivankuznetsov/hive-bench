@@ -136,8 +136,14 @@ results =
     { "cells" => [{ "task_id" => task, "agent_id" => candidate, "mode" => "fresh",
                     "model_version" => "stub", "run_status" => "generated", "subset" => "judged",
                     "gate" => { "status" => "no_gate", "reason" => "stub" },
-                    "judges" => { "fable-5" => { "mean" => 7.0, "interval" => [6.5, 7.5] },
-                                  "gpt-5.5-pro" => { "mean" => 6.0, "interval" => [5.5, 6.5] } },
+                    "judges" => {
+                      "fable-5" => { "mean" => 7.0, "interval" => [6.5, 7.5],
+                                     "sample_count" => 3, "scores" => [6.5, 7.0, 7.5],
+                                     "reasoning_effort" => "unspecified" },
+                      "gpt-5.6-sol" => { "mean" => 6.0, "interval" => [5.5, 6.5],
+                                        "sample_count" => 3, "scores" => [5.5, 6.0, 6.5],
+                                        "reasoning_effort" => "ultra" }
+                    },
                     "efficiency" => { "cost_usd" => 1.0 } }],
       "pending" => [], "failed" => [] }
   when "failed"
@@ -186,8 +192,12 @@ cells = results.fetch("cells", [])
                .reject { |c| seen.include?([c["task_id"], c["agent_id"]]) }
                .map do |c|
   { "task_id" => c["task_id"], "agent_id" => c["agent_id"],
-    "judges" => { "fable-5" => { "initial" => 7.0, "final" => 7.0, "delta" => 0.0 },
-                  "gpt-5.5-pro" => { "initial" => 6.0, "final" => 6.5, "delta" => 0.5 } } }
+    "judges" => {
+      "fable-5" => { "initial" => 7.0, "final" => 7.0, "delta" => 0.0,
+                     "reasoning_effort" => "unspecified" },
+      "gpt-5.6-sol" => { "initial" => 6.0, "final" => 6.5, "delta" => 0.5,
+                         "reasoning_effort" => "ultra" }
+    } }
 end
 out = arg("--out")
 FileUtils.mkdir_p(File.dirname(out))
@@ -215,8 +225,8 @@ ruby -ryaml -rfileutils -e '
   stub = <<~RUBY
     module HiveBench
       module Candidates
-        Candidate = Struct.new(:id, :grok_model)
-        def self.all = #{ids.inspect}.map { |id| Candidate.new(id, id.include?("grok") ? "grok-stub" : nil) }
+        Candidate = Struct.new(:id, :grok_model, :pi_models)
+        def self.all = #{ids.inspect}.map { |id| Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil) }
         def self.by_id(id) = all.find { |c| c.id == id }
       end
     end
@@ -247,7 +257,12 @@ write_judge_fixture() {
     data = YAML.safe_load_file("campaign.yml.example")
     task = data.fetch("tasks").first
     cand = data.fetch("candidates").first
-    full = { "fable-5" => { "mean" => 7.0 }, "gpt-5.5-pro" => { "mean" => 6.5 } }
+    full = {
+      "fable-5" => { "mean" => 7.0, "sample_count" => 3, "scores" => [7.0, 7.0, 7.0],
+                     "reasoning_effort" => "unspecified" },
+      "gpt-5.6-sol" => { "mean" => 6.5, "sample_count" => 3, "scores" => [6.0, 6.5, 7.0],
+                         "reasoning_effort" => "ultra" }
+    }
     cell = ->(agent, judges) do
       { "task_id" => task, "agent_id" => agent, "mode" => "fresh",
         "run_status" => "generated", "judges" => judges, "efficiency" => {} }
@@ -255,7 +270,8 @@ write_judge_fixture() {
     results =
       case variant
       when "missing_cell" then { "cells" => [], "pending" => [], "failed" => [] }
-      when "missing_judges" then { "cells" => [cell.(cand, { "fable-5" => { "mean" => 7.0 } })], "pending" => [], "failed" => [] }
+      when "missing_judges" then { "cells" => [cell.(cand, { "fable-5" => full.fetch("fable-5") })], "pending" => [], "failed" => [] }
+      when "undersampled" then { "cells" => [cell.(cand, full.merge("gpt-5.6-sol" => full.fetch("gpt-5.6-sol").merge("sample_count" => 1, "scores" => [6.5])))], "pending" => [], "failed" => [] }
       when "unexpected" then { "cells" => [cell.(cand, full), cell.("rogue-candidate", full)], "pending" => [], "failed" => [] }
       when "pending" then { "cells" => [cell.(cand, full)], "pending" => [{ "task_id" => task, "agent_id" => cand, "reason" => "stub wall" }], "failed" => [] }
       else abort("unknown fixture variant #{variant}")
@@ -375,6 +391,21 @@ git -C "$STATE" add "stages/3-generate/$SLUG-nobudget/campaign.yml"
 git -C "$STATE" commit -qm "smoke: no-budget campaign"
 (cd "$NOBUDGET_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$NOBUDGET_DIR/generate.md" '<!-- WAITING -->' 'missing required key(s): budgets'
+
+# --- generate: judge backends that collapse to one results key fail before
+# spending (e.g. claude-gpt-5.6-sol and gpt-5.6-sol) ---------------------------
+DUPJUDGE_DIR="$STATE/stages/3-generate/$SLUG-dupjudge"
+mkdir -p "$DUPJUDGE_DIR"
+ruby -ryaml -e '
+  data = YAML.safe_load_file("campaign.yml.example")
+  data["campaign_id"] = "bench-smoke-dupjudge"
+  data.dig("judges", "claude")["model"] = "claude-gpt-5.6-sol"
+  File.write(ARGV.fetch(0), data.to_yaml)
+' "$DUPJUDGE_DIR/campaign.yml"
+git -C "$STATE" add "stages/3-generate/$SLUG-dupjudge/campaign.yml"
+git -C "$STATE" commit -qm "smoke: duplicate-judge-key campaign"
+(cd "$DUPJUDGE_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$DUPJUDGE_DIR/generate.md" '<!-- WAITING -->' 'enabled judges must produce unique result keys'
 
 # --- generate: REPO_ROOT misanchor parks with the ERROR message ----------------
 MISANCHOR_DIR="$WORKDIR/misanchor/w/x/y/z"
@@ -545,7 +576,7 @@ JUDGE_OK_DIR="$STATE/stages/4-judge/$SLUG-success"
 mkdir -p "$JUDGE_OK_DIR"
 write_campaign bench-smoke-success "$JUDGE_OK_DIR/campaign.yml"
 (cd "$JUDGE_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
-assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'full campaign judge slate'
+assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'configured judge slate'
 if ! grep -q "$EX_CAND" "$PROJECT/runs/bench-smoke-success/deliberation.json"; then
   echo "FAIL: deliberation transcript missing the dual-judged cell" >&2
   cat "$PROJECT/runs/bench-smoke-success/deliberation.json" >&2
@@ -556,7 +587,7 @@ assert_no_scratch "$JUDGE_OK_DIR" .judge-
 # --- judge retry: the deliberation union must preserve prior transcripts even
 # when the retry deliberates zero new cells (the old overwrite lost them) ------
 (cd "$JUDGE_OK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
-assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'full campaign judge slate'
+assert_state "$JUDGE_OK_DIR/judge.md" '<!-- COMPLETE -->' 'configured judge slate'
 if ! grep -q "$EX_CAND" "$PROJECT/runs/bench-smoke-success/deliberation.json"; then
   echo "FAIL: judge retry wiped the deliberation transcript" >&2
   cat "$PROJECT/runs/bench-smoke-success/deliberation.json" >&2
@@ -579,7 +610,14 @@ write_judge_fixture bench-smoke-missjudge missing_judges
 (cd "$JUDGE_MISSJUDGE_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
 assert_state "$JUDGE_MISSJUDGE_DIR/judge.md" '<!-- WAITING -->' 'MISSING_JUDGES'
 # The slate is validated by NAME: the report must say which judge is missing.
-assert_state "$JUDGE_MISSJUDGE_DIR/judge.md" '<!-- WAITING -->' 'missing: gpt-5.5-pro'
+assert_state "$JUDGE_MISSJUDGE_DIR/judge.md" '<!-- WAITING -->' 'missing: gpt-5.6-sol'
+
+JUDGE_UNDERSAMPLED_DIR="$STATE/stages/4-judge/$SLUG-undersampled"
+mkdir -p "$JUDGE_UNDERSAMPLED_DIR"
+write_campaign bench-smoke-undersampled "$JUDGE_UNDERSAMPLED_DIR/campaign.yml"
+write_judge_fixture bench-smoke-undersampled undersampled
+(cd "$JUDGE_UNDERSAMPLED_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
+assert_state "$JUDGE_UNDERSAMPLED_DIR/judge.md" '<!-- WAITING -->' 'UNDERSAMPLED_JUDGE'
 
 JUDGE_UNEXPECTED_DIR="$STATE/stages/4-judge/$SLUG-unexpected"
 mkdir -p "$JUDGE_UNEXPECTED_DIR"
@@ -645,7 +683,12 @@ ruby -rjson -e '
   cell = { "task_id" => ARGV.fetch(1), "agent_id" => ARGV.fetch(2), "mode" => "fresh",
            "model_version" => "stub", "run_status" => "generated", "subset" => "judged",
            "gate" => { "status" => "no_gate", "reason" => "stub" },
-           "judges" => { "fable-5" => { "mean" => 7.0 }, "gpt-5.5-pro" => { "mean" => 6.5 } },
+           "judges" => {
+             "fable-5" => { "mean" => 7.0, "sample_count" => 3, "scores" => [7.0, 7.0, 7.0],
+                            "reasoning_effort" => "unspecified" },
+             "gpt-5.6-sol" => { "mean" => 6.5, "sample_count" => 3, "scores" => [6.0, 6.5, 7.0],
+                                "reasoning_effort" => "ultra" }
+           },
            "efficiency" => { "cost_usd" => 1.0 } }
   File.write(ARGV.fetch(0), JSON.pretty_generate("cells" => [cell], "pending" => [], "failed" => []) + "\n")
 ' "$ANCHOR/runs/bench-smoke-real/$EX_CAND--$EX_TASK/results.json" "$EX_TASK" "$EX_CAND"

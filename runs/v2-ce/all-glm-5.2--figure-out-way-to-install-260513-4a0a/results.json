@@ -1,0 +1,89 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-11T15:11:21Z",
+  "cells": [
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.0,
+          "interval": [
+            2.0,
+            2.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 7785827,
+        "output_tokens": 558202,
+        "cached_tokens": 94895206,
+        "wall_clock_sec": 7463.73,
+        "cost_usd": 26.1523,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-glm-5.2": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "gpt-5.6-sol": 2.0,
+          "fable-5": 6.0
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": 2.0,
+          "fable-5": 6.0
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 26.1523,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

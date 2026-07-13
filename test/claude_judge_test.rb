@@ -91,6 +91,7 @@ class ClaudeJudgeTest < Minitest::Test
     err = assert_raises(HiveBench::ClaudeJudge::Error) { fn.call(prompt: "x", seed: 1) }
 
     assert_match(/exited 1/, err.message)
+    assert_match(/boom/, err.message, "stdout must explain failures when the CLI leaves stderr empty")
   end
 
   def test_judge_fn_reports_a_timeout_distinctly

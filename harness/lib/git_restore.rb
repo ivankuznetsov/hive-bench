@@ -42,6 +42,7 @@ module HiveBench
       ":(exclude,glob)**/node_modules/**",
       ":(exclude,glob)vendor/bundle/**", ":(exclude,glob)vendor/gems/**",
       ":(exclude,glob)vendor/cache/**", ":(exclude,glob).bundle/**",
+      ":(exclude,glob).bundle-local/**", ":(exclude).bundle-local",
       ":(exclude).hive-bench-prompt.md"
     ].freeze
 
@@ -83,7 +84,16 @@ module HiveBench
       # omits untracked files, which would silently drop a candidate that solves a
       # task mostly by ADDING files (install scripts, new modules, …). Vendored
       # trees are excluded so they neither bury the solution nor explode the diff.
-      git("-C", work_dir, *HARDENED_CONFIG, "add", "--intent-to-add", "--", ".", *VENDORED_EXCLUDES)
+      untracked, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "ls-files", "--others",
+                               "--exclude-standard", "-z", "--", ".", *VENDORED_EXCLUDES)
+      raise Error, "git untracked-file scan failed: #{err.strip}" unless ok
+
+      unless untracked.empty?
+        _out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "--literal-pathspecs", "add", "--intent-to-add",
+                            "--pathspec-from-file=-", "--pathspec-file-nul", stdin_data: untracked)
+        raise Error, "git intent-to-add failed: #{err.strip}" unless ok
+      end
+
       out, ok, err = git("-C", work_dir, *HARDENED_CONFIG, "diff", *DIFF_SAFETY,
                          base_commit.to_s, "--", ".", *VENDORED_EXCLUDES)
       raise Error, "git diff failed: #{err.strip}" unless ok
@@ -140,8 +150,9 @@ module HiveBench
     end
 
     # All git runs go through here so the hardened env is never bypassed.
-    def git(*)
-      out, err, status = Open3.capture3(@env, "git", *)
+    def git(*, stdin_data: nil)
+      options = stdin_data.nil? ? {} : { stdin_data: stdin_data }
+      out, err, status = Open3.capture3(@env, "git", *, **options)
       [out, status.success?, err]
     end
 

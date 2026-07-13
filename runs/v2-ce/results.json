@@ -1,0 +1,1890 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2-ce",
+  "generated_at": "2026-07-13T08:53:36Z",
+  "cells": [
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 28135581,
+        "output_tokens": 120344,
+        "wall_clock_sec": 5715.7,
+        "cost_usd": 144.2882,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 142182840,
+        "output_tokens": 246859,
+        "wall_clock_sec": 13641.55,
+        "cost_usd": 718.32,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 3.5,
+          "interval": [
+            3.5,
+            3.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 167156484,
+        "output_tokens": 363868,
+        "wall_clock_sec": 13454.15,
+        "cost_usd": 846.6985,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 8.5,
+          "interval": [
+            8.5,
+            8.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 9.0,
+          "interval": [
+            9.0,
+            9.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 32316062,
+        "output_tokens": 52902,
+        "wall_clock_sec": 2443.67,
+        "cost_usd": 163.1674
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 7.1,
+          "interval": [
+            7.1,
+            7.1
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 29915648,
+        "output_tokens": 67028,
+        "wall_clock_sec": null,
+        "recovered_artifact": true,
+        "artifact_provenance": "verified",
+        "cost_usd": 151.5891
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 48441057,
+        "output_tokens": 142972,
+        "wall_clock_sec": null,
+        "recovered_artifact": true,
+        "artifact_provenance": "verified",
+        "cost_usd": 246.4944,
+        "plan_forced_complete": true
+      }
+    },
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.5-pro": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "fable-5": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 4.5,
+          "interval": [
+            4.5,
+            4.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 19088335,
+        "output_tokens": 82433,
+        "wall_clock_sec": 3057.59,
+        "cost_usd": 97.9147,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 3.5,
+          "interval": [
+            3.5,
+            3.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 29432350,
+        "output_tokens": 101380,
+        "wall_clock_sec": 3171.88,
+        "cost_usd": 150.2032
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.5,
+          "interval": [
+            2.5,
+            2.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 28471144,
+        "output_tokens": 116995,
+        "wall_clock_sec": 4017.04,
+        "cost_usd": 145.8656,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 11384728,
+        "output_tokens": 35994,
+        "wall_clock_sec": 1562.42,
+        "cost_usd": 58.0035,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": false
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 3.5,
+          "interval": [
+            3.5,
+            3.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 2.0,
+          "interval": [
+            2.0,
+            2.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 30983666,
+        "output_tokens": 118271,
+        "wall_clock_sec": 4502.03,
+        "cost_usd": 158.4665,
+        "open_pr_ok": true,
+        "review_ok": true
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-codex-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 4.2,
+          "interval": [
+            4.2,
+            4.2
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 24164201,
+        "output_tokens": 84529,
+        "wall_clock_sec": 2426.83,
+        "cost_usd": 123.3569
+      }
+    },
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.5-pro": {
+          "mean": 4.0,
+          "interval": [
+            4.0,
+            4.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 4068790,
+        "output_tokens": 385355,
+        "cached_tokens": 60139434,
+        "wall_clock_sec": 6847.31,
+        "cost_usd": 15.8465,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 4574516,
+        "output_tokens": 591993,
+        "cached_tokens": 88693017,
+        "wall_clock_sec": 10411.1,
+        "cost_usd": 22.0865,
+        "open_pr_ok": true,
+        "review_ok": true
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.0,
+          "interval": [
+            2.0,
+            2.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 7785827,
+        "output_tokens": 558202,
+        "cached_tokens": 94895206,
+        "wall_clock_sec": 7463.73,
+        "cost_usd": 26.1523,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 7.2,
+          "interval": [
+            7.2,
+            7.2
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 1456447,
+        "output_tokens": 470493,
+        "cached_tokens": 38938790,
+        "wall_clock_sec": 5482.21,
+        "cost_usd": 9.8041,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 1.5,
+          "interval": [
+            1.5,
+            1.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 11528438,
+        "output_tokens": 157356,
+        "cached_tokens": 5366263,
+        "wall_clock_sec": 1784.8,
+        "cost_usd": 12.39,
+        "plan_forced_complete": true,
+        "open_pr_ok": false,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 13144014,
+        "output_tokens": 920585,
+        "cached_tokens": 168245358,
+        "wall_clock_sec": 9202.65,
+        "cost_usd": 45.5327,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.5-pro": {
+          "mean": 4.0,
+          "interval": [
+            4.0,
+            4.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.1,
+          "interval": [
+            5.1,
+            5.1
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1806.75,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 4.0,
+          "interval": [
+            4.0,
+            4.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1925.91,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.0,
+          "interval": [
+            2.0,
+            2.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1640.99,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 6.2,
+          "interval": [
+            6.2,
+            6.2
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 7.5,
+          "interval": [
+            7.5,
+            7.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": null,
+        "recovered_artifact": true,
+        "artifact_provenance": "legacy-unverified",
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1394.11,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.5,
+          "interval": [
+            7.5,
+            7.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1436.39,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 180029,
+        "output_tokens": 123375,
+        "cached_tokens": 55834662,
+        "cache_creation_tokens": 1549200,
+        "wall_clock_sec": 3567.47,
+        "cost_usd_reported": 16.111193,
+        "cost_usd": 39.6479,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 4.5,
+          "interval": [
+            4.5,
+            4.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 2.5,
+          "interval": [
+            2.5,
+            2.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 143172,
+        "output_tokens": 126595,
+        "cached_tokens": 80116890,
+        "cache_creation_tokens": 1919965,
+        "wall_clock_sec": 2642.33,
+        "cost_usd_reported": 21.061148,
+        "cost_usd": 53.539,
+        "plan_forced_complete": true
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.5,
+          "interval": [
+            2.5,
+            2.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 336946,
+        "output_tokens": 278697,
+        "cached_tokens": 180628514,
+        "cache_creation_tokens": 2795261,
+        "wall_clock_sec": 5921.3,
+        "cost_usd_reported": 48.542312,
+        "cost_usd": 112.9427,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 8.0,
+          "interval": [
+            8.0,
+            8.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 7.5,
+          "interval": [
+            7.5,
+            7.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 168208,
+        "output_tokens": 83359,
+        "cached_tokens": 23528733,
+        "cache_creation_tokens": 953371,
+        "wall_clock_sec": 2392.92,
+        "cost_usd_reported": 8.463039,
+        "cost_usd": 19.4562,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 151848,
+        "output_tokens": 145881,
+        "cached_tokens": 66540541,
+        "cache_creation_tokens": 1365971,
+        "wall_clock_sec": 3308.9,
+        "cost_usd_reported": 17.738753,
+        "cost_usd": 44.5064,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "all-opus-4.8",
+      "mode": "hive",
+      "model_version": "claude-opus-4-8",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 193085,
+        "output_tokens": 225400,
+        "cached_tokens": 109883831,
+        "cache_creation_tokens": 2347515,
+        "wall_clock_sec": 5097.35,
+        "cost_usd_reported": 30.34956,
+        "cost_usd": 73.2799,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.0,
+          "interval": [
+            6.0,
+            6.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 22599028,
+        "output_tokens": 130308,
+        "cached_tokens": 24071560,
+        "cache_creation_tokens": 1017134,
+        "wall_clock_sec": null,
+        "recovered_artifact": true,
+        "artifact_provenance": "verified",
+        "cost_usd_reported": 8.78004,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 5.0,
+          "interval": [
+            5.0,
+            5.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 20511190,
+        "output_tokens": 106218,
+        "cached_tokens": 2848830,
+        "cache_creation_tokens": 255736,
+        "wall_clock_sec": 3052.3,
+        "cost_usd_reported": 1.650943,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    },
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 4.5,
+          "interval": [
+            4.5,
+            4.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 19892337,
+        "output_tokens": 146681,
+        "cached_tokens": 41031174,
+        "cache_creation_tokens": 1051602,
+        "wall_clock_sec": 4501.12,
+        "cost_usd_reported": 11.511774,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-claude-tmux-ready-detector-260629-50cc",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "v2: judge-scored"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 9.0,
+          "interval": [
+            9.0,
+            9.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 8.7,
+          "interval": [
+            8.7,
+            8.7
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 4149842,
+        "output_tokens": 93106,
+        "cached_tokens": 14645405,
+        "cache_creation_tokens": 808088,
+        "wall_clock_sec": 4378.15,
+        "cost_usd_reported": 6.331259,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    },
+    {
+      "task_id": "fix-review-stage-claude-stop-260629-26ed",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 3.0,
+          "interval": [
+            3.0,
+            3.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 4.0,
+          "interval": [
+            4.0,
+            4.0
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 15400286,
+        "output_tokens": 66834,
+        "cached_tokens": 3326098,
+        "cache_creation_tokens": 356558,
+        "wall_clock_sec": 2813.58,
+        "cost_usd_reported": 1.972521,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    },
+    {
+      "task_id": "make-the-hive-daemon-automatically-260629-223d",
+      "agent_id": "opus-plan->codex-exec-xhigh",
+      "mode": "hive",
+      "model_version": "opus-plan/codex-exec-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 4.5,
+          "interval": [
+            4.5,
+            4.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "input_tokens": 16725460,
+        "output_tokens": 101372,
+        "cached_tokens": 6498971,
+        "cache_creation_tokens": 826974,
+        "wall_clock_sec": 3493.55,
+        "cost_usd_reported": 3.35336,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": false,
+        "review_changed_diff": false
+      }
+    }
+  ],
+  "agents": {
+    "all-codex-5.6-sol-xhigh": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "gpt-5.6-sol": 6.183,
+          "fable-5": 6.917
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": null,
+          "fable-5": 6.917
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 2270.5576,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    },
+    "all-codex-xhigh": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "gpt-5.5-pro": 5.0,
+          "fable-5": 4.667,
+          "gpt-5.6-sol": 3.867
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.5-pro": null,
+          "fable-5": 4.667,
+          "gpt-5.6-sol": null
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 733.8104,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    },
+    "all-glm-5.2": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "fable-5": 4.833,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 3.617
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 4.833,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 3.617
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 131.8121,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    },
+    "all-grok-4.5": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "fable-5": 6.333,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 4.217
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 6.333,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 4.217
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": null,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    },
+    "all-opus-4.8": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "gpt-5.6-sol": 4.25,
+          "fable-5": 6.083
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": 4.25,
+          "fable-5": null
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 343.3721,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    },
+    "opus-plan->codex-exec-xhigh": {
+      "cells": 6,
+      "preliminary": true,
+      "generation": {
+        "generated": 6
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 6,
+        "mean_quality": {
+          "fable-5": 6.167,
+          "gpt-5.6-sol": 4.783
+        },
+        "mean_quality_cross_family": {
+          "fable-5": null,
+          "gpt-5.6-sol": null
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": null,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  },
+  "pending": [],
+  "failed": []
+}

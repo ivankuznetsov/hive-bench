@@ -1,8 +1,10 @@
 # v3 Workflow
 
-`bench` is a hive custom workflow for running one benchmark campaign per task
-folder. It is pure orchestration around the existing harness scripts; it does
-not change scoring, judging, generation, or merge semantics.
+`bench` is the user-facing hive custom workflow for running one benchmark
+campaign per task folder. It drives the same real-hive harness, candidate
+profiles, scoring records, and judge provenance used by the maintained public
+benchmark. A local campaign can use a smaller matrix, but it does not fall back
+to a toy planner/executor or a different scoring path.
 
 ## Running a campaign
 
@@ -22,8 +24,11 @@ Create or move a task into the `bench` workflow by setting task meta
 
 The task folder is the campaign boundary. Copy `campaign.yml.example` into that
 task folder as `campaign.yml`, edit the campaign id, source clone, tasks,
-candidates, seeds, budget declarations, timeout declarations, exclusions, and
-aggregation prose, then commit it in the hive-state checkout before generate.
+candidates, exact judge backends/models/effort, judge sample count, budget
+declarations, timeout declarations, exclusions, and aggregation prose, then
+commit it in the hive-state checkout before generate. The example defaults to
+the maintained follow-up methodology: Fable 5 plus GPT-5.6 Sol at `ultra`, with
+three independent score samples per judge and cell.
 
 `3-generate` refuses to run if `campaign.yml` is missing, untracked, or dirty.
 This keeps the campaign pre-registration immutable before spending on
@@ -32,12 +37,13 @@ generation.
 Treat the committed `campaign.yml` as frozen once generation has spent
 anything: the tracked+clean gate only proves the file matches HEAD, not that
 it is unchanged since first spend, so an amended-and-committed campaign passes
-it. Amendments silently invalidate the pre-registration — raising `seeds`
-after generation is not retroactive (`rejudge --only-missing` skips judges
-that already have scores, so existing cells retain their earlier seed count),
-and shrinking the matrix strands already-paid cells (judge validation reports
-them as `UNEXPECTED_CELL` rather than publishing de-registered cells). Start a
-new campaign folder instead of amending one that has spent.
+it. Amendments silently invalidate the pre-registration. The repair path can
+detect a judge record below the configured `seeds` count and replace that
+judge's record with a fully sampled one, but changing `seeds` after spending is
+still a methodology change rather than a legitimate repair. Shrinking the
+matrix strands already-paid cells (judge validation reports them as
+`UNEXPECTED_CELL` rather than publishing de-registered cells). Start a new
+campaign folder instead of amending one that has spent.
 
 The workflow stage files contain marker-anchored bash blocks. Every stage
 instruction requires its block to be executed verbatim: the guards and single
@@ -55,9 +61,12 @@ contract, not prose for an agent to reimplement.
 - `3-generate` validates the committed campaign contract (required keys, strict
   `campaign_id` slug — it becomes the `runs/<campaign_id>` path segment — with
   the unedited `v3-example` id rejected, non-empty single-line `source`,
-  single-line scalar `corpus_version`, exclusion entry shape, at least one
-  non-excluded task/candidate cell, and `timeouts.hive_seconds`). It then runs
-  `ruby harness/hive_run.rb` once for each non-excluded cell. `HB_HIVE_TIMEOUT`
+  single-line scalar `corpus_version`, an exact judge map with at least two
+  enabled backends, exclusion entry shape, at least one non-excluded
+  task/candidate cell, and `timeouts.hive_seconds`). It then runs `ruby
+  harness/hive_run.rb` once for each non-excluded cell, passing the configured
+  judge backend, exact model, Codex reasoning effort, and sample count.
+  `HB_HIVE_TIMEOUT`
   comes from the pre-registered timeout (use the required `timeouts: {}` form
   to retain harness defaults; removing the key parks at WAITING); the grok
   runner image is keyed on the candidate profile's `grok_model` field.
@@ -84,14 +93,25 @@ contract, not prose for an agent to reimplement.
   key. It checks `pending[]`/`failed[]` before rejudging because rejudge output
   does not carry those keys. Rejudge writes `results.json.next` and renames it
   over the campaign root only on success; backfilled scores exist only in that
-  root file. Deliberation writes a scratch transcript which is unioned into
+  root file. `--only-missing` also treats legacy or undersampled judge records
+  as incomplete, so a three-sample campaign cannot complete with a one-sample
+  score. Every judge record persists the individual scores, reasons,
+  `sample_count`, interval, model family, and reasoning-effort provenance.
+  Judges grade the candidate-generated plan rather than silently substituting
+  the frozen reference plan.
+
+  Deliberation writes a scratch transcript which is unioned into
   `deliberation.json` by `[task_id, agent_id]`, preserving paid transcripts on
-  a zero-new-cell retry. Both commands search the per-cell run directories
-  (`runs/<campaign_id>/*--*`) for artifacts. Validation requires every
-  non-excluded matrix cell, the exact judge slate by name (`fable-5` and
-  `gpt-5.5-pro`) on every non-`empty_diff` cell, deliberation coverage for each
-  dual-judged cell, and no `UNEXPECTED_CELL` outside the frozen matrix. A
-  soft-failed rejudge's stderr tail is included in the WAITING report.
+  a zero-new-cell retry. Its second round explicitly makes each judge argue the
+  strongest evidence-based case that its own initial score was wrong before
+  choosing a final diagnostic score. Deliberated scores never replace the
+  independent leaderboard scores. Both commands search the per-cell run
+  directories (`runs/<campaign_id>/*--*`) for artifacts. Validation requires
+  every non-excluded matrix cell, the campaign's exact judge slate by name,
+  the requested sample count and reasoning effort on every non-`empty_diff`
+  cell, matching deliberation coverage, and no `UNEXPECTED_CELL` outside the
+  frozen matrix. A soft-failed rejudge's stderr tail is included in the WAITING
+  report.
 - `5-publish` extracts fields with the same guarded, type-checked pattern,
   merges the campaign root through `results.json.next` plus rename, and renders
   the leaderboard summary to a scratch file first. A render or final state-file
@@ -110,28 +130,33 @@ Each instruction anchors from the task folder to the repo root with
 checkout in normal hive operation. All four scripts now define marker helpers
 before guarding that substitution, so an anchor failure parks with WAITING.
 
-## Provider walls and retries
+## Scheduling, provider walls, and retries
 
-Hive does not automatically redispatch an agent stage parked at `WAITING`.
-The v3 retry contract is explicit marker discipline:
+The workflow deliberately does not create its own background runner, rescue
+loop, or detached scheduler. Hive owns dispatch, collision avoidance, daemon
+reloads, and project concurrency. One campaign task executes its matrix in a
+stable serial order; multiple ordinary `bench` tasks may be scheduled in
+parallel, subject to Hive's global and per-project limits. For quota sharing,
+set the Hive per-project cap to two rather than adding shell-level fan-out.
+Never run two tasks against the same `campaign_id`/result root concurrently.
 
-1. A stage writes status and ends with `<!-- WAITING -->`.
-2. The operator, cron, or another babysitter waits for the provider wall to
-   cool down.
-3. Retry by touching the current stage state file, for example
-   `touch generate.md`.
-
-The daemon's edit-resume policy sees the state file mtime change after its
-debounce window and may dispatch the stage again. Automatic cooldown retry is a
-hive-side feature request, not part of hive-bench v3.
+Every stage failure is durable and idempotent: it appends status and ends with
+`<!-- WAITING -->`, while already-bought candidate patches, judge scores, and
+deliberations are reused on the next dispatch. Hive's installed daemon version
+decides whether a particular provider-limit marker is eligible for automatic
+cooldown recovery. If that version does not redispatch a generic custom-stage
+WAITING marker, touching the current state file (for example `touch
+generate.md`) remains the manual edit-resume signal. The benchmark workflow
+does not duplicate Hive's retry policy.
 
 When a candidate patch already exists, the generate status directs judge
 backfill at the campaign-root `runs/<campaign_id>/results.json`, never at the
 per-cell result (rejudge overwrites its output and can otherwise erase the
 pending evidence that keeps generation disarmed). A first pass where every
-judge walls can still leave a paid patch in a per-cell `cells: []` plus
-`pending[]` result and park before the campaign-root merge. Rejudge consumes
-only recorded `cells`, so this recovery remains unresolved; see [[gaps]].
+judge walls is recovered by the harness's captured-artifact path; the paid diff
+is promoted into a scoreable cell rather than regenerated. See [[architecture]]
+for the recovery provenance recorded when original timing or model identity is
+not recoverable.
 
 Every retry appends a fresh `## Status` section to the state file;
 last-marker-wins keeps the semantics correct, but the file grows across
@@ -142,7 +167,8 @@ time.
 
 - Author and commit `campaign.yml`.
 - Extract new corpus tasks when `2-extract` reports missing slugs.
-- Touch the current state file after provider walls cool down.
+- Touch the current state file after a provider wall only when the installed
+  Hive daemon does not auto-recover that marker.
 - Publish any website artifacts after `5-publish`; `assemble/gen-site-data`
   does not exist here today.
 - Enforce budgets and effort pins by review. They are pre-registered in
@@ -150,11 +176,10 @@ time.
   Timeouts are the exception: `timeouts.hive_seconds` is enforced because
   generate exports it as `HB_HIVE_TIMEOUT` for every `hive_run.rb` invocation.
 
-The related hive-side ask for automatic cooldown retry should follow the same
-feature-request pattern as the sibling hive task
-`per-stage-claude-model-config-260709-35f7`: file it in hive, keep
-hive-bench's workflow descriptor simple, and continue using WAITING plus
-edit-resume until hive owns the retry policy.
+Retry policy belongs in Hive. Keep hive-bench's workflow descriptor limited to
+durable WAITING/COMPLETE markers and idempotent benchmark operations; changes
+to cooldown classification or redispatch should be proposed and tested in the
+Hive repository so every workflow benefits.
 
 ## Smoke
 
@@ -178,7 +203,8 @@ repo-root misanchors, extract missing-source and missing-slug paths,
 judge/publish missing-results and malformed-campaign paths, provider walls,
 nonzero command exits with bounded stderr, grok runner-image selection,
 contradictory terminal results, and judge `MISSING_CELL`, named
-`MISSING_JUDGES`, `UNEXPECTED_CELL`, and pending guards.
+`MISSING_JUDGES`, `UNDERSAMPLED_JUDGE`, reasoning-effort mismatches,
+`UNEXPECTED_CELL`, and pending guards.
 
 Success fixtures drive extract, generate, judge, and publish to
 `<!-- COMPLETE -->`. Generate uses a success-shaped `hive_run.rb` stub and the
@@ -189,7 +215,6 @@ never-re-buy guard is asserted by invocation count for terminal,
 `campaign.yml.example` is also passed through the real generate validator at a
 real-root-shaped fixture, and scratch cleanup is checked for every stage.
 
-This remains fixture coverage: it does not run a paid campaign, and it does not
-turn a first-pass `cells: []` plus captured patch into a rejudgeable root cell.
-The parser smoke requires `hive` before loading the descriptor parser, matching
-the real gem load path.
+This remains fixture coverage: it does not run a paid campaign. The parser
+smoke requires `hive` before loading the descriptor parser, matching the real
+gem load path.

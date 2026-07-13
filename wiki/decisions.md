@@ -51,11 +51,33 @@ configuration is not used as benchmark configuration.
 `campaign.yml` is the pre-registration contract, so a campaign that has spent
 must not be amended in place. The generate gate proves only that the file is
 tracked, clean, and valid at dispatch time; it does not prove that current HEAD
-matches the version used for the first paid cell. Increasing `seeds` later is
-not retroactive because `rejudge --only-missing` preserves existing judge
-scores, while shrinking the matrix surfaces paid cells as `UNEXPECTED_CELL`.
-Start a new campaign folder for any post-spend contract change. Persisting and
-checking a first-spend fingerprint remains a gap in [[gaps]].
+matches the version used for the first paid cell. Rejudge now repairs judge
+records that are below the pre-registered sample count, but changing `seeds`
+after spending is still an invalid contract amendment. Shrinking the matrix
+surfaces paid cells as `UNEXPECTED_CELL`. Start a new campaign folder for any
+post-spend contract change. Persisting and checking a first-spend fingerprint
+remains a gap in [[gaps]].
+
+## 2026-07-13 — user-run campaigns mirror the maintained benchmark
+
+The native `bench` Hive workflow is the supported path for both maintainers and
+users benchmarking their own task. Its campaign file declares the exact judge
+backends, model ids, Codex reasoning effort, and sample count; stage validation
+refuses to publish a different or undersampled slate. The maintained follow-up
+default is Fable 5 plus GPT-5.6 Sol at `ultra`, three independent samples per
+judge and cell. Judge records retain every score and reason rather than only a
+mean.
+
+For v3, judges grade the candidate-generated plan. Deliberation is diagnostic:
+each judge must argue against its own initial score after seeing the other
+verdict, but the revised score never replaces the independent leaderboard
+score. Leaderboards remain one table per judge because scores from different
+raters are not a common numeric scale.
+
+Hive remains the only scheduler. A campaign task runs its cells in deterministic
+order, while Hive may run separate workflow tasks concurrently under the normal
+global/per-project caps. The benchmark does not introduce a rescue daemon or
+shell background fan-out.
 
 ## 2026-07-01 — integrity hardening round
 
@@ -115,3 +137,9 @@ their survivors. The judge prompt's false "your family is disjoint from
 every contestant" premise is fixed. Remaining review items (objective gates
 primary, pre-registered replicated campaign, anchor diffs, rater-calibrated
 model) are the v3 agenda in [[gaps]].
+
+Judge records persist their reasoning-effort provenance. GPT-5.6-sol is
+explicitly pinned to `xhigh`; Fable 5 and legacy OpenRouter GPT-5.5-pro calls
+pass no effort control and are therefore recorded as `unspecified`, not assigned
+an inferred provider default. The separate boolean
+`reasoning_effort_explicit` makes that distinction machine-readable.
