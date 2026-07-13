@@ -11,16 +11,19 @@ export RUBYLIB="$HIVE_SRC/lib${RUBYLIB:+:$RUBYLIB}"
 
 cd "$ROOT"
 
-parse_descriptor() {
-  local path="$1"
-  ruby -e '
-    require "hive"
-    require "hive/workflows/descriptor_parser"
-    workflow = Hive::Workflows::DescriptorParser.parse_file(ARGV.fetch(0))
-    expected = %w[1-inbox 2-extract 3-generate 4-judge 5-publish 6-done]
-    abort("bad stages: #{workflow.stage_dirs.inspect}") unless workflow.stage_dirs == expected
-  ' "$path"
-}
+BENCH_INSTRUCTIONS="$(ruby -e '
+  require "hive/workflows/registry"
+  workflow = Hive::Workflows::Registry.fetch(:bench)
+  expected = %w[1-inbox 2-extract 3-generate 4-judge 5-publish 6-done]
+  abort("bad stages: #{workflow.stage_dirs.inspect}") unless workflow.stage_dirs == expected
+  agent_stages = workflow.stages.select { |stage| stage.kind == :agent }
+  instructions = agent_stages.map(&:instruction)
+  abort("bench instructions are missing") unless instructions.all? { |path| path && File.file?(path) }
+  dirs = instructions.map { |path| File.dirname(path) }.uniq
+  abort("bench instructions span unexpected directories: #{dirs.inspect}") unless dirs.one?
+  puts dirs.fetch(0)
+')"
+readonly BENCH_INSTRUCTIONS
 
 # Extract a stage instruction's script by its named marker — never "the first
 # ```bash block", which silently grabs doc examples added above the script.
@@ -71,31 +74,6 @@ assert_no_scratch() {
   fi
 }
 
-parse_descriptor "workflows/bench.yml"
-if git ls-files --error-unmatch .hive-state/workflows/bench.yml >/dev/null 2>&1 &&
-   [ -e .hive-state/workflows/bench.yml ]; then
-  echo "FAIL: .hive-state/workflows/bench.yml is tracked; a fresh hive init needs to create .hive-state" >&2
-  exit 1
-fi
-
-# The broken copy must still be named bench.yml: the parser checks id-vs-filename
-# first, and a mismatched temp name would fail for the wrong reason.
-broken_dir="$(mktemp -d)"
-broken="$broken_dir/bench.yml"
-broken_err="$broken_dir/err"
-trap 'rm -rf "$broken_dir"; [ -z "${WORKDIR:-}" ] || rm -rf "$WORKDIR"' EXIT
-sed 's/state_file: task.md/state_file: nested\/task.md/' workflows/bench.yml >"$broken"
-if parse_descriptor "$broken" >/dev/null 2>"$broken_err"; then
-  echo "broken descriptor unexpectedly parsed" >&2
-  exit 1
-fi
-# The rejection must be the nested-state_file rule, not an unrelated load error.
-if ! grep -q "must be a bare filename" "$broken_err"; then
-  echo "broken descriptor failed for an unexpected reason:" >&2
-  cat "$broken_err" >&2
-  exit 1
-fi
-
 # campaign.yml.example itself is validated against the REAL repo by the
 # real-root generate scenario below (the real contract validator, real
 # candidate profiles, real corpus) — no re-implemented validator logic here.
@@ -105,11 +83,10 @@ EX_TASK="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetc
 EX_CAND="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetch("candidates").first')"
 
 WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' EXIT
 
-# --- fresh-machine installation: Hive must be able to initialize an ordinary
-# clone before the canonical workflow is copied into its managed state
-# worktree. Tracking an "installed" .hive-state copy in the main checkout made
-# this exact sequence fail with "already exists". -----------------------------
+# --- fresh-machine installation: selecting the packaged workflow must bind the
+# project and create a bench task without any project-local workflow copy. -----
 FRESH_PROJECT="$WORKDIR/fresh-project"
 FRESH_HIVE_HOME="$WORKDIR/fresh-hive-home"
 FRESH_HOME="$WORKDIR/fresh-home"
@@ -125,19 +102,17 @@ git -C "$FRESH_PROJECT" add README.md
 git -C "$FRESH_PROJECT" commit -qm "seed fresh project"
 HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
   GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
-  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" init "$FRESH_PROJECT" \
+  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" init "$FRESH_PROJECT" --workflow bench \
   </dev/null >/dev/null 2>"$WORKDIR/fresh-init.err"
-mkdir -p "$FRESH_PROJECT/.hive-state/workflows"
-cp -R workflows/bench.yml workflows/bench "$FRESH_PROJECT/.hive-state/workflows/"
-git -C "$FRESH_PROJECT/.hive-state" add workflows/bench.yml workflows/bench
-git -C "$FRESH_PROJECT/.hive-state" commit -qm "install bench workflow"
-parse_descriptor "$FRESH_PROJECT/.hive-state/workflows/bench.yml"
-diff -qr workflows/bench "$FRESH_PROJECT/.hive-state/workflows/bench" >/dev/null
-diff -u workflows/bench.yml "$FRESH_PROJECT/.hive-state/workflows/bench.yml" >/dev/null
+if [ -e "$FRESH_PROJECT/.hive-state/workflows/bench.yml" ] ||
+   [ -e "$FRESH_PROJECT/.hive-state/workflows/bench" ]; then
+  echo "FAIL: built-in bench workflow was copied into project state" >&2
+  exit 1
+fi
 HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
   GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
   HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" \
-  new fresh-project --workflow bench "benchmark smoke campaign" </dev/null >/dev/null
+  new fresh-project "benchmark smoke campaign" </dev/null >/dev/null
 if ! grep -Rqx 'workflow: bench' "$FRESH_PROJECT/.hive-state/stages/1-inbox"; then
   echo "FAIL: fresh install did not create a task pinned to workflow: bench" >&2
   exit 1
@@ -146,8 +121,7 @@ fi
 PROJECT="$WORKDIR/project"
 STATE="$PROJECT/.hive-state"
 SLUG="bench-smoke-260709-aa11"
-mkdir -p "$STATE/workflows" "$STATE/stages/1-inbox/$SLUG" "$PROJECT/harness/profiles" "$PROJECT/corpus"
-cp -R workflows/bench.yml workflows/bench "$STATE/workflows/"
+mkdir -p "$STATE/stages/1-inbox/$SLUG" "$PROJECT/harness/profiles" "$PROJECT/corpus"
 
 # Stage scripts run with HOME pointed here: the real ~/.openrouter_key must
 # never be exported into stub runs.
@@ -377,10 +351,10 @@ ruby -e '
 
 test -d "$STATE/stages/6-done/$SLUG"
 
-extract_stage_script workflows/bench/extract.md "$WORKDIR/extract.sh"
-extract_stage_script workflows/bench/generate.md "$WORKDIR/generate.sh"
-extract_stage_script workflows/bench/judge.md "$WORKDIR/judge.sh"
-extract_stage_script workflows/bench/publish.md "$WORKDIR/publish.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/extract.md" "$WORKDIR/extract.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/generate.md" "$WORKDIR/generate.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/judge.md" "$WORKDIR/judge.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/publish.md" "$WORKDIR/publish.sh"
 
 # --- campaign_id slug validation is duplicated across three stage scripts:
 # assert the copies have not drifted.

@@ -100,6 +100,24 @@ limit windows, budget caps, or an exclusion I made and named.
 
 ## Running a pass
 
+The maintained campaign path uses Hive's built-in named workflow (use a Hive
+release that includes `bench`):
+
+```bash
+git clone https://github.com/ivankuznetsov/hive-bench.git
+cd hive-bench
+bundle install
+hive init . --workflow bench
+hive new hive-bench "benchmark campaign"
+```
+
+The descriptor and stage instructions ship with Hive; do not copy them into
+`.hive-state`. No Honeycomb deployment is required. Put a tracked, clean copy
+of `campaign.yml.example` in the task folder as `campaign.yml`; see
+[`wiki/v3-workflow.md`](wiki/v3-workflow.md) for the full campaign contract.
+
+For low-level harness development, a pass can also be launched directly:
+
     HIVE_SRC=~/Dev/hive harness/build_runner.sh     # bake hive into the runner image
 
     OPENROUTER_API_KEY=… HB_HIVE_TIMEOUT=14400 \

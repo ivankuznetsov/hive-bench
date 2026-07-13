@@ -26,7 +26,7 @@ provenance:
   extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/fix-claude-tmux-ready-detector-260629-50cc"
   extracted_at: '2026-07-01T22:03:48Z'
   execute_base_head: ee9bb36a652115bb3817175019db290d6ac02db7
-  original_model: claude-haiku-4-5-20251001
+  original_model: gpt-5.5
   plan_authorship: claude
   attestation: Extracted by the maintainer from a repo they have the right to publish.
 publish:
