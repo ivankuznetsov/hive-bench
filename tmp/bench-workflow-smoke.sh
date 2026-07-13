@@ -72,9 +72,11 @@ assert_no_scratch() {
 }
 
 parse_descriptor "workflows/bench.yml"
-parse_descriptor ".hive-state/workflows/bench.yml"
-diff -qr workflows/bench .hive-state/workflows/bench >/dev/null
-diff -u workflows/bench.yml .hive-state/workflows/bench.yml >/dev/null
+if git ls-files --error-unmatch .hive-state/workflows/bench.yml >/dev/null 2>&1 &&
+   [ -e .hive-state/workflows/bench.yml ]; then
+  echo "FAIL: .hive-state/workflows/bench.yml is tracked; a fresh hive init needs to create .hive-state" >&2
+  exit 1
+fi
 
 # The broken copy must still be named bench.yml: the parser checks id-vs-filename
 # first, and a mismatched temp name would fail for the wrong reason.
@@ -103,6 +105,44 @@ EX_TASK="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetc
 EX_CAND="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetch("candidates").first')"
 
 WORKDIR="$(mktemp -d)"
+
+# --- fresh-machine installation: Hive must be able to initialize an ordinary
+# clone before the canonical workflow is copied into its managed state
+# worktree. Tracking an "installed" .hive-state copy in the main checkout made
+# this exact sequence fail with "already exists". -----------------------------
+FRESH_PROJECT="$WORKDIR/fresh-project"
+FRESH_HIVE_HOME="$WORKDIR/fresh-hive-home"
+FRESH_HOME="$WORKDIR/fresh-home"
+FRESH_XDG_CONFIG_HOME="$WORKDIR/fresh-xdg-config"
+FRESH_GEM_HOME="$(ruby -e 'print Gem.dir')"
+FRESH_GEM_PATH="$(ruby -e 'print Gem.path.join(":")')"
+mkdir -p "$FRESH_PROJECT" "$FRESH_HIVE_HOME" "$FRESH_HOME" "$FRESH_XDG_CONFIG_HOME"
+git -C "$FRESH_PROJECT" init -q
+git -C "$FRESH_PROJECT" config user.email smoke@example.invalid
+git -C "$FRESH_PROJECT" config user.name "Bench Smoke"
+touch "$FRESH_PROJECT/README.md"
+git -C "$FRESH_PROJECT" add README.md
+git -C "$FRESH_PROJECT" commit -qm "seed fresh project"
+HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
+  GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
+  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" init "$FRESH_PROJECT" \
+  </dev/null >/dev/null 2>"$WORKDIR/fresh-init.err"
+mkdir -p "$FRESH_PROJECT/.hive-state/workflows"
+cp -R workflows/bench.yml workflows/bench "$FRESH_PROJECT/.hive-state/workflows/"
+git -C "$FRESH_PROJECT/.hive-state" add workflows/bench.yml workflows/bench
+git -C "$FRESH_PROJECT/.hive-state" commit -qm "install bench workflow"
+parse_descriptor "$FRESH_PROJECT/.hive-state/workflows/bench.yml"
+diff -qr workflows/bench "$FRESH_PROJECT/.hive-state/workflows/bench" >/dev/null
+diff -u workflows/bench.yml "$FRESH_PROJECT/.hive-state/workflows/bench.yml" >/dev/null
+HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
+  GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
+  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" \
+  new fresh-project --workflow bench "benchmark smoke campaign" </dev/null >/dev/null
+if ! grep -Rqx 'workflow: bench' "$FRESH_PROJECT/.hive-state/stages/1-inbox"; then
+  echo "FAIL: fresh install did not create a task pinned to workflow: bench" >&2
+  exit 1
+fi
+
 PROJECT="$WORKDIR/project"
 STATE="$PROJECT/.hive-state"
 SLUG="bench-smoke-260709-aa11"
