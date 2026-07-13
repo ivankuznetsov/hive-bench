@@ -244,7 +244,7 @@ module HiveBench
       return nil if Open3.capture2e("sh", "-c", "command -v sqlite3").last.success? == false
 
       sql = "SELECT model FROM token_usage WHERE task_slug='#{task_slug.gsub("'", "''")}' " \
-            "AND model IS NOT NULL AND model<>'' ORDER BY started_at LIMIT 1;"
+            "AND stage='4-execute' AND model IS NOT NULL AND model<>'' ORDER BY started_at LIMIT 1;"
       out, _err, status = Open3.capture3("sqlite3", db, sql)
       return nil unless status.success?
 

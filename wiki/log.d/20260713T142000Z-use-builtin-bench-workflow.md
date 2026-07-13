@@ -10,3 +10,5 @@
   Codex implemented web-install, fix-tmux, fix-review, and daemon; Claude
   authored the plans.
 - Documented that Honeycomb is not deployed and is not required.
+- Scoped UsageDb provenance lookup to the `4-execute` stage so an unknown
+  executor model cannot be misattributed to a later review or finalize model.
