@@ -54,6 +54,27 @@ GROK
   echo "HB_NOTE grok_pin model=${HB_GROK_MODEL:-} effort=${HB_GROK_EFFORT:-}"
 fi
 
+# BEGIN grok-auth-preflight
+# Hive 0.3.6 checks only ~/.grok/auth.json before launching the agent and does
+# not honor GROK_AUTH_PATH. The home is a per-cell tmpfs, so expose a symlink
+# for Hive's read-only preflight while Grok keeps using the canonical shared
+# path (and its adjacent refresh lock) through GROK_AUTH_PATH.
+if [ -n "${GROK_AUTH_PATH:-}" ]; then
+  if [ ! -f "$GROK_AUTH_PATH" ]; then
+    echo "HB_ERROR grok_auth_preflight missing credential: $GROK_AUTH_PATH" >&2
+    exit 4
+  fi
+  mkdir -p "$HOME/.grok" || {
+    echo "HB_ERROR grok_auth_preflight cannot create $HOME/.grok" >&2
+    exit 4
+  }
+  ln -sfn "$GROK_AUTH_PATH" "$HOME/.grok/auth.json" || {
+    echo "HB_ERROR grok_auth_preflight cannot link $HOME/.grok/auth.json" >&2
+    exit 4
+  }
+fi
+# END grok-auth-preflight
+
 # Native CE skills (prod parity): the driver mounts each CLI's skill tree ro at
 # a neutral /opt/hb path; link it into the CLI's discovery path here, inside
 # the writable tmpfs (a direct bind under the tmpfs would leave root-owned

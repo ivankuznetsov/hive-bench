@@ -90,7 +90,9 @@ Every one of these was needed to make real hive run headlessly with `/ce-plan`:
   persistent state mounted read-write, with `GROK_AUTH_PATH` pointing into it.
   Parallel cells therefore share Grok's `auth.json.lock` and atomic token
   rotation without sharing sessions, config, leader sockets, or the operator's
-  real `~/.grok` refresh-token chain.
+  real `~/.grok` refresh-token chain. The in-container stage shim links
+  `~/.grok/auth.json` to that canonical path inside the tmpfs solely for Hive
+  0.3.6's hard-coded agent preflight; Grok itself still uses `GROK_AUTH_PATH`.
 - target clone: **drop `origin`** so the execute worktree branches off local `main`=base_commit.
   `.hive-state` is **its own git repo** (`git init`). Resolve the task by **path** (not slug).
 - capture the **working-tree** diff (the execute agent often leaves work uncommitted).
