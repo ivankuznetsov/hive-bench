@@ -25,9 +25,13 @@ for each corpus task T, for each candidate C:
   commits only `plan.md`; transient Hive lock churn is deliberately left outside that
   bookkeeping commit.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
-- **`profiles/candidates.rb`** — the v2 slate. A *candidate* is a model-per-stage config:
-  `all-opus-4.8`, `all-codex`, `opus-plan→codex-exec`. `claude_model` is the CLI id
-  (`claude-opus-4-8`); codex/pi take no model flag.
+- **`profiles/candidates.rb`** — the v2/v3 slate. A *candidate* is a
+  model-per-stage config: `all-opus-4.8`, `all-codex`,
+  `opus-plan→codex-exec`, or one of the Sol/Terra/Grok follow-up workflows.
+  `claude_model` / `claude_effort` pin Claude. `codex_models` /
+  `codex_efforts` and `pi_models` select models per plan/execute/review stage
+  through container shims, which is how one Codex-backed cell can use Sol to
+  plan/review and Terra to execute.
 - **`hive_run.rb`** — the CLI: corpus × candidates via `RunAll`, judged vs the gold
   (`withhold_reference: false`), no-op gate (the corpus is mostly uncurated).
   `--seeds N` controls judge samples per judge (default 1; ≥3 for published cells —
@@ -45,7 +49,10 @@ of the generated config mirrors PROD hive defaults (triage courageous, fix
 agent, ci.max_attempts 3, max_passes 2) with the candidate's agent substituted
 everywhere; `github_publish` is disabled and open-pr lands on a bench-local
 bare origin with a minimal `gh` shim on PATH (`hive_stages.sh` writes both).
-The pr-review-toolkit reviewer runs only for claude candidates (claude plugin).
+The pr-review-toolkit reviewer runs only for derived Claude reviewer sets. A
+candidate may instead pre-register an explicit reviewer list; the three
+Sol/Terra/Grok follow-up profiles use only Sol xhigh through Codex
+`ce-code-review`, keeping review policy controlled while planner/executor vary.
 TWO diffs are captured: `candidate-execute.patch` (post-execute) and
 `candidate.patch` (final, post-review — the scored one; falls back to the
 execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,

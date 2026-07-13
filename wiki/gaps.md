@@ -58,6 +58,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   coverage. A fresh paid campaign using campaign-declared Fable + Sol `ultra`,
   three samples, undersample repair, candidate-plan judging, and adversarial
   deliberation has not yet completed end to end.
+- **Mixed follow-up live validation** — stage-specific Sol/Terra Codex pins,
+  the combined Sol+Grok runner selection, and sole Sol `ce-code-review` policy
+  are unit/smoke-pinned but have not yet completed a paid cell. The serialized
+  follow-up campaign is the intended live proof.
 
 ## Finish-the-board queue (2026-07-04)
 

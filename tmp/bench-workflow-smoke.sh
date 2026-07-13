@@ -121,7 +121,11 @@ fi
 PROJECT="$WORKDIR/project"
 STATE="$PROJECT/.hive-state"
 SLUG="bench-smoke-260709-aa11"
-mkdir -p "$STATE/stages/1-inbox/$SLUG" "$PROJECT/harness/profiles" "$PROJECT/corpus"
+mkdir -p "$STATE/stages/1-inbox/$SLUG" "$STATE/bench-runtime" \
+  "$PROJECT/harness/profiles" "$PROJECT/corpus"
+# Native bench instructions resolve the immutable runtime snapshot under
+# .hive-state. Point that path at the smoke's controlled harness fixtures.
+ln -s "$PROJECT/harness" "$STATE/bench-runtime/harness"
 
 # Stage scripts run with HOME pointed here: the real ~/.openrouter_key must
 # never be exported into stub runs.
@@ -230,17 +234,23 @@ ln -s "$ROOT/harness/merge_results.rb" "$PROJECT/harness/merge_results.rb"
 ln -s "$ROOT/harness/lib" "$PROJECT/harness/lib"
 
 # Stub candidate profiles + corpus manifests mirroring campaign.yml.example
-# (plus a grok-flavoured candidate so the HB_RUNNER_IMAGE branch is reachable),
+# (plus Grok and Sol-flavoured candidates so both HB_RUNNER_IMAGE branches are
+# reachable),
 # so generate.md's contract validator accepts campaigns derived from the
 # example inside this throwaway project.
 ruby -ryaml -rfileutils -e '
   data = YAML.safe_load_file("campaign.yml.example")
-  ids = data.fetch("candidates").map(&:to_s) + ["grok-smoke"]
+  ids = data.fetch("candidates").map(&:to_s) + ["grok-smoke", "sol-smoke"]
   stub = <<~RUBY
     module HiveBench
       module Candidates
-        Candidate = Struct.new(:id, :grok_model, :pi_models)
-        def self.all = #{ids.inspect}.map { |id| Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil) }
+        Candidate = Struct.new(:id, :grok_model, :pi_models, :codex_model, :codex_models)
+        def self.all
+          #{ids.inspect}.map do |id|
+            Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil,
+                          id.include?("sol") ? "gpt-5.6-sol" : nil, nil)
+          end
+        end
         def self.by_id(id) = all.find { |c| c.id == id }
       end
     end
@@ -425,7 +435,7 @@ assert_state "$DUPJUDGE_DIR/generate.md" '<!-- WAITING -->' 'enabled judges must
 MISANCHOR_DIR="$WORKDIR/misanchor/w/x/y/z"
 mkdir -p "$MISANCHOR_DIR"
 (cd "$MISANCHOR_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$MISANCHOR_DIR/generate.md" '<!-- WAITING -->' 'did not resolve to the hive-bench repo root'
+assert_state "$MISANCHOR_DIR/generate.md" '<!-- WAITING -->' 'packaged bench runtime is missing'
 
 # --- extract: missing corpus slug parks WAITING --------------------------------
 EXTRACT_DIR="$STATE/stages/2-extract/$SLUG-missing-slug"
@@ -544,6 +554,15 @@ git -C "$STATE" add "stages/3-generate/$SLUG-grok/campaign.yml"
 git -C "$STATE" commit -qm "smoke: grok campaign"
 (cd "$GROK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
 assert_state "$GROK_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:grok'
+
+# --- generate: Sol/Terra candidates use the combined Codex+Grok image ----------
+SOL_DIR="$STATE/stages/3-generate/$SLUG-sol"
+mkdir -p "$SOL_DIR"
+write_campaign bench-smoke-sol "$SOL_DIR/campaign.yml" sol-smoke
+git -C "$STATE" add "stages/3-generate/$SLUG-sol/campaign.yml"
+git -C "$STATE" commit -qm "smoke: sol campaign"
+(cd "$SOL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$SOL_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:sol'
 
 # --- generate: contradictory per-cell result (terminal + nonempty buckets) -----
 CONTRA_DIR="$STATE/stages/3-generate/$SLUG-contra"
@@ -685,7 +704,8 @@ abort "SMOKE FAIL: the real-root generate scenario invoked hive_run.rb — the n
 RUBY
 REAL_STATE="$ANCHOR/.hive-state"
 REAL_DIR="$REAL_STATE/stages/3-generate/$SLUG-real"
-mkdir -p "$REAL_DIR"
+mkdir -p "$REAL_DIR" "$REAL_STATE/bench-runtime"
+ln -s "$ANCHOR/harness" "$REAL_STATE/bench-runtime/harness"
 write_campaign bench-smoke-real "$REAL_DIR/campaign.yml"
 git -C "$REAL_STATE" init -q
 git -C "$REAL_STATE" config user.email smoke@example.invalid

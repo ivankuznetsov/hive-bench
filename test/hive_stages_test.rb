@@ -26,6 +26,16 @@ class HiveStagesTest < Minitest::Test
     end
   end
 
+  def test_codex_shim_accepts_stage_selected_model_and_effort
+    source = File.read(SCRIPT)
+
+    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_PLAN:-}"'
+    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_EXECUTE:-}"'
+    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_REVIEW:-}"'
+    assert_includes source, 'args+=(-m "$HB_CODEX_MODEL")'
+    assert_includes source, 'model_reasoning_effort=\"$HB_CODEX_EFFORT\"'
+  end
+
   def test_grok_auth_preflight_fails_when_credential_disappears
     Dir.mktmpdir("hb-grok-preflight") do |root|
       home = File.join(root, "home")

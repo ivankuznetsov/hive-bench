@@ -147,6 +147,16 @@ parallel, subject to Hive's global and per-project limits. For quota sharing,
 set the Hive per-project cap to two rather than adding shell-level fan-out.
 Never run two tasks against the same `campaign_id`/result root concurrently.
 
+The follow-up workflow slate includes `sol-plan->terra-exec-sol-review`,
+`fable-plan->grok-exec-sol-review`, and
+`sol-plan->grok-exec-sol-review`. Each uses exactly one Sol xhigh Codex
+`ce-code-review` reviewer. Stage-specific Codex model/effort pins select Sol or
+Terra even when both stages resolve through Hive's `codex` agent profile. A
+cell that touches GPT-5.6 selects `hive-bench-runner:sol`; that image also
+contains Grok, so mixed Sol/Grok cells do not fall back to the older Grok-only
+runner. A single campaign task remains one daemon slot and walks these cells
+one at a time.
+
 Every stage failure is durable and idempotent: it appends status and ends with
 `<!-- WAITING -->`, while already-bought candidate patches, judge scores, and
 deliberations are reused on the next dispatch. Hive's installed daemon version

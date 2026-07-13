@@ -388,6 +388,32 @@ class HiveDriverTest < Minitest::Test
     assert_includes cfg, 'plugins."compound-engineering@compound-engineering-plugin"'
   end
 
+  def test_mixed_sol_terra_candidate_gets_per_stage_codex_pins
+    mixed = HiveBench::Candidates.by_id("sol-plan->terra-exec-sol-review")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+
+    assert_includes @seen_cmd, "HB_CODEX_MODEL_PLAN=gpt-5.6-sol"
+    assert_includes @seen_cmd, "HB_CODEX_MODEL_EXECUTE=gpt-5.6-terra"
+    assert_includes @seen_cmd, "HB_CODEX_MODEL_REVIEW=gpt-5.6-sol"
+    assert_includes @seen_cmd, "HB_CODEX_EFFORT_PLAN=xhigh"
+    assert_includes @seen_cmd, "HB_CODEX_EFFORT_EXECUTE=xhigh"
+    assert_includes @seen_cmd, "HB_CODEX_EFFORT_REVIEW=xhigh"
+    assert_equal ["codex-ce-code-review"],
+                 HiveBench::HiveConfig.to_h(mixed).dig("review", "reviewers").map { |reviewer| reviewer["name"] }
+  end
+
+  def test_fable_grok_candidate_uses_sol_as_sole_reviewer
+    mixed = HiveBench::Candidates.by_id("fable-plan->grok-exec-sol-review")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+
+    config = HiveBench::HiveConfig.to_h(mixed)
+    assert_equal "claude-fable-5", config.dig("claude", "model")
+    assert_equal "high", config.dig("claude", "effort")
+    assert_includes @seen_cmd, "HB_GROK_MODEL=grok-4.5"
+    assert_includes @seen_cmd, "HB_CODEX_MODEL_REVIEW=gpt-5.6-sol"
+    assert_equal ["codex-ce-code-review"], config.dig("review", "reviewers").map { |reviewer| reviewer["name"] }
+  end
+
   def test_default_codex_candidate_config_registers_plugins_without_effort
     skip "needs ~/.codex/auth.json" unless File.file?(File.expand_path("~/.codex/auth.json"))
     plain = HiveBench::Candidates.by_id("all-codex")

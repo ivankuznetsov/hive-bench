@@ -10,7 +10,9 @@ corpus_version: v3
 tasks:
   - fix-claude-tmux-ready-detector-260629-50cc
 
-# Candidate ids from harness/profiles/candidates.rb.
+# Candidate ids from harness/profiles/candidates.rb. Mixed workflow ids include
+# sol-plan->terra-exec-sol-review, fable-plan->grok-exec-sol-review, and
+# sol-plan->grok-exec-sol-review.
 candidates:
   - all-opus-4.8
 

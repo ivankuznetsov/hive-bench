@@ -19,8 +19,9 @@ sibling project: [`agent-reviewer-eval`](https://github.com/ivankuznetsov/agent-
 Each cell is `(corpus task × candidate)`:
 
 1. **A candidate is a model configuration for hive's stages** — `all-opus-4.8`,
-   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or a mixed pair like
-   `opus-plan→codex-exec`, where one model plans and another implements
+   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or a mixed workflow like
+   `sol-plan->terra-exec-sol-review` or `fable-plan->grok-exec-sol-review`, where
+   planner, implementer, and sole `ce-code-review` reviewer can be controlled
    (see `harness/profiles/candidates.rb`).
 2. The target repo is **rewound to the task's base commit** and seeded with the
    frozen idea + brainstorm. The candidate never sees the reference solution.
