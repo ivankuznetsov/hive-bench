@@ -47,7 +47,7 @@ module HiveBench
     AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
-    def initialize(clock: -> { Time.now.utc }, runner: nil, reuse_existing:, reuse_unverified:)
+    def initialize(reuse_existing:, reuse_unverified:, clock: -> { Time.now.utc }, runner: nil)
       @clock = clock
       @runner = runner # injectable container runner for tests; default shells docker
       @reuse_existing = reuse_existing
@@ -132,7 +132,7 @@ module HiveBench
       return unless latest
 
       terminal = File.foreach(latest).filter_map { |line| stream_json(line) }
-                     .reverse_each.find { |event| event["type"].to_s.start_with?("turn.") }
+                                     .reverse_each.find { |event| event["type"].to_s.start_with?("turn.") }
       return unless terminal&.fetch("type", nil) == "turn.failed"
 
       message = terminal.dig("error", "message").to_s
@@ -499,9 +499,7 @@ module HiveBench
       if limit_hit && (!stage_ok?(stdout, "plan") || !stage_ok?(stdout, "develop"))
         return ["limit_hit", "provider limit during a hive stage"]
       end
-      if exit_rc && !exit_rc.zero?
-        return ["execute_failed", "hive stage runner exited #{exit_rc} before trustworthy capture"]
-      end
+      return ["execute_failed", "hive stage runner exited #{exit_rc} before trustworthy capture"] if exit_rc && !exit_rc.zero?
       return ["plan_failed", "hive plan produced no plan.md"] unless stage_ok?(stdout, "plan")
       return ["execute_failed", "hive develop did not run"] unless stage_ok?(stdout, "develop")
       return ["empty_diff", "execute produced no diff"] if diff.strip.empty?

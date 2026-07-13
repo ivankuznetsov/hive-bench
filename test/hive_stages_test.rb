@@ -8,6 +8,51 @@ require "fileutils"
 class HiveStagesTest < Minitest::Test
   SCRIPT = File.expand_path("../harness/lib/hive_stages.sh", __dir__)
 
+  def test_grok_auth_path_is_linked_for_hive_preflight
+    Dir.mktmpdir("hb-grok-preflight") do |root|
+      home = File.join(root, "home")
+      auth = File.join(root, "shared-auth", "auth.json")
+      FileUtils.mkdir_p(File.dirname(auth))
+      File.write(auth, '{"scope":{"key":"access","refresh_token":"refresh"}}')
+
+      _out, err, status = run_grok_preflight(home:, auth:)
+
+      assert_predicate status, :success?, err
+
+      link = File.join(home, ".grok", "auth.json")
+
+      assert_predicate File.lstat(link), :symlink?, "Hive preflight needs ~/.grok/auth.json"
+      assert_equal auth, File.readlink(link)
+    end
+  end
+
+  def test_grok_auth_preflight_fails_when_credential_disappears
+    Dir.mktmpdir("hb-grok-preflight") do |root|
+      home = File.join(root, "home")
+      auth = File.join(root, "missing", "auth.json")
+
+      _out, err, status = run_grok_preflight(home:, auth:)
+
+      refute_predicate status, :success?
+      assert_includes err, "HB_ERROR grok_auth_preflight missing credential: #{auth}"
+    end
+  end
+
+  def test_grok_auth_preflight_fails_when_legacy_directory_cannot_be_created
+    Dir.mktmpdir("hb-grok-preflight") do |root|
+      home = File.join(root, "home")
+      auth = File.join(root, "shared-auth", "auth.json")
+      FileUtils.mkdir_p([home, File.dirname(auth)])
+      File.write(auth, '{"scope":{"key":"access","refresh_token":"refresh"}}')
+      File.write(File.join(home, ".grok"), "not a directory")
+
+      _out, err, status = run_grok_preflight(home:, auth:)
+
+      refute_predicate status, :success?
+      assert_includes err, "HB_ERROR grok_auth_preflight cannot create #{home}/.grok"
+    end
+  end
+
   def test_failed_review_restores_the_execute_patch
     with_patch_functions do |functions|
       Dir.mktmpdir("hb-review-patch") do |work|
@@ -17,7 +62,7 @@ class HiveStagesTest < Minitest::Test
           "#{functions}\nfinalize_candidate_patch 3 \"$1\"", work
         )
 
-        assert status.success?, err
+        assert_predicate status, :success?, err
         assert_equal "execute diff\n", File.read(File.join(work, "candidate.patch"))
         assert_includes out, "review_fallback=execute"
       end
@@ -33,7 +78,7 @@ class HiveStagesTest < Minitest::Test
           "#{functions}\nfinalize_candidate_patch 3 \"$1\"", work
         )
 
-        assert status.success?, err
+        assert_predicate status, :success?, err
         assert_empty File.read(File.join(work, "candidate.patch"))
         assert_includes out, "review_fallback=execute"
       end
@@ -44,6 +89,7 @@ class HiveStagesTest < Minitest::Test
     source = File.read(SCRIPT)
     excludes = source[/^CAPTURE_EXCLUDES=\(.*?^\)/m]
     capture = source[/^capture\(\) \{.*?^\}/m]
+
     refute_nil excludes
     refute_nil capture
 
@@ -74,7 +120,7 @@ class HiveStagesTest < Minitest::Test
         "hive-stages-test", base, patch, root
       )
 
-      assert status.success?, "#{err}\n#{out}"
+      assert_predicate status, :success?, "#{err}\n#{out}"
       assert_includes File.read(patch), "solution.rb"
       assert_includes File.read(patch), "PATHSPEC_MAGIC"
       refute_includes File.read(patch), ".bundle-local"
@@ -85,6 +131,7 @@ class HiveStagesTest < Minitest::Test
   def test_candidate_patch_copy_failure_returns_nonzero
     source = File.read(SCRIPT)
     replace = source[/^replace_candidate_patch\(\) \{.*?^\}/m]
+
     refute_nil replace
 
     Dir.mktmpdir("hb-copy-failure") do |root|
@@ -96,7 +143,7 @@ class HiveStagesTest < Minitest::Test
         "hive-stages-test", execute, destination
       )
 
-      refute status.success?
+      refute_predicate status, :success?
       assert_includes err, "candidate_patch_copy_failed"
       refute_path_exists destination
     end
@@ -129,7 +176,7 @@ class HiveStagesTest < Minitest::Test
         "hive-stages-test", base, patch, root
       )
 
-      refute status.success?
+      refute_predicate status, :success?
       assert_includes err, "phase=intent_to_add"
       refute_path_exists patch
     end
@@ -138,6 +185,7 @@ class HiveStagesTest < Minitest::Test
   def test_force_plan_complete_ignores_transient_state_lock_changes
     source = File.read(SCRIPT)
     force = source[/^force_plan_complete\(\) \{.*?^\}/m]
+
     refute_nil force
 
     Dir.mktmpdir("hb-force-plan") do |root|
@@ -160,10 +208,10 @@ class HiveStagesTest < Minitest::Test
         "hive-stages-test", plan, state_root
       )
 
-      assert status.success?, "#{err}\n#{out}"
+      assert_predicate status, :success?, "#{err}\n#{out}"
       assert_includes File.read(plan), "<!-- COMPLETE -->"
       assert_includes out, "plan_forced_complete"
-      assert_equal [ "stages/3-plan/task/plan.md" ],
+      assert_equal ["stages/3-plan/task/plan.md"],
                    sh!("git", "show", "--pretty=", "--name-only", "HEAD", chdir: state_root).lines.map(&:strip).reject(&:empty?)
       assert_includes sh!("git", "status", "--short", chdir: state_root), " D stages/3-plan/task/.lock"
       assert_includes sh!("git", "status", "--short", chdir: state_root), "?? .commit-lock"
@@ -172,11 +220,21 @@ class HiveStagesTest < Minitest::Test
 
   private
 
+  def run_grok_preflight(home:, auth:)
+    script = File.read(SCRIPT)
+    block = script[/# BEGIN grok-auth-preflight\n(.*?)# END grok-auth-preflight/m, 1]
+
+    refute_nil block, "hive_stages.sh must expose the Grok preflight compatibility block"
+
+    Open3.capture3({ "HOME" => home, "GROK_AUTH_PATH" => auth }, "bash", "-c", block)
+  end
+
   def with_patch_functions
     source = File.read(SCRIPT)
     functions = %w[replace_candidate_patch finalize_candidate_patch].map do |name|
       source[/^#{name}\(\) \{.*?^\}/m]
     end
+
     refute functions.any?(&:nil?), "stage script must expose testable patch finalization functions"
     yield functions.join("\n")
   end

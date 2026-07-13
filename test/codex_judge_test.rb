@@ -32,7 +32,7 @@ class CodexJudgeTest < Minitest::Test
   end
 
   def test_nonzero_exit_preserves_a_limit_marker_after_a_long_cli_banner
-    stderr = ("banner line\n" * 100) + "You've hit your usage limit. Try again later."
+    stderr = "#{"banner line\n" * 100}You've hit your usage limit. Try again later."
     fn = CJ.judge_fn(bin: fake_bin(stderr: stderr, exit_code: 1), timeout_s: 10)
 
     error = assert_raises(HiveBench::CodexJudge::Error) { fn.call(prompt: "grade", seed: 1) }

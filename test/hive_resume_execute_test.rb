@@ -37,7 +37,7 @@ class HiveResumeExecuteTest < Minitest::Test
 
     _out, _err, status = run_helper("verified123")
 
-    assert status.success?
+    assert_predicate status, :success?
     assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
                   "marker_id=verified123,reason=implementer_failed", "--json"], File.readlines(@capture, chomp: true)
   end

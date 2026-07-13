@@ -150,9 +150,9 @@ module HiveBench
     end
 
     # All git runs go through here so the hardened env is never bypassed.
-    def git(*args, stdin_data: nil)
+    def git(*, stdin_data: nil)
       options = stdin_data.nil? ? {} : { stdin_data: stdin_data }
-      out, err, status = Open3.capture3(@env, "git", *args, **options)
+      out, err, status = Open3.capture3(@env, "git", *, **options)
       [out, status.success?, err]
     end
 

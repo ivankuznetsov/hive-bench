@@ -46,6 +46,10 @@ containers keep `~/.grok` ephemeral and mount only this directory read-write at
 `~/.grok-auth`, with `GROK_AUTH_PATH` selecting its `auth.json`. That gives all
 parallel Grok cells one refresh-token chain and one adjacent `auth.json.lock`,
 while sessions, configuration, and leader state remain isolated per cell.
+The runner also creates an ephemeral `~/.grok/auth.json` symlink because Hive
+0.3.6 checks that legacy path before launching Grok even when
+`GROK_AUTH_PATH` is set. The symlink is a preflight compatibility view, not a
+second credential copy or lock domain.
 
 Do not copy `~/.grok/auth.json` into the benchmark directory: OIDC refresh
 tokens rotate, so two copies with independent lock files can invalidate each

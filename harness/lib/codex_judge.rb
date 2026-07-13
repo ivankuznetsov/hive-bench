@@ -39,6 +39,7 @@ module HiveBench
         argv << "-"
         out, err, status = Open3.capture3(*argv, stdin_data: prompt.to_s)
         raise Error, "codex judge timed out after #{timeout_s}s" if status.exitstatus == 124
+
         unless status.success?
           # Codex prints a long CLI banner (and sometimes the prompt) before the
           # provider error. Classify the complete stream before truncating it so

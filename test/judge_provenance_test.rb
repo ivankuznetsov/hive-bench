@@ -33,7 +33,7 @@ class JudgeProvenanceTest < Minitest::Test
     }
 
     assert_same document, JP.annotate_document!(document)
-    assert_equal 7.0, document.dig("cells", 0, "judges", "fable-5", "mean")
+    assert_in_delta(7.0, document.dig("cells", 0, "judges", "fable-5", "mean"))
     assert_equal "unspecified", document.dig("cells", 0, "judges", "fable-5", "reasoning_effort")
     assert_equal "xhigh", document.dig("cells", 0, "judges", "gpt-5.6-sol", "reasoning_effort")
   end

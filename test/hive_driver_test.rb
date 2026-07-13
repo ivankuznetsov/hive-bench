@@ -208,6 +208,7 @@ class HiveDriverTest < Minitest::Test
     seen = nil
     resumed = HiveBench::HiveDriver.new(runner: lambda do |cmd|
       seen = cmd
+
       assert_path_exists sentinel, "resume must not replace the persisted target"
       File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
       "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
@@ -239,16 +240,20 @@ class HiveDriverTest < Minitest::Test
       {"type":"turn.failed","error":{"message":"stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}}
       {"type":"turn.failed","error":{"message":"implementation failed validation"}}
     LOG
+
     assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity)
 
-    ["401 unauthorized", "rate limit reached", "stream disconnected before completion: error sending request for url (https://example.com)"].each do |message|
+    ["401 unauthorized", "rate limit reached",
+     "stream disconnected before completion: error sending request for url (https://example.com)"].each do |message|
       File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":#{JSON.generate(message)}}}\n")
+
       assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity), message
     end
 
     changed = identity.merge("base_commit" => "different")
     File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected before completion: " \
                     "error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"}}\n")
+
     assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, changed)
     assert_nil checker.send(:resumable_execute_marker, entry, candidate, @work, identity)
   end
@@ -285,8 +290,8 @@ class HiveDriverTest < Minitest::Test
     File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
 
     status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
-                                    .send(:classify, stdout, @work,
-                                          File.read(File.join(@work, "candidate.patch")))
+                                   .send(:classify, stdout, @work,
+                                         File.read(File.join(@work, "candidate.patch")))
 
     assert_equal "generated", status
   end
@@ -297,7 +302,7 @@ class HiveDriverTest < Minitest::Test
     File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
 
     status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
-                               .send(:classify, stdout, @work, "diff --git a/app.rb b/app.rb\n")
+                                   .send(:classify, stdout, @work, "diff --git a/app.rb b/app.rb\n")
 
     assert_equal "limit_hit", status
   end
@@ -501,10 +506,11 @@ class HiveDriverTest < Minitest::Test
                     "Pi cells load the GLM transport fix inside the runner"
 
     extension = File.read(HiveBench::HiveDriver::PI_TOOL_STREAM)
+
     assert_includes extension, 'pi.on("before_provider_request"'
     assert_includes extension, "tool_stream: true"
     assert_includes File.read(HiveBench::HiveDriver::STAGES_SH),
-                    '--extension /opt/hb/pi-tool-stream.ts',
+                    "--extension /opt/hb/pi-tool-stream.ts",
                     "the Pi shim must activate the mounted extension"
   end
 
