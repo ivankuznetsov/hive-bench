@@ -11,6 +11,7 @@ require "gate"
 require "judge"
 require "score"
 require "lib/agent_limit"
+require "lib/codex_judge"
 
 module HiveBench
   # The benchmark-pass driver (plan U8): runs the full corpus × slate matrix and
@@ -219,6 +220,7 @@ module HiveBench
 
       outcome = build(opts).call(entries: entries, profiles: profiles,
                                  out_root: opts[:out], corpus_version: opts[:corpus_version])
+      JudgeProvenance.annotate_document!(outcome.results, efforts: judge_efforts(opts))
       write_and_report(outcome, opts)
     end
 
@@ -226,6 +228,8 @@ module HiveBench
       opts = { corpus: "corpus", out: "runs", source: nil, agent: nil,
                seeds: 1, corpus_version: "v1", withhold_reference: true,
                claude_judge: true, judge_bin: "claude", judge_model: nil,
+               codex_judge: false, codex_judge_model: CodexJudge::DEFAULT_MODEL,
+               codex_judge_effort: CodexJudge::DEFAULT_EFFORT,
                openrouter_judge: true, openrouter_judge_model: "openai/gpt-5.5-pro" }
       OptionParser.new do |o|
         o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/run_all.rb --source <clone> [opts]"
@@ -239,6 +243,9 @@ module HiveBench
         o.on("--[no-]claude-judge", "score with the local claude judge (default: on)") { |v| opts[:claude_judge] = v }
         o.on("--judge-bin BIN", "claude judge CLI binary (default: claude)") { |v| opts[:judge_bin] = v }
         o.on("--judge-model M", "claude judge model (default: claude-fable-5)") { |v| opts[:judge_model] = v }
+        o.on("--[no-]codex-judge", "score through the Codex CLI") { |v| opts[:codex_judge] = v }
+        o.on("--codex-judge-model M") { |v| opts[:codex_judge_model] = v }
+        o.on("--codex-judge-effort LEVEL") { |v| opts[:codex_judge_effort] = v }
         o.on("--[no-]openrouter-judge", "score with the OpenRouter judge (default: on)") { |v| opts[:openrouter_judge] = v }
         o.on("--openrouter-judge-model M", "default: openai/gpt-5.5-pro") { |v| opts[:openrouter_judge_model] = v }
         o.separator ""
@@ -291,8 +298,9 @@ module HiveBench
           Judge.new(judge_fn: ClaudeJudge.judge_fn(bin: opts[:judge_bin], model: model), seeds: opts[:seeds])
       end
       if opts[:codex_judge]
-        j[CodexJudge::DEFAULT_MODEL] =
-          Judge.new(judge_fn: CodexJudge.judge_fn, seeds: opts[:seeds])
+        model = opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL
+        effort = opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT
+        j[model] = Judge.new(judge_fn: CodexJudge.judge_fn(model: model, effort: effort), seeds: opts[:seeds])
       end
       if opts[:openrouter_judge]
         j[opts[:openrouter_judge_model].split("/").last] =
@@ -300,6 +308,13 @@ module HiveBench
       end
       abort("no judges enabled (need --claude-judge, --codex-judge and/or --openrouter-judge)") if j.empty?
       j
+    end
+
+    def judge_efforts(opts)
+      return {} unless opts[:codex_judge]
+
+      { opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL =>
+          opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT }
     end
 
     def write_and_report(outcome, opts)

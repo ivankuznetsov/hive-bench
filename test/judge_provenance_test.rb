@@ -22,6 +22,13 @@ class JudgeProvenanceTest < Minitest::Test
     end
   end
 
+  def test_campaign_override_records_sol_ultra
+    assert_equal(
+      { "reasoning_effort" => "ultra", "reasoning_effort_explicit" => true },
+      JP.metadata("gpt-5.6-sol", efforts: { "gpt-5.6-sol" => "ultra" })
+    )
+  end
+
   def test_annotation_preserves_existing_scores
     document = {
       "cells" => [
@@ -36,5 +43,14 @@ class JudgeProvenanceTest < Minitest::Test
     assert_in_delta(7.0, document.dig("cells", 0, "judges", "fable-5", "mean"))
     assert_equal "unspecified", document.dig("cells", 0, "judges", "fable-5", "reasoning_effort")
     assert_equal "xhigh", document.dig("cells", 0, "judges", "gpt-5.6-sol", "reasoning_effort")
+  end
+
+  def test_annotation_applies_campaign_effort_without_changing_scores
+    document = { "cells" => [{ "judges" => { "gpt-5.6-sol" => { "mean" => 6.0 } } }] }
+
+    JP.annotate_document!(document, efforts: { "gpt-5.6-sol" => "ultra" })
+
+    assert_in_delta 6.0, document.dig("cells", 0, "judges", "gpt-5.6-sol", "mean")
+    assert_equal "ultra", document.dig("cells", 0, "judges", "gpt-5.6-sol", "reasoning_effort")
   end
 end

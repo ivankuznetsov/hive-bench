@@ -56,7 +56,9 @@ module HiveBench
 
     def judge_records(judges, cell)
       (judges || {}).to_h do |name, j|
-        record = { "mean" => j.mean, "interval" => j.interval,
+        record = { "mean" => j.mean, "stddev" => j.stddev,
+                   "scores" => j.scores, "sample_count" => j.scores.size,
+                   "reasons" => j.reasons, "interval" => j.interval,
                    "reference_withheld" => j.reference_withheld,
                    "same_family" => ModelFamily.same_family?(name, cell[:agent_id], cell[:model_version]) }
         [name, record.merge(JudgeProvenance.metadata(name))]

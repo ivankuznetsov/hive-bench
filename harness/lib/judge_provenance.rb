@@ -11,20 +11,22 @@ module HiveBench
 
     module_function
 
-    def metadata(judge_name)
-      effort = EXPLICIT_REASONING_EFFORTS[judge_name.to_s]
+    def metadata(judge_name, efforts: {})
+      name = judge_name.to_s
+      effort = efforts.transform_keys(&:to_s).fetch(name, EXPLICIT_REASONING_EFFORTS[name])
+      effort = nil if effort.to_s == "unspecified"
       {
         "reasoning_effort" => effort || "unspecified",
         "reasoning_effort_explicit" => !effort.nil?
       }
     end
 
-    def annotate_document!(document)
+    def annotate_document!(document, efforts: {})
       Array(document["cells"]).each do |cell|
         (cell["judges"] || {}).each do |judge_name, record|
           next unless record.is_a?(Hash)
 
-          record.merge!(metadata(judge_name))
+          record.merge!(metadata(judge_name, efforts: efforts))
         end
       end
       document

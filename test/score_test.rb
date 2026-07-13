@@ -10,8 +10,10 @@ class ScoreTest < Minitest::Test
     HiveBench::Gate::Result.new(status: status, subset: subset, reason: "", details: {})
   end
 
-  def judge_result(mean:)
-    HiveBench::Judge::Result.new(mean: mean, stddev: 0.5, scores: [mean], interval: [mean - 0.5, mean + 0.5], reference_withheld: false)
+  def judge_result(mean:, scores: [mean], reasons: ["reason"])
+    HiveBench::Judge::Result.new(mean: mean, stddev: 0.5, scores: scores,
+                                 interval: [mean - 0.5, mean + 0.5],
+                                 reference_withheld: false, reasons: reasons)
   end
 
   # One named judge by default; pass a hash for multi-judge cases.
@@ -50,6 +52,27 @@ class ScoreTest < Minitest::Test
 
     assert_in_delta(6.0, rec.dig("judges", "opus-4.8", "mean"))
     assert_in_delta(4.0, rec.dig("judges", "gpt-5.5-pro", "mean"))
+  end
+
+  def test_cell_record_persists_each_judge_sample_and_reason
+    rec = scorer.cell_record(
+      cell: cell(agent: "pi@glm-5.2"),
+      gate: gate_result(status: :no_gate, subset: "judged"),
+      judges: {
+        "fable-5" => judge_result(
+          mean: 7.0,
+          scores: [6.0, 7.0, 8.0],
+          reasons: %w[first second third]
+        )
+      }
+    )
+
+    judge = rec.dig("judges", "fable-5")
+
+    assert_equal 3, judge["sample_count"]
+    assert_equal [6.0, 7.0, 8.0], judge["scores"]
+    assert_equal %w[first second third], judge["reasons"]
+    assert_in_delta 0.5, judge["stddev"]
   end
 
   def test_aggregate_separates_gated_and_judged_and_computes_pass_rate

@@ -6,9 +6,10 @@ how they're implemented.
 - **Drive real hive, don't imitate it** (the v2 pivot). v1's reimplemented planner measured a
   toy workflow; the gap between real `/ce-plan` and the toy planner was ~2 judge points. Use
   hive exactly, with different model settings.
-- **Full workflow incl. review** is the target — but v2 ships **plan+execute first**; the
-  review chain (`open-pr` needs gh-stub, `review` needs CI + reviewer personas) is the next
-  phase. Sequencing chosen to land a correct result fast.
+- **Full workflow incl. review** is the default v2 path. The early v2 bring-up
+  shipped plan+execute first, then added open-pr + review with a bench-local
+  origin and `gh` shim. `HB_REVIEW=0` remains the opt-out for plan+execute-only
+  smoke runs.
 - **Judge against the reference PR** (reference-PROVIDED), as a SIGNAL with an absolute rubric
   ("does this accomplish the task," not "how close to the gold"). v1 used reference-withheld;
   v2 flips it on.
@@ -24,6 +25,59 @@ how they're implemented.
 - **Don't add a `/ce-plan` variance hack.** A correct brainstorm usually (2/3) yields a clean
   full-scope plan; the minimal fork is the exception. (Considered: auto-answering open
   questions, multi-seed, seeding human answers — all rejected per maintainer guidance.)
+
+## 2026-07-09 — candidate self-review parity
+
+Review now runs on the candidate configuration instead of silently falling back
+to claude defaults. Single-agent candidates review themselves with their native
+CE code-review skill (`codex-ce-code-review`, `pi-ce-code-review` through pi's
+skill tree, etc.); mixed claude+codex candidates derive the prod-like tri-set
+(`claude-ce-code-review`, `codex-ce-code-review`, `pr-review-toolkit`). This
+keeps review quality part of the candidate's measured workflow rather than a
+free claude post-processor. The bench deviation is still deliberate:
+`github_publish` is disabled and the PR lives on a local origin.
+
+## 2026-07-09 — explicit model pins for CLIs without hive model fields
+
+hive has no native pi or grok model field and codex effort is a CLI config
+setting, so the benchmark owns those pins at the container boundary:
+`HB_PI_MODEL_<STAGE>` for glm/kimi and mixed open-model pairs,
+`HB_GROK_MODEL`/`HB_GROK_EFFORT` for grok, and generated per-cell codex
+`config.toml` for plugin registration plus xhigh effort. Operator-local CLI
+configuration is not used as benchmark configuration.
+
+## 2026-07-10 — freeze a campaign once paid work starts
+
+`campaign.yml` is the pre-registration contract, so a campaign that has spent
+must not be amended in place. The generate gate proves only that the file is
+tracked, clean, and valid at dispatch time; it does not prove that current HEAD
+matches the version used for the first paid cell. Rejudge now repairs judge
+records that are below the pre-registered sample count, but changing `seeds`
+after spending is still an invalid contract amendment. Shrinking the matrix
+surfaces paid cells as `UNEXPECTED_CELL`. Start a new campaign folder for any
+post-spend contract change. Persisting and checking a first-spend fingerprint
+remains a gap in [[gaps]].
+
+## 2026-07-13 — user-run campaigns mirror the maintained benchmark
+
+The native `bench` Hive workflow is the supported path for both maintainers and
+users benchmarking their own task. Its campaign file declares the exact judge
+backends, model ids, Codex reasoning effort, and sample count; stage validation
+refuses to publish a different or undersampled slate. The maintained follow-up
+default is Fable 5 plus GPT-5.6 Sol at `ultra`, three independent samples per
+judge and cell. Judge records retain every score and reason rather than only a
+mean.
+
+For v3, judges grade the candidate-generated plan. Deliberation is diagnostic:
+each judge must argue against its own initial score after seeing the other
+verdict, but the revised score never replaces the independent leaderboard
+score. Leaderboards remain one table per judge because scores from different
+raters are not a common numeric scale.
+
+Hive remains the only scheduler. A campaign task runs its cells in deterministic
+order, while Hive may run separate workflow tasks concurrently under the normal
+global/per-project caps. The benchmark does not introduce a rescue daemon or
+shell background fan-out.
 
 ## 2026-07-01 — integrity hardening round
 
