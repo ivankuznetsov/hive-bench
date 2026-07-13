@@ -26,7 +26,7 @@ provenance:
   extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/add-local-hive-web-install-260629-f4ca"
   extracted_at: '2026-07-01T22:03:39Z'
   execute_base_head: 985c75aceb8edcb5fc1bcac18266960946fca89c
-  original_model: claude-haiku-4-5-20251001
+  original_model: gpt-5.5
   plan_authorship: claude
   attestation: Extracted by the maintainer from a repo they have the right to publish.
 publish:

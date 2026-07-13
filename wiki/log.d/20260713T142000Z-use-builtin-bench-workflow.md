@@ -5,6 +5,8 @@
 - Updated the no-cost smoke to load `Hive::Workflows::Registry.fetch(:bench)`,
   verify the packaged instructions, and prove `hive init --workflow bench`
   needs no `.hive-state/workflows` copy.
-- Corrected the fix-tmux corpus provenance: Codex GPT-5.5 implemented the task;
-  Claude authored the plan.
+- Corrected four June-task corpus manifests that had inferred Haiku from Claude
+  utility activity: their execute logs and Codex rollouts show GPT-5.5 via
+  Codex implemented web-install, fix-tmux, fix-review, and daemon; Claude
+  authored the plans.
 - Documented that Honeycomb is not deployed and is not required.

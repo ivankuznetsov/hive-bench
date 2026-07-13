@@ -26,7 +26,7 @@ provenance:
   extracted_from: "/home/asterio/Dev/hive/.hive-state/stages/9-done/make-the-hive-daemon-automatically-260629-223d"
   extracted_at: '2026-07-01T22:03:49Z'
   execute_base_head: c96df9414d9887281a9b905cec11ce285d39137c
-  original_model: claude-haiku-4-5-20251001
+  original_model: gpt-5.5
   plan_authorship: claude
   attestation: Extracted by the maintainer from a repo they have the right to publish.
 publish:
