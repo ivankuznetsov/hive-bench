@@ -83,3 +83,9 @@ their survivors. The judge prompt's false "your family is disjoint from
 every contestant" premise is fixed. Remaining review items (objective gates
 primary, pre-registered replicated campaign, anchor diffs, rater-calibrated
 model) are the v3 agenda in [[gaps]].
+
+Judge records persist their reasoning-effort provenance. GPT-5.6-sol is
+explicitly pinned to `xhigh`; Fable 5 and legacy OpenRouter GPT-5.5-pro calls
+pass no effort control and are therefore recorded as `unspecified`, not assigned
+an inferred provider default. The separate boolean
+`reasoning_effort_explicit` makes that distinction machine-readable.

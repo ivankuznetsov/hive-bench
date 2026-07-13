@@ -38,7 +38,8 @@ module HiveBench
       abort("no corpus entries under #{opts[:corpus]}") if entries.empty?
       candidates = select_candidates(opts[:candidate])
 
-      outcome = RunAll.new(runner: hive_runner, gate: no_op_gate,
+      outcome = RunAll.new(runner: hive_runner(reuse_existing: opts[:reuse_existing],
+                                               reuse_unverified: opts[:reuse_unverified]), gate: no_op_gate,
                            judges: Driver.judges(opts), withhold_reference: opts[:withhold_reference])
                       .call(entries: entries, profiles: candidates, out_root: opts[:out],
                             corpus_version: opts[:corpus_version])
@@ -55,8 +56,8 @@ module HiveBench
     end
 
     # RunAll calls runner(entry:, profile:, out_dir:); here `profile` is a candidate.
-    def hive_runner
-      driver = HiveDriver.new
+    def hive_runner(reuse_existing:, reuse_unverified:)
+      driver = HiveDriver.new(reuse_existing: reuse_existing, reuse_unverified: reuse_unverified)
       lambda do |entry:, profile:, out_dir:|
         driver.call(entry: entry, candidate: profile, out_dir: out_dir)
       end
@@ -66,7 +67,8 @@ module HiveBench
       opts = { corpus: "corpus", out: "runs/v2", source: nil, candidate: nil, seeds: 1,
                corpus_version: "v2", withhold_reference: false, claude_judge: true, judge_bin: "claude",
                judge_model: nil, codex_judge: true,
-               openrouter_judge: false, openrouter_judge_model: "openai/gpt-5.5-pro" }
+               openrouter_judge: false, openrouter_judge_model: "openai/gpt-5.5-pro",
+               reuse_existing: true, reuse_unverified: ENV["HB_REUSE_UNVERIFIED_ARTIFACTS"] == "1" }
       OptionParser.new do |o|
         o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/hive_run.rb --source <hive-clone> [opts]"
         o.on("--source PATH", "the target repo hive runs against (cloned at base_commit)") { |v| opts[:source] = v }
@@ -78,6 +80,12 @@ module HiveBench
         o.on("--seeds N", Integer, "judge samples per judge (default 1; use >=3 for " \
                                    "published cells — 1 seed collapses the tie interval") { |v| opts[:seeds] = v }
         o.on("--[no-]withhold-reference", "default off: judge vs the reference PR") { |v| opts[:withhold_reference] = v }
+        o.on("--[no-]reuse-existing-artifacts", "reuse completed Hive output after result/judge failure (default on)") do |v|
+          opts[:reuse_existing] = v
+        end
+        o.on("--[no-]reuse-unverified-artifacts", "allow one-time recovery of legacy output without identity metadata") do |v|
+          opts[:reuse_unverified] = v
+        end
         o.on("--[no-]codex-judge", "gpt-5.6-sol@xhigh via the codex CLI (subscription)") { |v| opts[:codex_judge] = v }
         o.on("--[no-]openrouter-judge") { |v| opts[:openrouter_judge] = v }
       end.parse!(argv)

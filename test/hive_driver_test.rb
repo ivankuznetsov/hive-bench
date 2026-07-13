@@ -92,7 +92,7 @@ class HiveDriverTest < Minitest::Test
       end
       stdout
     end
-    HiveBench::HiveDriver.new(runner: runner)
+    HiveBench::HiveDriver.new(runner: runner, reuse_existing: false, reuse_unverified: false)
   end
 
   def test_generated_cell_with_api_equivalent_cost
@@ -117,12 +117,194 @@ class HiveDriverTest < Minitest::Test
     refute cell.telemetry.key?("cost_usd"), "a telemetry gap must read as unknown, not as a $0 run"
   end
 
+  def test_string_message_stream_event_does_not_abort_cell_capture
+    error_event = '[stream] 2026-01-01T00:00:00Z {"type":"error","message":"review failed"}'
+
+    cell = driver(log_lines: [error_event]).call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    refute cell.telemetry.key?("cost_usd")
+  end
+
+  def test_completed_artifact_is_recovered_without_rerunning_hive
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "completed artifact must not be regenerated" },
+                                         reuse_existing: true, reuse_unverified: false)
+
+    cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["recovered_artifact"]
+    assert_equal "verified", cell.telemetry["artifact_provenance"]
+    assert_nil cell.telemetry["wall_clock_sec"], "lost wall time stays unknown"
+  end
+
+  def test_legacy_artifact_requires_explicit_unverified_recovery
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    FileUtils.rm_f(File.join(@work, ".hb", HiveBench::HiveDriver::GENERATION_IDENTITY))
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "explicit legacy recovery must reuse the artifact" },
+                                         reuse_existing: true, reuse_unverified: true)
+
+    cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert_equal "legacy-unverified", cell.telemetry["artifact_provenance"]
+  end
+
+  def test_changed_candidate_identity_refuses_to_destroy_existing_artifact
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    changed = candidate.with(model_version: "changed-model")
+    no_rerun = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "mismatched artifact must not be deleted" },
+                                         reuse_existing: true, reuse_unverified: false)
+
+    error = assert_raises(HiveBench::HiveDriver::ArtifactProvenanceMismatch) do
+      no_rerun.call(entry: entry, candidate: changed, out_dir: @out)
+    end
+
+    assert_match(/--no-reuse-existing-artifacts/, error.message)
+    assert_path_exists File.join(@work, "candidate.patch")
+  end
+
+  def test_incomplete_artifact_is_not_recovered
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stages.out"), "HB_STAGE plan rc=0\nHB_EXIT rc=1\n")
+    reran = false
+    fresh = HiveBench::HiveDriver.new(runner: lambda do |_cmd|
+      reran = true
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      OK_STDOUT
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = fresh.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert reran
+    refute cell.telemetry["recovered_artifact"]
+  end
+
+  def test_codex_transport_failure_resumes_identity_verified_execute_in_place
+    mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+    sentinel = File.join(@work, "resume-sentinel")
+    File.write(sentinel, "keep")
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"),
+               "<!-- ERROR reason=implementer_failed status=error marker_id=abc123 -->\n")
+    logs = File.join(@work, ".hive-state", "logs", "add-i-key")
+    FileUtils.mkdir_p(logs)
+    File.write(File.join(logs, "execute-1.log"),
+               "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected before completion: " \
+               "error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"}}\n")
+    File.write(File.join(@work, ".hb", "stages.out"),
+               "HB_STAGE plan rc=0\nHB_STAGE develop rc=3\nHB_EXIT rc=0\n")
+
+    seen = nil
+    resumed = HiveBench::HiveDriver.new(runner: lambda do |cmd|
+      seen = cmd
+
+      assert_path_exists sentinel, "resume must not replace the persisted target"
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
+        "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: mixed, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["execute_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=abc123"]
+  end
+
+  def test_resume_rejects_nonterminal_transport_text_auth_limits_and_identity_drift
+    mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
+    driver.call(entry: entry, candidate: mixed, out_dir: @out)
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"),
+               "<!-- ERROR reason=implementer_failed status=error marker_id=abc123 -->\n")
+    logs = File.join(@work, ".hive-state", "logs", "add-i-key")
+    FileUtils.mkdir_p(logs)
+    log = File.join(logs, "execute-1.log")
+    checker = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+    identity = checker.send(:generation_identity, entry, mixed, @base)
+
+    File.write(log, <<~LOG)
+      {"type":"turn.failed","error":{"message":"stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}}
+      {"type":"turn.failed","error":{"message":"implementation failed validation"}}
+    LOG
+
+    assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity)
+
+    ["401 unauthorized", "rate limit reached",
+     "stream disconnected before completion: error sending request for url (https://example.com)"].each do |message|
+      File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":#{JSON.generate(message)}}}\n")
+
+      assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, identity), message
+    end
+
+    changed = identity.merge("base_commit" => "different")
+    File.write(log, "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected before completion: " \
+                    "error sending request for url (https://chatgpt.com/backend-api/codex/responses)\"}}\n")
+
+    assert_nil checker.send(:resumable_execute_marker, entry, mixed, @work, changed)
+    assert_nil checker.send(:resumable_execute_marker, entry, candidate, @work, identity)
+  end
+
   def test_timeout_is_timed_out_not_plan_failed
     cell = driver(stdout: "HB_STAGE plan rc=0\nHB_EXIT rc=124\n", patch: nil)
            .call(entry: entry, candidate: candidate, out_dir: @out)
 
     assert_equal "timed_out", cell.status
     assert_match(/HB_HIVE_TIMEOUT/, cell.reason)
+  end
+
+  def test_nonzero_stage_runner_exit_rejects_an_existing_patch
+    stdout = "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_NOTE final_patch_failed\nHB_EXIT rc=4\n"
+    cell = driver(stdout: stdout, patch: "diff --git a/polluted b/polluted\n")
+           .call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "execute_failed", cell.status
+    assert_match(/trustworthy capture/, cell.reason)
+  end
+
+  def test_review_limit_preserves_the_generated_execute_fallback
+    stdout = <<~OUT
+      HB_STAGE plan rc=0
+      HB_STAGE develop rc=0
+      HB_STAGE open-pr rc=0
+      HB_STAGE review rc=3
+      HB_NOTE review_fallback=execute
+      HB_DONE
+      HB_EXIT rc=0
+    OUT
+    driver(stdout: stdout, patch: "diff --git a/app.rb b/app.rb\n")
+      .call(entry: entry, candidate: candidate, out_dir: @out)
+    File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
+
+    status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+                                   .send(:classify, stdout, @work,
+                                         File.read(File.join(@work, "candidate.patch")))
+
+    assert_equal "generated", status
+  end
+
+  def test_execute_limit_still_parks_generation_despite_nonzero_runner_exit
+    stdout = "HB_STAGE plan rc=3\nHB_STAGE develop rc=4\nHB_EXIT rc=4\n"
+    FileUtils.mkdir_p(File.join(@work, ".hb"))
+    File.write(File.join(@work, ".hb", "stage.err"), "You've hit your session limit\n")
+
+    status, = HiveBench::HiveDriver.new(reuse_existing: true, reuse_unverified: false)
+                                   .send(:classify, stdout, @work, "diff --git a/app.rb b/app.rb\n")
+
+    assert_equal "limit_hit", status
   end
 
   def test_forced_plan_completion_is_surfaced
@@ -159,7 +341,8 @@ class HiveDriverTest < Minitest::Test
 
     err = assert_raises(RuntimeError) do
       with_claude_dir(claude_dir) do
-        HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing auth source" })
+        HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing auth source" },
+                                  reuse_existing: false, reuse_unverified: false)
                              .call(entry: entry, candidate: candidate, out_dir: @out)
       end
     end
@@ -175,7 +358,8 @@ class HiveDriverTest < Minitest::Test
     claude_dir = File.join(@root, "claude")
     FileUtils.mkdir_p(claude_dir)
     File.write(File.join(claude_dir, ".credentials.json"), "{}")
-    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing mount source" })
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run with a missing mount source" },
+                                          reuse_existing: false, reuse_unverified: false)
 
     err = assert_raises(RuntimeError) do
       with_claude_dir(claude_dir) { no_docker.call(entry: entry, candidate: candidate, out_dir: @out) }
@@ -245,7 +429,8 @@ class HiveDriverTest < Minitest::Test
     cases.each do |name, payload|
       auth_dir = File.join(@root, "grok-auth-#{name}")
       write_grok_auth(auth_dir, payload) if payload
-      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" },
+                                            reuse_existing: false, reuse_unverified: false)
 
       with_grok_auth_dir(auth_dir) do
         assert_raises(RuntimeError, name.to_s) do
@@ -269,7 +454,8 @@ class HiveDriverTest < Minitest::Test
         File.write(auth, valid_payload)
         File.chmod(0o644, auth)
       end
-      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" })
+      no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run for #{name}" },
+                                            reuse_existing: false, reuse_unverified: false)
 
       with_grok_auth_dir(auth_dir) do
         assert_raises(RuntimeError, name.to_s) do
@@ -291,7 +477,8 @@ class HiveDriverTest < Minitest::Test
 
     FileUtils.rm_f(lock_path)
     File.symlink(File.join(auth_dir, "auth.json"), lock_path)
-    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run" })
+    no_docker = HiveBench::HiveDriver.new(runner: ->(_cmd) { flunk "docker must not run" },
+                                          reuse_existing: false, reuse_unverified: false)
 
     with_grok_auth_dir(auth_dir) do
       assert_raises(RuntimeError) do
@@ -314,6 +501,17 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, "HB_PI_MODEL_PLAN=#{HiveBench::Candidates::GLM}"
     assert_includes @seen_cmd, "HB_PI_MODEL_EXECUTE=#{HiveBench::Candidates::KIMI}"
     assert_includes @seen_cmd, "HB_PI_MODEL_REVIEW=#{HiveBench::Candidates::GLM}"
+    assert_includes @seen_cmd,
+                    "#{HiveBench::HiveDriver::PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro",
+                    "Pi cells load the GLM transport fix inside the runner"
+
+    extension = File.read(HiveBench::HiveDriver::PI_TOOL_STREAM)
+
+    assert_includes extension, 'pi.on("before_provider_request"'
+    assert_includes extension, "tool_stream: true"
+    assert_includes File.read(HiveBench::HiveDriver::STAGES_SH),
+                    "--extension /opt/hb/pi-tool-stream.ts",
+                    "the Pi shim must activate the mounted extension"
   end
 
   def test_claude_candidate_gets_no_pi_model_env

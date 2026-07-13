@@ -151,7 +151,15 @@ signal.
   (`lib/git_restore.rb`).
 - **Vendored-tree bloat:** glm ran `bundle install --path vendor/gems` → a **160k-line** diff
   (1217 gem files) that overflowed both judges (claude judge exited 1). Excludes now cover
-  `vendor/gems`, `vendor/cache`, `vendor/bundle`, `.gems`, `node_modules`, `.bundle`.
+  `vendor/gems`, `vendor/cache`, `vendor/bundle`, `.gems`, `node_modules`, `.bundle`, and
+  `.bundle-local`. The in-container capture uses intent-to-add rather than `git add -A`, so
+  excluded build output is not staged into the later review branch.
+- **Failed-review fallback must be explicit:** a GLM review exited 3 after running tests, but
+  the old final capture scored its partial working tree and swept 4,991 `.bundle-local` files
+  into a 47 MB patch. A failed review now restores the saved execute patch exactly and records
+  `review_ok=false`, matching the documented full-cycle contract. Zero-byte execute patches
+  are valid `empty_diff` outcomes; capture/copy failures now reject the cell rather than letting
+  a stale patch silently pass.
 - **One judge shouldn't lose a cell:** a drained-balance OpenRouter 402 propagated through
   `transform_values` and parked the whole generated cell. RunAll is now **per-judge fail-soft**
   — a limited judge is skipped (backfill later), and a fully-limited cell parks *pending*.

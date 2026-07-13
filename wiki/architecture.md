@@ -21,7 +21,9 @@ for each corpus task T, for each candidate C:
 - **`lib/hive_driver.rb`** — host orchestrator (steps 1–3, 5–6 + the docker run); returns a
   `Run::Cell`-shaped result so it flows into the existing `RunAll`/`Score`.
 - **`lib/hive_stages.sh`** — runs INSIDE the container (step 4 + capture): plan, force-complete
-  a WAITING plan (no human Q&A), develop, capture the working-tree diff.
+  a WAITING plan (no human Q&A), develop, capture the working-tree diff. Force-completion
+  commits only `plan.md`; transient Hive lock churn is deliberately left outside that
+  bookkeeping commit.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
 - **`profiles/candidates.rb`** — the v2 slate. A *candidate* is a model-per-stage config:
   `all-opus-4.8`, `all-codex`, `opus-plan→codex-exec`. `claude_model` is the CLI id
@@ -50,6 +52,20 @@ execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
 `review_status` (REVIEW_COMPLETE/WAITING/STALE) and `review_changed_diff`
 (the review-lift signal).
 
+A provider limit encountered only during review does not invalidate a completed
+plan/execute result: the execute fallback remains a generated cell, while the
+missing review lift or judge score is deferred. Limits before plan or execute
+completion still park the generation.
+
+Diff capture uses intent-to-add with the same generated-tree exclusions as the
+host restorer; it does not stage those trees into the branch that review sees.
+The exclusions include Bundler's `.bundle-local/` path as well as `.bundle/`,
+vendored gems, and `node_modules`. A nonzero review exit atomically copies the
+saved execute patch (including a valid zero-byte patch) to the final patch
+before scoring, so partial review side effects cannot replace an otherwise
+valid implementation. Capture or fallback-copy errors fail the stage runner
+and are classified as execution failures instead of trusting a stale patch.
+
 ## Driver hardening (2026-07-01)
 
 - The gen container is **resource-capped** (`HB_CPUS`/`HB_MEMORY`/`HB_PIDS`,
@@ -64,6 +80,26 @@ execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
 - Every cell is scanned for **answer-key access** (repo-qualified reference-PR
   URL or `gh pr view/diff/checkout <n>` in the agent stream logs); a hit lands in
   telemetry as `answer_key_access_suspect` and warns loudly.
+- **Completed artifacts survive result/judge failures.** Before generation, the
+  driver persists the task, base commit, and full candidate definition in
+  `.hb/generation-identity.json`. On retry it reuses `target/candidate.patch`
+  only when that identity matches and Hive's `.hb/stages.out` transcript still
+  classifies it as generated. `--no-reuse-existing-artifacts` forces a fresh
+  generation. Legacy artifacts pre-dating the identity file require the explicit
+  `--reuse-unverified-artifacts` option (or one-time
+  `HB_REUSE_UNVERIFIED_ARTIFACTS=1`) and are marked `legacy-unverified`. If every
+  judge is unavailable, `RunAll` preserves the generated cell with an empty
+  `judges` map and also parks it in `pending`/`failed`, allowing `rejudge.rb` to
+  backfill without rebuying the run. A completed artifact with mismatched
+  provenance fails closed without deleting anything; replacing it requires the
+  explicit `--no-reuse-existing-artifacts` fresh-run option.
+- **Identity-verified Codex transport failures resume in place.** When a task is
+  parked at `4-execute` with the exact `implementer_failed` marker and its final
+  Codex event is a model-transport disconnect (not an auth/usage limit), the
+  driver preserves the worktree, reuses the committed plan, clears only that
+  marker by id, and asks Hive to continue `develop`. Other incomplete artifacts
+  still take the normal fresh-run path. Resumed cells record
+  `execute_resumed: true` in efficiency telemetry.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD`).
 
