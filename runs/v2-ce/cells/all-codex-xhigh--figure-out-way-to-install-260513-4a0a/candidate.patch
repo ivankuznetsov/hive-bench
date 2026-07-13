@@ -1,0 +1,4405 @@
+diff --git a/.github/workflows/aur-package.yml b/.github/workflows/aur-package.yml
+new file mode 100644
+index 00000000..8b7f0572
+--- /dev/null
++++ b/.github/workflows/aur-package.yml
+@@ -0,0 +1,39 @@
++name: AUR Package
++
++on:
++  workflow_dispatch:
++    inputs:
++      version:
++        description: "Release tag, e.g. v0.1.0"
++        required: true
++      sha256:
++        description: "SHA256 of hive-<version>-linux-x86_64-gnu.tar.gz"
++        required: true
++      repo:
++        description: "Release repo slug"
++        required: false
++        default: "<org>/hive"
++
++permissions:
++  contents: read
++
++jobs:
++  render-and-validate:
++    runs-on: ubuntu-latest
++    container: archlinux:base-devel
++    steps:
++      - uses: actions/checkout@v6
++      - name: Install Ruby
++        run: pacman -Syu --noconfirm ruby git
++      - name: Render PKGBUILD and .SRCINFO
++        run: >-
++          ruby packaging/aur/update_pkgbuild.rb
++          --version "${{ inputs.version }}"
++          --sha256 "${{ inputs.sha256 }}"
++          --repo "${{ inputs.repo }}"
++      - name: Check .SRCINFO freshness
++        working-directory: packaging/aur/hive-bin
++        run: makepkg --printsrcinfo | diff -u .SRCINFO -
++      - name: Build package metadata
++        working-directory: packaging/aur/hive-bin
++        run: makepkg --verifysource --noconfirm
+diff --git a/.github/workflows/e2e-install.yml b/.github/workflows/e2e-install.yml
+new file mode 100644
+index 00000000..9eee484b
+--- /dev/null
++++ b/.github/workflows/e2e-install.yml
+@@ -0,0 +1,30 @@
++name: E2E Install
++
++on:
++  workflow_dispatch:
++  pull_request:
++    paths:
++      - "install.sh"
++      - "packaging/**"
++      - "docs/install.md"
++      - "docs/update.md"
++      - "docs/uninstall.md"
++      - "docs/daemon.md"
++      - "test/e2e/*acceptance.md"
++
++permissions:
++  contents: read
++
++jobs:
++  ubuntu-script-dry-run:
++    runs-on: ubuntu-22.04
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - name: Script installer dry run
++        run: HIVE_INSTALL_PREFER_NATIVE=0 HIVE_INSTALL_DRY_RUN=1 bash install.sh
++      - name: Contract tests
++        run: bundle exec ruby -Itest -Ilib test/packaging/docs_contract_test.rb
+diff --git a/.github/workflows/homebrew-tap.yml b/.github/workflows/homebrew-tap.yml
+new file mode 100644
+index 00000000..eb2b58d3
+--- /dev/null
++++ b/.github/workflows/homebrew-tap.yml
+@@ -0,0 +1,38 @@
++name: Homebrew Tap
++
++on:
++  workflow_dispatch:
++    inputs:
++      version:
++        description: "Release tag, e.g. v0.1.0"
++        required: true
++      sha256:
++        description: "SHA256 of hive-<version>-darwin-arm64.tar.gz"
++        required: true
++      repo:
++        description: "Release repo slug"
++        required: false
++        default: "<org>/hive"
++
++permissions:
++  contents: read
++
++jobs:
++  render-formula:
++    runs-on: macos-14
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - name: Render formula
++        run: >-
++          ruby packaging/homebrew/update_formula.rb
++          --version "${{ inputs.version }}"
++          --sha256 "${{ inputs.sha256 }}"
++          --repo "${{ inputs.repo }}"
++      - name: Audit formula
++        run: brew audit --strict --online packaging/homebrew/Formula/hive.rb
++      - name: Test formula syntax
++        run: ruby -c packaging/homebrew/Formula/hive.rb
+diff --git a/.github/workflows/release-smoke.yml b/.github/workflows/release-smoke.yml
+new file mode 100644
+index 00000000..8f459d64
+--- /dev/null
++++ b/.github/workflows/release-smoke.yml
+@@ -0,0 +1,25 @@
++name: Release Smoke
++
++on:
++  workflow_dispatch:
++    inputs:
++      version:
++        description: "Release version, e.g. v0.1.0"
++        required: true
++      artifact:
++        description: "Path to a downloaded artifact tarball"
++        required: true
++
++permissions:
++  contents: read
++
++jobs:
++  smoke:
++    runs-on: ubuntu-22.04
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - run: ruby packaging/build/smoke_release.rb "${{ inputs.artifact }}" "${{ inputs.version }}"
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 00000000..f0b67cb2
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,89 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v[0-9]+.[0-9]+.[0-9]+"
++      - "v[0-9]+.[0-9]+.[0-9]+-*"
++  workflow_dispatch:
++    inputs:
++      tag:
++        description: "Semver tag to build, e.g. v0.1.0"
++        required: true
++
++permissions:
++  contents: write
++
++jobs:
++  contract:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - run: bundle exec ruby -Itest -Ilib test/release/artifact_contract_test.rb
++
++  build-linux:
++    needs: contract
++    runs-on: ubuntu-22.04
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - name: Validate semver tag
++        run: ruby -r ./packaging/build/build_release.rb -e 'Hive::Packaging::BuildRelease.validate_semver_tag!(ENV.fetch("GITHUB_REF_NAME"))'
++      - name: Install Tebako
++        run: gem install tebako --no-document
++      - name: Build Linux artifact
++        run: ruby packaging/build/build_release.rb "$GITHUB_REF_NAME"
++        env:
++          HIVE_RELEASE_TARGETS: linux-x86_64-gnu
++      - uses: actions/upload-artifact@v4
++        with:
++          name: hive-linux-release-assets
++          path: dist/hive-${{ github.ref_name }}-linux-x86_64-gnu*
++
++  build-macos:
++    needs: contract
++    runs-on: macos-14
++    steps:
++      - uses: actions/checkout@v6
++      - uses: ruby/setup-ruby@v1
++        with:
++          ruby-version: "3.4"
++          bundler-cache: true
++      - name: Validate semver tag
++        run: ruby -r ./packaging/build/build_release.rb -e 'Hive::Packaging::BuildRelease.validate_semver_tag!(ENV.fetch("GITHUB_REF_NAME"))'
++      - name: Install Tebako
++        run: gem install tebako --no-document
++      - name: Build macOS artifact
++        run: ruby packaging/build/build_release.rb "$GITHUB_REF_NAME"
++        env:
++          HIVE_RELEASE_TARGETS: darwin-arm64
++      - uses: actions/upload-artifact@v4
++        with:
++          name: hive-macos-release-assets
++          path: dist/hive-${{ github.ref_name }}-darwin-arm64*
++
++  publish:
++    needs: [build-linux, build-macos]
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/download-artifact@v4
++        with:
++          path: dist
++          merge-multiple: true
++      - name: Create checksum manifest
++        run: |
++          cd dist
++          sha256sum hive-${{ github.ref_name }}-*.tar.gz > hive-${{ github.ref_name }}-checksums.txt
++      - name: Publish GitHub Release
++        uses: softprops/action-gh-release@v2
++        with:
++          tag_name: ${{ github.ref_name }}
++          fail_on_unmatched_files: true
++          files: dist/*
+diff --git a/Rakefile b/Rakefile
+index 9f5959cd..641cfb69 100644
+--- a/Rakefile
++++ b/Rakefile
+@@ -1,11 +1,11 @@
+ require "rake/testtask"
+ 
+-# Default suite — everything under test/{unit,integration}. Self-contained,
++# Default suite — unit/integration plus release, packaging, install, prompt, and skills contracts.
+ # uses fake-claude / fake-gh, no network or paid API calls.
+ Rake::TestTask.new do |t|
+   t.libs << "test"
+   t.libs << "lib"
+-  t.test_files = FileList["test/{unit,integration}/**/*_test.rb"]
++  t.test_files = FileList["test/{unit,integration,release,packaging,install,hive,prompts,skills}/**/*_test.rb"]
+   t.warning = false
+ end
+ 
+diff --git a/bin/hive b/bin/hive
+index bfd53884..dac83fea 100755
+--- a/bin/hive
++++ b/bin/hive
+@@ -2,36 +2,6 @@
+ 
+ $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+ 
+-require "hive"
+-require "hive/cli"
++require "hive/entrypoint"
+ 
+-if ARGV == [ "--version" ] || ARGV == [ "-v" ]
+-  puts Hive::VERSION
+-  exit 0
+-end
+-
+-# Thor only honours `--help` *before* the subcommand name (`hive help approve`);
+-# `hive approve --help` would be consumed as the TARGET positional. Intercept
+-# the help flag before Thor dispatch so the convention agents try first works.
+-def rewrite_help_flag!(argv)
+-  return if argv.empty?
+-
+-  cmd_idx = argv.index { |a| !a.start_with?("-") }
+-  return unless cmd_idx
+-
+-  help_idx = argv[(cmd_idx + 1)..]&.index { |a| a == "--help" || a == "-h" }
+-  return unless help_idx
+-
+-  cmd = argv.delete_at(cmd_idx)
+-  argv.delete_at(cmd_idx + help_idx)
+-  argv.unshift("help", cmd)
+-end
+-
+-rewrite_help_flag!(ARGV)
+-
+-begin
+-  Hive::CLI.start(ARGV)
+-rescue Hive::Error => e
+-  warn "hive: #{e.message}"
+-  exit(e.respond_to?(:exit_code) ? e.exit_code : 1)
+-end
++exit Hive::Entrypoint.run(ARGV)
+diff --git a/docs/agent-skills.md b/docs/agent-skills.md
+new file mode 100644
+index 00000000..e21880dc
+--- /dev/null
++++ b/docs/agent-skills.md
+@@ -0,0 +1,19 @@
++# Hive Agent Skills
++
++Hive's core binary is distributed separately from agent skills. The binary must
++not install, update, or remove Claude, Codex, Pi, or other agent-specific skill
++files.
++
++The source for the Hive skills package lives under `skills/hive/` so releases can
++publish it as a separate artifact. Installation is allowed only through a native
++marketplace or plugin flow exposed by the host agent. When a marketplace is not
++available, the installer prompt reports that manual follow-up is required.
++
++Supported marketplace targets for v1 metadata:
++
++- Claude: `skills/hive/marketplaces/claude.yml`
++- Codex: `skills/hive/marketplaces/codex.yml`
++- Pi: `skills/hive/marketplaces/pi.yml`
++
++Each target is declarative. Marketplace-specific automation can be added only
++after the corresponding agent exposes a real install mechanism.
+diff --git a/docs/daemon.md b/docs/daemon.md
+new file mode 100644
+index 00000000..a90828ea
+--- /dev/null
++++ b/docs/daemon.md
+@@ -0,0 +1,21 @@
++# Hive Daemon Service
++
++`hive init` registers a service definition for the host platform:
++
++- Linux: systemd user unit, `hive.service`
++- macOS: launchd plist, `org.hive.daemon.plist`
++
++Registration and autostart are separate. Hive does not silently enable or start
++the service during install.
++
++Manual commands:
++
++```bash
++hive daemon start
++hive daemon status
++hive daemon stop
++```
++
++For package-manager or OS autostart management, inspect the rendered service
++file and enable it explicitly with `systemctl --user enable --now hive.service`
++or the launchd equivalent.
+diff --git a/docs/install.md b/docs/install.md
+new file mode 100644
+index 00000000..c77eac9d
+--- /dev/null
++++ b/docs/install.md
+@@ -0,0 +1,66 @@
++# Install Hive
++
++Hive v1 installation channels consume GitHub Release artifacts. Do not rebuild
++from source in install channels.
++
++- macOS arm64: `brew install <org>/hive/hive`
++- Arch Linux: `hive-bin` from AUR
++- Ubuntu 22.04+ / glibc Linux x86_64 fallback:
++  `curl -fsSL https://github.com/<org>/hive/releases/download/v0.1.0/install.sh | bash`
++- Agent-driven install: paste `prompts/install.md` into a supported agent.
++
++Verify every install with:
++
++```bash
++hive --version
++```
++
++Then initialize each project explicitly:
++
++```bash
++cd /path/to/project
++hive init
++```
++
++Hive uses XDG paths by default:
++
++- Config: `~/.config/hive/config.yml`
++- Data: `~/.local/share/hive/`
++- State: `~/.local/state/hive/`
++- Cache: `~/.cache/hive/`
++
++Project scaffolding lives under `.hive/`; pipeline state lives under
++`.hive-state/`.
++
++## macOS arm64 Homebrew
++
++```bash
++brew install <org>/hive/hive
++hive --version
++hive init
++hive daemon status
++```
++
++Use `hv` if another `hive` executable is earlier on `PATH`.
++
++## Arch AUR
++
++```bash
++yay -S hive-bin
++hive --version
++hive init
++hive daemon status
++```
++
++`hive update` delegates back to the configured AUR helper for `hive-bin`.
++
++## Script Fallback
++
++```bash
++curl -fsSL https://github.com/<org>/hive/releases/download/v0.1.0/install.sh | bash
++hive --version
++hive init
++```
++
++The script writes `~/.config/hive/install_receipt.yml` so `hive update` can
++re-run the release installer later.
+diff --git a/docs/release.md b/docs/release.md
+new file mode 100644
+index 00000000..aca90e39
+--- /dev/null
++++ b/docs/release.md
+@@ -0,0 +1,18 @@
++# Release Process
++
++Release artifacts are canonical. Homebrew, AUR, script installs, and agent
++prompt installs all consume GitHub Release assets.
++
++1. Tag a semver release such as `v0.1.0`.
++2. Run `.github/workflows/release.yml`.
++3. Confirm artifacts exist:
++   - `hive-v0.1.0-darwin-arm64.tar.gz`
++   - `hive-v0.1.0-linux-x86_64-gnu.tar.gz`
++   - `hive-v0.1.0-checksums.txt`
++4. Run release smoke checks for `hive --version`, `hive init --dry-run` when
++   available, and daemon command help.
++5. Stamp Homebrew and AUR metadata with the artifact SHA256 values.
++6. Complete the tier-1 acceptance checklists under `test/e2e/`.
++
++Do not mark a v1 release ready unless tier-1 acceptance is green or manual
++evidence is attached to the release notes.
+diff --git a/docs/uninstall.md b/docs/uninstall.md
+new file mode 100644
+index 00000000..316eec94
+--- /dev/null
++++ b/docs/uninstall.md
+@@ -0,0 +1,17 @@
++# Uninstall Hive
++
++`hive uninstall` removes generated service registrations and script-owned
++binaries. It preserves project work by default.
++
++Package-manager installs should use their native owner:
++
++```bash
++brew uninstall <org>/hive/hive
++yay -R hive-bin
++```
++
++Project `.hive/` cleanup is prompted/default-preserved. `~/.local/state/hive/`
++and completed pipeline artifacts are preserved, including with `--purge`.
++
++Hive skills are separate marketplace packages. Remove skills through the agent
++marketplace that installed them.
+diff --git a/docs/update.md b/docs/update.md
+new file mode 100644
+index 00000000..762dceb6
+--- /dev/null
++++ b/docs/update.md
+@@ -0,0 +1,17 @@
++# Update Hive
++
++`hive update` delegates to the install channel that owns the binary.
++
++- Homebrew: `brew upgrade <org>/hive/hive`
++- AUR: configured helper, for example `yay -Syu hive-bin`
++- Script installer: re-runs the release `install.sh` URL recorded in
++  `~/.config/hive/install_receipt.yml`
++
++If Hive cannot identify the install channel, it prints a manual update
++recommendation and does not mutate binaries.
++
++Preview the delegated command:
++
++```bash
++hive update --dry-run
++```
+diff --git a/exe/hive b/exe/hive
+new file mode 100755
+index 00000000..dac83fea
+--- /dev/null
++++ b/exe/hive
+@@ -0,0 +1,7 @@
++#!/usr/bin/env ruby
++
++$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
++
++require "hive/entrypoint"
++
++exit Hive::Entrypoint.run(ARGV)
+diff --git a/hive.gemspec b/hive.gemspec
+new file mode 100644
+index 00000000..da06f094
+--- /dev/null
++++ b/hive.gemspec
+@@ -0,0 +1,34 @@
++require_relative "lib/hive/version"
++
++Gem::Specification.new do |spec|
++  spec.name = "hive"
++  spec.version = Hive::VERSION
++  spec.summary = "Multi-agent software delivery pipeline"
++  spec.description = "Hive turns rough software ideas into staged, reviewable pull requests."
++  spec.authors = [ "Hive contributors" ]
++  spec.license = "MIT"
++  spec.required_ruby_version = "~> 3.4"
++  spec.homepage = "https://github.com/<org>/hive"
++  spec.metadata = {
++    "homepage_uri" => spec.homepage,
++    "source_code_uri" => spec.homepage
++  }
++
++  spec.files = Dir[
++    "bin/*",
++    "exe/*",
++    "lib/**/*",
++    "templates/**/*",
++    "schemas/**/*",
++    "README.md",
++    "LICENSE"
++  ].select { |path| File.file?(path) }
++  spec.bindir = "exe"
++  spec.executables = [ "hive" ]
++  spec.require_paths = [ "lib" ]
++
++  spec.add_dependency "bubbletea", "= 0.1.4"
++  spec.add_dependency "lipgloss", "~> 0.2.2"
++  spec.add_dependency "telegram-bot-ruby", "~> 2.7"
++  spec.add_dependency "thor", "~> 1.3"
++end
+diff --git a/install.sh b/install.sh
+new file mode 100755
+index 00000000..47aaae61
+--- /dev/null
++++ b/install.sh
+@@ -0,0 +1,235 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++HIVE_REPO="${HIVE_REPO:-<org>/hive}"
++HIVE_VERSION="${HIVE_VERSION:-v0.1.0}"
++HIVE_RELEASE_BASE_URL="${HIVE_RELEASE_BASE_URL:-https://github.com/${HIVE_REPO}/releases/download/${HIVE_VERSION}}"
++HIVE_INSTALL_BIN_DIR="${HIVE_INSTALL_BIN_DIR:-${HOME}/.local/bin}"
++HIVE_INSTALL_PREFER_NATIVE="${HIVE_INSTALL_PREFER_NATIVE:-1}"
++HIVE_INSTALL_DRY_RUN="${HIVE_INSTALL_DRY_RUN:-0}"
++
++log() {
++  printf 'hive install: %s\n' "$*" >&2
++}
++
++die() {
++  log "$*"
++  exit 1
++}
++
++have() {
++  command -v "$1" >/dev/null 2>&1
++}
++
++uname_s() {
++  printf '%s\n' "${HIVE_TEST_UNAME_S:-$(uname -s)}"
++}
++
++uname_m() {
++  printf '%s\n' "${HIVE_TEST_UNAME_M:-$(uname -m)}"
++}
++
++os_release_id() {
++  if [[ -n "${HIVE_TEST_OS_ID:-}" ]]; then
++    printf '%s\n' "$HIVE_TEST_OS_ID"
++    return
++  fi
++  if [[ -r /etc/os-release ]]; then
++    # shellcheck disable=SC1091
++    . /etc/os-release
++    printf '%s\n' "${ID:-}"
++  fi
++}
++
++detect_platform() {
++  local os arch distro
++  os="$(uname_s)"
++  arch="$(uname_m)"
++  distro="$(os_release_id)"
++
++  case "$os" in
++    Darwin)
++      [[ "$arch" == "arm64" ]] || return_unsupported "macOS support is tier-1 only on arm64 for v1"
++      printf 'darwin-arm64\n'
++      ;;
++    Linux)
++      case "$distro" in
++        alpine) return_unsupported "Alpine is out of scope for Hive v1; use Ubuntu 22.04+, Arch, or macOS arm64" ;;
++        nixos) return_unsupported "NixOS is out of scope for Hive v1; use Ubuntu 22.04+, Arch, or macOS arm64" ;;
++      esac
++      [[ "$arch" == "x86_64" || "$arch" == "amd64" ]] ||
++        return_unsupported "Linux support is tier-1 only on x86_64 glibc for v1"
++      printf 'linux-x86_64-gnu\n'
++      ;;
++    FreeBSD|OpenBSD|NetBSD|DragonFly)
++      return_unsupported "BSD platforms are out of scope for Hive v1"
++      ;;
++    *)
++      return_unsupported "unsupported platform ${os}/${arch}; tier-1 is macOS arm64, Ubuntu 22.04+, and Arch"
++      ;;
++  esac
++}
++
++return_unsupported() {
++  printf '%s\n' "$1" >&2
++  return 64
++}
++
++is_arch_linux() {
++  [[ "$(uname_s)" == "Linux" && "$(os_release_id)" == "arch" ]]
++}
++
++native_channel_command() {
++  if [[ "$HIVE_INSTALL_PREFER_NATIVE" != "1" ]]; then
++    return 1
++  fi
++
++  if [[ "$(uname_s)" == "Darwin" ]] && have brew; then
++    printf 'brew install %s/hive\n' "${HIVE_REPO}"
++    return 0
++  fi
++
++  if is_arch_linux; then
++    if have yay; then
++      printf 'yay -S hive-bin\n'
++      return 0
++    fi
++    if have paru; then
++      printf 'paru -S hive-bin\n'
++      return 0
++    fi
++  fi
++
++  return 1
++}
++
++artifact_name_for() {
++  local platform="$1"
++  printf 'hive-%s-%s.tar.gz\n' "$HIVE_VERSION" "$platform"
++}
++
++choose_binary_name() {
++  local install_dir="$1"
++  local existing install_root
++  existing="$(command -v hive || true)"
++  install_root="$(cd "$install_dir" 2>/dev/null && pwd || printf '%s' "$install_dir")"
++  if [[ -n "$existing" && "$(cd "$(dirname "$existing")" && pwd)/$(basename "$existing")" != "${install_root}/hive" ]]; then
++    printf 'hv\n'
++  else
++    printf 'hive\n'
++  fi
++}
++
++sha256_file() {
++  if have sha256sum; then
++    sha256sum "$1" | awk '{print $1}'
++  elif have shasum; then
++    shasum -a 256 "$1" | awk '{print $1}'
++  else
++    die "missing checksum tool: install sha256sum or shasum"
++  fi
++}
++
++verify_checksum() {
++  local file="$1"
++  local checksums="$2"
++  local expected actual base
++  base="$(basename "$file")"
++  expected="$(awk -v name="$base" '$2 == name {print $1}' "$checksums")"
++  [[ -n "$expected" ]] || die "checksum for $base not found in $checksums"
++  actual="$(sha256_file "$file")"
++  [[ "$actual" == "$expected" ]] || die "checksum mismatch for $base"
++}
++
++write_receipt() {
++  local receipt="$1" channel="$2" version="$3" artifact_url="$4" checksum="$5" binary_name="$6"
++  mkdir -p "$(dirname "$receipt")"
++  cat >"$receipt" <<YAML
++channel: ${channel}
++version: ${version}
++artifact_url: ${artifact_url}
++checksum: ${checksum}
++binary_name: ${binary_name}
++installed_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
++YAML
++}
++
++print_dependency_hints() {
++  local missing=0
++  for tool in git bash; do
++    if ! have "$tool"; then
++      log "required tool missing: ${tool}. Install it with your OS package manager and rerun."
++      missing=1
++    fi
++  done
++  for tool in jq gh claude; do
++    if ! have "$tool"; then
++      log "optional tool missing: ${tool}. Some Hive workflows may ask for it later."
++    fi
++  done
++  return "$missing"
++}
++
++install_via_native_channel() {
++  local command_line="$1"
++  log "using native install channel: ${command_line}"
++  if [[ "$HIVE_INSTALL_DRY_RUN" == "1" ]]; then
++    printf '%s\n' "$command_line"
++  else
++    # Intentional shell split: command_line is generated internally by native_channel_command.
++    # shellcheck disable=SC2086
++    $command_line
++  fi
++}
++
++install_release_artifact() {
++  local platform artifact artifact_url tmp checksums command_name checksum receipt
++  platform="$(detect_platform)"
++  artifact="$(artifact_name_for "$platform")"
++  artifact_url="${HIVE_RELEASE_BASE_URL}/${artifact}"
++  tmp="$(mktemp -d)"
++  HIVE_INSTALL_TMP="$tmp"
++  trap 'rm -rf "$HIVE_INSTALL_TMP"' EXIT
++
++  command_name="$(choose_binary_name "$HIVE_INSTALL_BIN_DIR")"
++  log "selected command name: ${command_name}"
++
++  if [[ "$HIVE_INSTALL_DRY_RUN" == "1" ]]; then
++    log "dry run: would download ${artifact_url}"
++    return 0
++  fi
++
++  mkdir -p "$HIVE_INSTALL_BIN_DIR" "${XDG_CONFIG_HOME:-${HOME}/.config}/hive" \
++    "${XDG_DATA_HOME:-${HOME}/.local/share}/hive" \
++    "${XDG_STATE_HOME:-${HOME}/.local/state}/hive" \
++    "${XDG_CACHE_HOME:-${HOME}/.cache}/hive"
++
++  have curl || die "missing curl; install curl or use Homebrew/AUR directly"
++  curl -fsSL "$artifact_url" -o "$tmp/$artifact"
++  curl -fsSL "${HIVE_RELEASE_BASE_URL}/hive-${HIVE_VERSION}-checksums.txt" -o "$tmp/checksums.txt"
++  verify_checksum "$tmp/$artifact" "$tmp/checksums.txt"
++  checksum="$(sha256_file "$tmp/$artifact")"
++
++  tar -xzf "$tmp/$artifact" -C "$tmp"
++  install -m 0755 "$tmp/hive" "$HIVE_INSTALL_BIN_DIR/$command_name"
++  receipt="${XDG_CONFIG_HOME:-${HOME}/.config}/hive/install_receipt.yml"
++  write_receipt "$receipt" "script" "$HIVE_VERSION" "$artifact_url" "$checksum" "$command_name"
++
++  "$HIVE_INSTALL_BIN_DIR/$command_name" --version
++  log "installed ${command_name} to ${HIVE_INSTALL_BIN_DIR}/${command_name}"
++}
++
++main() {
++  print_dependency_hints || die "required tools are missing"
++
++  if native="$(native_channel_command)"; then
++    install_via_native_channel "$native"
++    return
++  fi
++
++  install_release_artifact
++}
++
++if [[ "${HIVE_INSTALL_SOURCE_ONLY:-0}" != "1" ]]; then
++  main "$@"
++fi
+diff --git a/lib/hive.rb b/lib/hive.rb
+index 8db3300a..428254f6 100644
+--- a/lib/hive.rb
++++ b/lib/hive.rb
+@@ -1,5 +1,6 @@
++require "hive/version"
++
+ module Hive
+-  VERSION = "0.1.0".freeze
+   MIN_CLAUDE_VERSION = "2.1.118".freeze
+ 
+   module Schemas
+diff --git a/lib/hive/assets.rb b/lib/hive/assets.rb
+new file mode 100644
+index 00000000..478e2fea
+--- /dev/null
++++ b/lib/hive/assets.rb
+@@ -0,0 +1,15 @@
++require "hive/paths"
++
++module Hive
++  module Assets
++    module_function
++
++    def root
++      ENV.fetch("HIVE_ASSETS_DIR", File.expand_path("../../templates", __dir__))
++    end
++
++    def template(*parts)
++      File.join(root, *parts)
++    end
++  end
++end
+diff --git a/lib/hive/build_metadata.rb b/lib/hive/build_metadata.rb
+new file mode 100644
+index 00000000..29236d27
+--- /dev/null
++++ b/lib/hive/build_metadata.rb
+@@ -0,0 +1,8 @@
++module Hive
++  module BuildMetadata
++    VERSION = "0.1.0".freeze
++    COMMIT = "unknown".freeze
++    BUILD_TIME = "unknown".freeze
++    PLATFORM = RUBY_PLATFORM.freeze
++  end
++end
+diff --git a/lib/hive/cli.rb b/lib/hive/cli.rb
+index 9bc60cb8..58a3e34a 100644
+--- a/lib/hive/cli.rb
++++ b/lib/hive/cli.rb
+@@ -25,6 +25,22 @@ module Hive
+     end
+     map "--version" => :version
+ 
++    desc "update", "Update Hive through the native install channel"
++    option :dry_run, type: :boolean, default: false, desc: "print the updater command without running it"
++    def update
++      require "hive/commands/update"
++      Hive::Commands::Update.new(dry_run: options[:dry_run]).call
++    end
++
++    desc "uninstall", "Remove Hive registrations while preserving work artifacts by default"
++    option :purge, type: :boolean, default: false,
++                   desc: "remove generated registrations/caches, but preserve state/work artifacts"
++    option :yes, type: :boolean, default: false, desc: "confirm project .hive/ cleanup non-interactively"
++    def uninstall
++      require "hive/commands/uninstall"
++      Hive::Commands::Uninstall.new(purge: options[:purge], yes: options[:yes]).call
++    end
++
+     desc "init [PROJECT_PATH]", "Bootstrap .hive-state (orphan hive/state branch); TTY-prompts for agents + limits"
+     long_desc <<~DESC
+       Initialises hive in PROJECT_PATH (defaults to the current directory):
+diff --git a/lib/hive/commands/daemon.rb b/lib/hive/commands/daemon.rb
+index f88bca6f..9e196c2a 100644
+--- a/lib/hive/commands/daemon.rb
++++ b/lib/hive/commands/daemon.rb
+@@ -44,7 +44,7 @@ module Hive
+       end
+ 
+       def initialize(subcommand, target = nil, detach: false, dry_run: false,
+-                     all: false, json: false, hive_home: Hive::Config.hive_home)
++                     all: false, json: false, hive_home: Hive::Config.runtime_home)
+         @subcommand = subcommand
+         @target = target
+         @detach = detach
+diff --git a/lib/hive/commands/init.rb b/lib/hive/commands/init.rb
+index b86e8d61..42ee41ab 100644
+--- a/lib/hive/commands/init.rb
++++ b/lib/hive/commands/init.rb
+@@ -2,14 +2,17 @@ require "open3"
+ require "fileutils"
+ require "stringio"
+ require "hive/config"
++require "hive/dependency_check"
++require "hive/first_run_config"
+ require "hive/git_ops"
++require "hive/service"
+ require "hive/commands/init/prompts"
+ require "hive/commands/doctor"
+ 
+ module Hive
+   module Commands
+     class Init
+-      def initialize(project_path, force: false, prompts: nil)
++      def initialize(project_path, force: false, prompts: nil, service: nil)
+         @project_path = File.expand_path(project_path)
+         @force = force
+         # Optional Prompts instance for testability. Tests inject a
+@@ -19,9 +22,11 @@ module Hive
+         # summary_io: $stdout)` runs (UI on stderr, machine-parseable
+         # summary on stdout — see #collect_prompt_answers below).
+         @prompts = prompts
++        @service = service
+       end
+ 
+       def call
++        Hive::DependencyCheck.verify!(required: %w[git bash], io: $stderr)
+         validate_git_repo!
+         validate_clean_tree! unless @force
+ 
+@@ -40,11 +45,17 @@ module Hive
+ 
+         ops.hive_state_init
+         write_per_project_config(ops, answers: answers)
++        scaffold_project_hive_dir
+         ops.add_hive_state_to_master_gitignore!
+ 
+         entry = Hive::Config.register_project(name: File.basename(@project_path), path: @project_path)
++        Hive::FirstRunConfig.ensure!(input: $stdin, output: $stderr)
++        service = @service || Hive::Service.manager
++        service_registration = service.register
++        service_autostart = enable_service_autostart(service, answers: answers)
+ 
+-        print_summary(entry: entry, ops: ops)
++        print_summary(entry: entry, ops: ops, service_registration: service_registration,
++                      service_autostart: service_autostart)
+         run_init_preflight!
+       end
+ 
+@@ -103,15 +114,22 @@ module Hive
+         nil
+       end
+ 
+-      def print_summary(entry:, ops:)
++      def print_summary(entry:, ops:, service_registration: nil, service_autostart: nil)
+         c = Palette.for($stdout)
+         name = entry["name"]
+         rows = [
+           [ "project",        @project_path ],
+           [ "default branch", ops.default_branch ],
+           [ "hive state",     ops.hive_state_path ],
+-          [ "worktree root",  worktree_root ]
++          [ "worktree root",  worktree_root ],
++          [ "project config", File.join(@project_path, ".hive", "config.yml") ]
+         ]
++        if service_registration && service_registration[:supported]
++          rows << [ "service file", service_registration[:path] ]
++        end
++        if service_autostart && service_autostart[:supported]
++          rows << [ "service autostart", service_autostart[:ok] ? "enabled" : "failed" ]
++        end
+         label_width = rows.map { |k, _| k.length }.max
+ 
+         $stdout.puts "#{c.green('✔')} #{c.bold('hive: initialized')} #{c.bold_cyan(name)}"
+@@ -134,6 +152,17 @@ module Hive
+         exit Hive::ExitCodes::USAGE
+       end
+ 
++      def enable_service_autostart(service, answers:)
++        return nil unless answers.fetch("daemon_autostart", false)
++
++        result = service.enable_and_start
++        if result[:supported] && result.key?(:ok) && !result[:ok]
++          reason = [ result[:stderr], result[:message] ].compact.join(" ").strip
++          write_warn("hive: service autostart failed#{reason.empty? ? '' : ": #{reason}"}")
++        end
++        result
++      end
++
+       def validate_git_repo!
+         out, _err, status = Open3.capture3("git", "-C", @project_path, "rev-parse", "--git-common-dir")
+         unless status.success?
+@@ -182,6 +211,18 @@ module Hive
+         ERB.new(template, trim_mode: "-").result(bindings.binding_for_erb)
+       end
+ 
++      def scaffold_project_hive_dir
++        source = File.expand_path("../../../templates/project/.hive", __dir__)
++        dest = File.join(@project_path, ".hive")
++        FileUtils.mkdir_p(dest)
++        Dir.children(source).each do |entry|
++          target = File.join(dest, entry)
++          next if File.exist?(target)
++
++          FileUtils.cp(File.join(source, entry), target)
++        end
++      end
++
+       def worktree_root
+         File.expand_path("~/Dev/#{File.basename(@project_path)}.worktrees")
+       end
+diff --git a/lib/hive/commands/init/prompts.rb b/lib/hive/commands/init/prompts.rb
+index 088635f9..1e8789a3 100644
+--- a/lib/hive/commands/init/prompts.rb
++++ b/lib/hive/commands/init/prompts.rb
+@@ -96,7 +96,8 @@ module Hive
+         #     "triage_bias"       => String,           # courageous | safetyist
+         #     "budgets"  => Hash<String, Integer>,     # 9 keys (LIMIT_KEYS)
+         #     "timeouts" => Hash<String, Integer>,     # 9 keys (LIMIT_KEYS)
+-        #     "daemon_enabled"    => Boolean           # auto-advance pipeline (ADR-024)
++        #     "daemon_enabled"    => Boolean,          # auto-advance pipeline (ADR-024)
++        #     "daemon_autostart"  => Boolean           # OS service enable/start consent
+         #   }
+         # Raises Aborted when the user declines confirmation.
+         def collect
+@@ -109,6 +110,7 @@ module Hive
+           triage_bias = prompt_triage_bias
+           budgets, timeouts = prompt_limits
+           daemon_enabled = prompt_daemon_enabled
++          daemon_autostart = prompt_daemon_autostart
+ 
+           answers = {
+             "planning_agent" => planning,
+@@ -117,7 +119,8 @@ module Hive
+             "triage_bias" => triage_bias,
+             "budgets" => budgets,
+             "timeouts" => timeouts,
+-            "daemon_enabled" => daemon_enabled
++            "daemon_enabled" => daemon_enabled,
++            "daemon_autostart" => daemon_autostart
+           }
+ 
+           summarize(answers)
+@@ -143,7 +146,8 @@ module Hive
+             "triage_bias" => DEFAULT_TRIAGE_BIAS,
+             "budgets" => default_budgets,
+             "timeouts" => default_timeouts,
+-            "daemon_enabled" => true
++            "daemon_enabled" => true,
++            "daemon_autostart" => false
+           }
+           # Goes to @summary_io (stdout by default) so a non-TTY caller's
+           # `summary=$(hive init)` capture has a parseable single line.
+@@ -151,7 +155,7 @@ module Hive
+             "hive: using defaults — planning=#{DEFAULT_PLANNING_AGENT}, " \
+             "dev=#{DEFAULT_DEVELOPMENT_AGENT}, " \
+             "reviewers=all#{DEFAULT_REVIEWER_NAMES.size}, " \
+-            "triage=#{DEFAULT_TRIAGE_BIAS}, limits=defaults, daemon=enabled"
++            "triage=#{DEFAULT_TRIAGE_BIAS}, limits=defaults, daemon=enabled, autostart=disabled"
+           )
+           answers
+         end
+@@ -352,6 +356,22 @@ module Hive
+           end
+         end
+ 
++        def prompt_daemon_autostart
++          @output.puts ""
++          @output.puts "Daemon service autostart — optionally enable and start the OS user service."
++          @output.puts "  Hive registers the service definition either way; autostart is only"
++          @output.puts "  enabled when you explicitly consent here."
++          loop do
++            @output.print "Enable and start the daemon service at login? [y/N]: "
++            @output.flush
++            answer = read_line.downcase
++            return false if answer.empty? || answer == "n" || answer == "no"
++            return true  if answer == "y" || answer == "yes"
++
++            @output.puts "  please answer y or n"
++          end
++        end
++
+         def summarize(answers)
+           @output.puts ""
+           @output.puts "Summary:"
+@@ -361,6 +381,7 @@ module Hive
+           @output.puts "  triage_bias       = #{answers['triage_bias']}"
+           @output.puts "  limits            = #{summarize_limits(answers)}"
+           @output.puts "  daemon            = #{answers['daemon_enabled'] ? 'enabled' : 'disabled'}"
++          @output.puts "  daemon_autostart  = #{answers['daemon_autostart'] ? 'enabled' : 'disabled'}"
+         end
+ 
+         def summarize_limits(answers)
+diff --git a/lib/hive/commands/uninstall.rb b/lib/hive/commands/uninstall.rb
+new file mode 100644
+index 00000000..a3205c72
+--- /dev/null
++++ b/lib/hive/commands/uninstall.rb
+@@ -0,0 +1,84 @@
++require "fileutils"
++require "hive/install_receipt"
++require "hive/project_cleanup"
++require "hive/service"
++
++module Hive
++  module Commands
++    class Uninstall
++      def initialize(project_root: Dir.pwd, purge: false, yes: false, receipt: Hive::InstallReceipt.new,
++                     input: $stdin, output: $stdout, service: Hive::Service.manager)
++        @project_root = project_root
++        @purge = purge
++        @yes = yes
++        @receipt = receipt
++        @input = input
++        @output = output
++        @service = service
++      end
++
++      def call
++        remove_service_registration
++        remove_script_binary_if_owned
++        cleanup_project_scaffold
++        @output.puts "hive uninstall: skills are managed by agent marketplaces; remove them there if desired."
++        true
++      end
++
++      private
++
++      def remove_service_registration
++        path =
++          if @service.respond_to?(:service_path)
++            @service.service_path
++          else
++            @service.register[:path]
++          end
++        if path && File.exist?(path)
++          File.delete(path)
++          @output.puts "hive uninstall: removed service registration #{path}"
++        else
++          @output.puts "hive uninstall: no service registration found"
++        end
++      end
++
++      def remove_script_binary_if_owned
++        case @receipt.channel
++        when "script"
++          path = @receipt.script_binary_path
++          if File.exist?(path)
++            File.delete(path)
++            @output.puts "hive uninstall: removed #{path}"
++          else
++            @output.puts "hive uninstall: script binary already absent"
++          end
++        when "homebrew", "brew"
++          @output.puts "hive uninstall: use `brew uninstall #{@receipt.repo}/hive` to remove the package."
++        when "aur"
++          @output.puts "hive uninstall: use your AUR helper to remove `hive-bin`."
++        else
++          @output.puts "hive uninstall: install channel unknown; no binary removed."
++        end
++      end
++
++      def cleanup_project_scaffold
++        confirm = @purge && (@yes || confirm_project_cleanup?)
++        Hive::ProjectCleanup.cleanup_project_scaffold(
++          project_root: @project_root,
++          confirm: confirm,
++          output: @output
++        )
++        @output.puts "hive uninstall: preserving ~/.local/state/hive work artifacts by default."
++      end
++
++      def confirm_project_cleanup?
++        return false unless @input.respond_to?(:tty?) && @input.tty?
++
++        @output.print "hive uninstall: remove project .hive/ scaffold in #{@project_root}? [y/N]: "
++        @output.flush
++        answer = @input.gets
++        %w[y yes].include?(answer.to_s.chomp.strip.downcase)
++      end
++    end
++  end
++end
+diff --git a/lib/hive/commands/update.rb b/lib/hive/commands/update.rb
+new file mode 100644
+index 00000000..c6cfa6b0
+--- /dev/null
++++ b/lib/hive/commands/update.rb
+@@ -0,0 +1,29 @@
++require "hive/install_receipt"
++require "hive/package_manager"
++
++module Hive
++  module Commands
++    class Update
++      def initialize(dry_run: false, receipt: Hive::InstallReceipt.new, output: $stdout, runner: Hive::PackageManager)
++        @dry_run = dry_run
++        @receipt = receipt
++        @output = output
++        @runner = runner
++      end
++
++      def call
++        command = Hive::PackageManager.update_command_for(@receipt)
++        unless command
++          @output.puts "hive update: install channel is unknown; reinstall from the current GitHub Release or native package manager."
++          raise Hive::Error, "hive update failed: install channel is unknown"
++        end
++
++        @output.puts "hive update: delegating to #{command.join(' ')}"
++        ok = @runner.run(command, dry_run: @dry_run, output: @output)
++        raise Hive::Error, "hive update failed" unless ok
++
++        true
++      end
++    end
++  end
++end
+diff --git a/lib/hive/config.rb b/lib/hive/config.rb
+index a67097d8..304c9065 100644
+--- a/lib/hive/config.rb
++++ b/lib/hive/config.rb
+@@ -1,6 +1,7 @@
+ require "yaml"
+ require "fileutils"
+ require "hive/agent_profiles"
++require "hive/paths"
+ 
+ module Hive
+   module Config
+@@ -209,13 +210,17 @@ module Hive
+     module_function
+ 
+     def hive_home
+-      ENV["HIVE_HOME"] || File.expand_path("~/Dev/hive")
++      ENV["HIVE_HOME"] || Hive::Paths.config_dir
+     end
+ 
+     def global_config_path
+       File.join(hive_home, "config.yml")
+     end
+ 
++    def runtime_home
++      ENV["HIVE_HOME"] || Hive::Paths.state_dir
++    end
++
+     def hive_state_dir(project_root, hive_state_name = ".hive-state")
+       File.join(project_root, hive_state_name)
+     end
+diff --git a/lib/hive/dependency_check.rb b/lib/hive/dependency_check.rb
+new file mode 100644
+index 00000000..4a2e911a
+--- /dev/null
++++ b/lib/hive/dependency_check.rb
+@@ -0,0 +1,68 @@
++module Hive
++  class DependencyError < Error
++    def exit_code
++      ExitCodes::SOFTWARE
++    end
++  end
++
++  module DependencyCheck
++    Dependency = Struct.new(:name, :required, :present, :hint, keyword_init: true) do
++      def missing?
++        !present
++      end
++    end
++
++    HINTS = {
++      "git" => "Install git with your OS package manager, then rerun the command.",
++      "bash" => "Install bash or run from an environment where bash is on PATH.",
++      "claude" => "Install the Claude CLI through its official installer or marketplace.",
++      "gh" => "Install GitHub CLI from https://cli.github.com/ and authenticate with `gh auth login`.",
++      "jq" => "Install jq with your OS package manager when JSON filtering is needed."
++    }.freeze
++
++    module_function
++
++    def check(required: [], optional: [], env: ENV)
++      required.map { |name| dependency_for(name, required: true, env: env) } +
++        optional.map { |name| dependency_for(name, required: false, env: env) }
++    end
++
++    def verify!(required: [], optional: [], env: ENV, io: $stderr)
++      dependencies = check(required: required, optional: optional, env: env)
++      dependencies.select(&:missing?).each do |dep|
++        severity = dep.required ? "required" : "optional"
++        io.puts "hive: #{severity} dependency missing: #{dep.name}"
++        io.puts "      #{dep.hint}"
++      end
++
++      missing_required = dependencies.select { |dep| dep.required && dep.missing? }
++      return dependencies if missing_required.empty?
++
++      names = missing_required.map(&:name).join(", ")
++      raise DependencyError, "missing required #{pluralize('dependency', missing_required.size)}: #{names}"
++    end
++
++    def dependency_for(name, required:, env:)
++      Dependency.new(
++        name: name,
++        required: required,
++        present: executable_on_path?(name, env: env),
++        hint: HINTS.fetch(name, "Install #{name} and ensure it is on PATH.")
++      )
++    end
++
++    def executable_on_path?(name, env: ENV)
++      path = env.fetch("PATH", "")
++      path.split(File::PATH_SEPARATOR).any? do |dir|
++        next false if dir.nil? || dir.empty?
++
++        candidate = File.join(dir, name)
++        File.file?(candidate) && File.executable?(candidate)
++      end
++    end
++
++    def pluralize(word, count)
++      count == 1 ? word : "#{word}s"
++    end
++  end
++end
+diff --git a/lib/hive/entrypoint.rb b/lib/hive/entrypoint.rb
+new file mode 100644
+index 00000000..a58edd6d
+--- /dev/null
++++ b/lib/hive/entrypoint.rb
+@@ -0,0 +1,41 @@
++module Hive
++  module Entrypoint
++    module_function
++
++    def run(argv = ARGV)
++      require "hive"
++      require "hive/cli"
++
++      args = argv.dup
++      if args == [ "--version" ] || args == [ "-v" ]
++        puts Hive::BuildInfo.version_string
++        return Hive::ExitCodes::SUCCESS
++      end
++
++      rewrite_help_flag!(args)
++      Hive::CLI.start(args)
++      Hive::ExitCodes::SUCCESS
++    rescue Hive::Error => e
++      warn "hive: #{e.message}"
++      e.respond_to?(:exit_code) ? e.exit_code : Hive::ExitCodes::GENERIC
++    end
++
++    # Thor only honours `--help` before the subcommand name
++    # (`hive help approve`); `hive approve --help` would be consumed as
++    # the TARGET positional. Intercept the help flag before Thor dispatch
++    # so the convention agents try first works.
++    def rewrite_help_flag!(argv)
++      return if argv.empty?
++
++      cmd_idx = argv.index { |a| !a.start_with?("-") }
++      return unless cmd_idx
++
++      help_idx = argv[(cmd_idx + 1)..]&.index { |a| a == "--help" || a == "-h" }
++      return unless help_idx
++
++      cmd = argv.delete_at(cmd_idx)
++      argv.delete_at(cmd_idx + help_idx)
++      argv.unshift("help", cmd)
++    end
++  end
++end
+diff --git a/lib/hive/first_run_config.rb b/lib/hive/first_run_config.rb
+new file mode 100644
+index 00000000..ef1ee6b5
+--- /dev/null
++++ b/lib/hive/first_run_config.rb
+@@ -0,0 +1,48 @@
++require "yaml"
++require "fileutils"
++require "hive/config"
++
++module Hive
++  module FirstRunConfig
++    DEFAULT_PROVIDER = "claude".freeze
++    DEFAULT_MODEL = "default".freeze
++
++    module_function
++
++    def ensure!(input: $stdin, output: $stderr)
++      path = Hive::Config.global_config_path
++      data = File.exist?(path) ? Hive::Config.load_global_config(path) : {}
++      raise Hive::ConfigError, "global config at #{path} must be a hash" unless data.is_a?(Hash)
++
++      data["first_run"] ||= {}
++      changed = false
++      unless present_string?(data.dig("first_run", "provider"))
++        data["first_run"]["provider"] = prompt(input, output, "Provider", DEFAULT_PROVIDER)
++        changed = true
++      end
++      unless present_string?(data.dig("first_run", "model"))
++        data["first_run"]["model"] = prompt(input, output, "Model", DEFAULT_MODEL)
++        changed = true
++      end
++
++      return data unless changed
++
++      FileUtils.mkdir_p(File.dirname(path))
++      Hive::Config.write_global_config!(data)
++      data
++    end
++
++    def prompt(input, output, label, default)
++      return default unless input.respond_to?(:tty?) && input.tty?
++
++      output.print "#{label} [#{default}]: "
++      value = input.gets
++      value = value.nil? ? "" : value.strip
++      value.empty? ? default : value
++    end
++
++    def present_string?(value)
++      value.is_a?(String) && !value.strip.empty?
++    end
++  end
++end
+diff --git a/lib/hive/install/command_name.rb b/lib/hive/install/command_name.rb
+new file mode 100644
+index 00000000..0cf062b6
+--- /dev/null
++++ b/lib/hive/install/command_name.rb
+@@ -0,0 +1,29 @@
++module Hive
++  module Install
++    module CommandName
++      module_function
++
++      def choose(preferred: "hive", fallback: "hv", install_dir:, path_env: ENV.fetch("PATH", ""))
++        existing = first_on_path(preferred, path_env: path_env)
++        return preferred unless existing
++
++        installed_preferred = File.expand_path(File.join(install_dir, preferred))
++        same_path?(existing, installed_preferred) ? preferred : fallback
++      end
++
++      def first_on_path(name, path_env:)
++        path_env.split(File::PATH_SEPARATOR).each do |dir|
++          next if dir.nil? || dir.empty?
++
++          candidate = File.expand_path(File.join(dir, name))
++          return candidate if File.file?(candidate) && File.executable?(candidate)
++        end
++        nil
++      end
++
++      def same_path?(left, right)
++        File.expand_path(left) == File.expand_path(right)
++      end
++    end
++  end
++end
+diff --git a/lib/hive/install_receipt.rb b/lib/hive/install_receipt.rb
+new file mode 100644
+index 00000000..75c827c3
+--- /dev/null
++++ b/lib/hive/install_receipt.rb
+@@ -0,0 +1,63 @@
++require "yaml"
++require "hive/paths"
++
++module Hive
++  class InstallReceipt
++    DEFAULT_REPO = ENV.fetch("HIVE_RELEASE_REPO", "<org>/hive").freeze
++
++    attr_reader :path, :data
++
++    def initialize(path: Hive::Paths.install_receipt)
++      @path = path
++      @data = File.exist?(path) ? load(path) : {}
++    end
++
++    def channel
++      data["channel"]
++    end
++
++    def version
++      data["version"]
++    end
++
++    def binary_name
++      data["binary_name"] || "hive"
++    end
++
++    def artifact_url
++      data["artifact_url"]
++    end
++
++    def repo
++      data["repo"] || DEFAULT_REPO
++    end
++
++    def aur_helper
++      data["aur_helper"] || ENV.fetch("HIVE_AUR_HELPER", "yay")
++    end
++
++    def install_script_url
++      base = if artifact_url&.include?("/releases/download/")
++               artifact_url.sub(%r{/[^/]+\.tar\.gz\z}, "")
++      else
++               "https://github.com/#{repo}/releases/download/#{version || 'v0.1.0'}"
++      end
++      "#{base}/install.sh"
++    end
++
++    def script_binary_path
++      File.join(ENV.fetch("HIVE_INSTALL_BIN_DIR", File.join(Dir.home, ".local", "bin")), binary_name)
++    end
++
++    private
++
++    def load(path)
++      parsed = YAML.safe_load(File.read(path)) || {}
++      raise Hive::ConfigError, "install receipt at #{path} must be a hash" unless parsed.is_a?(Hash)
++
++      parsed
++    rescue Psych::Exception => e
++      raise Hive::ConfigError, "install receipt at #{path} is not valid YAML: #{e.message}"
++    end
++  end
++end
+diff --git a/lib/hive/package_manager.rb b/lib/hive/package_manager.rb
+new file mode 100644
+index 00000000..86bdc3ee
+--- /dev/null
++++ b/lib/hive/package_manager.rb
+@@ -0,0 +1,29 @@
++require "open3"
++
++module Hive
++  module PackageManager
++    module_function
++
++    def update_command_for(receipt)
++      case receipt.channel
++      when "homebrew", "brew"
++        [ "brew", "upgrade", "#{receipt.repo}/hive" ]
++      when "aur"
++        [ receipt.aur_helper, "-Syu", "hive-bin" ]
++      when "script"
++        [ "bash", "-c", "curl -fsSL #{receipt.install_script_url} | bash" ]
++      else
++        nil
++      end
++    end
++
++    def run(command, dry_run: false, output: $stdout)
++      if dry_run
++        output.puts command.join(" ")
++        return true
++      end
++
++      system(*command)
++    end
++  end
++end
+diff --git a/lib/hive/paths.rb b/lib/hive/paths.rb
+new file mode 100644
+index 00000000..ad882ceb
+--- /dev/null
++++ b/lib/hive/paths.rb
+@@ -0,0 +1,75 @@
++module Hive
++  module Paths
++    APP_NAME = "hive".freeze
++
++    module_function
++
++    def config_home(env = ENV)
++      expand(env.fetch("XDG_CONFIG_HOME", File.join(home(env), ".config")))
++    end
++
++    def data_home(env = ENV)
++      expand(env.fetch("XDG_DATA_HOME", File.join(home(env), ".local", "share")))
++    end
++
++    def state_home(env = ENV)
++      expand(env.fetch("XDG_STATE_HOME", File.join(home(env), ".local", "state")))
++    end
++
++    def cache_home(env = ENV)
++      expand(env.fetch("XDG_CACHE_HOME", File.join(home(env), ".cache")))
++    end
++
++    def config_dir(env = ENV)
++      File.join(config_home(env), APP_NAME)
++    end
++
++    def data_dir(env = ENV)
++      File.join(data_home(env), APP_NAME)
++    end
++
++    def state_dir(env = ENV)
++      File.join(state_home(env), APP_NAME)
++    end
++
++    def cache_dir(env = ENV)
++      File.join(cache_home(env), APP_NAME)
++    end
++
++    def config_file(env = ENV)
++      File.join(config_dir(env), "config.yml")
++    end
++
++    def install_receipt(env = ENV)
++      File.join(config_dir(env), "install_receipt.yml")
++    end
++
++    def legacy_hive_home(env = ENV)
++      File.join(home(env), "Dev", APP_NAME)
++    end
++
++    def legacy_global_config(env = ENV)
++      File.join(legacy_hive_home(env), "config.yml")
++    end
++
++    def legacy_dot_state(env = ENV)
++      File.join(home(env), ".hive-state")
++    end
++
++    def ensure_runtime_dirs!(env = ENV)
++      require "fileutils"
++
++      [ config_dir(env), data_dir(env), state_dir(env), cache_dir(env) ].each do |path|
++        FileUtils.mkdir_p(path)
++      end
++    end
++
++    def home(env = ENV)
++      expand(env.fetch("HOME", Dir.home))
++    end
++
++    def expand(path)
++      File.expand_path(path.to_s)
++    end
++  end
++end
+diff --git a/lib/hive/project_cleanup.rb b/lib/hive/project_cleanup.rb
+new file mode 100644
+index 00000000..88b14e7a
+--- /dev/null
++++ b/lib/hive/project_cleanup.rb
+@@ -0,0 +1,24 @@
++require "fileutils"
++
++module Hive
++  module ProjectCleanup
++    module_function
++
++    def cleanup_project_scaffold(project_root:, confirm:, output: $stdout)
++      path = File.join(project_root, ".hive")
++      unless File.exist?(path)
++        output.puts "hive uninstall: no .hive/ scaffold found"
++        return :missing
++      end
++
++      unless confirm
++        output.puts "hive uninstall: preserving #{path}"
++        return :preserved
++      end
++
++      FileUtils.rm_rf(path)
++      output.puts "hive uninstall: removed #{path}"
++      :removed
++    end
++  end
++end
+diff --git a/lib/hive/service.rb b/lib/hive/service.rb
+new file mode 100644
+index 00000000..d0081a6b
+--- /dev/null
++++ b/lib/hive/service.rb
+@@ -0,0 +1,48 @@
++require "rbconfig"
++require "hive/service/launchd"
++require "hive/service/systemd_user"
++
++module Hive
++  module Service
++    module_function
++
++    def manager(platform: RbConfig::CONFIG.fetch("host_os"), binary_path: current_binary_path)
++      case platform
++      when /darwin/i
++        Hive::Service::Launchd.new(binary_path: binary_path)
++      when /linux/i
++        Hive::Service::SystemdUser.new(binary_path: binary_path)
++      else
++        Unsupported.new(platform: platform)
++      end
++    end
++
++    def current_binary_path
++      ENV.fetch("HIVE_BINARY", File.expand_path($PROGRAM_NAME))
++    end
++
++    class Unsupported
++      attr_reader :platform
++
++      def initialize(platform:)
++        @platform = platform
++      end
++
++      def supported?
++        false
++      end
++
++      def register
++        { supported: false, message: "service registration is unsupported on #{platform}" }
++      end
++
++      def enable_and_start
++        { supported: false, message: "service autostart is unsupported on #{platform}" }
++      end
++
++      def status
++        { supported: false, state: "unsupported", message: "service status is unsupported on #{platform}" }
++      end
++    end
++  end
++end
+diff --git a/lib/hive/service/launchd.rb b/lib/hive/service/launchd.rb
+new file mode 100644
+index 00000000..31b39717
+--- /dev/null
++++ b/lib/hive/service/launchd.rb
+@@ -0,0 +1,58 @@
++require "erb"
++require "fileutils"
++require "open3"
++require "hive/paths"
++
++module Hive
++  module Service
++    class Launchd
++      LABEL = "org.hive.daemon".freeze
++
++      attr_reader :binary_path
++
++      def initialize(binary_path:, home: ENV.fetch("HOME", Dir.home))
++        @binary_path = binary_path
++        @home = home
++      end
++
++      def supported?
++        true
++      end
++
++      def service_path
++        if ENV["HIVE_HOME"]
++          File.join(ENV.fetch("HIVE_HOME"), "launchd", "#{LABEL}.plist")
++        else
++          File.join(@home, "Library", "LaunchAgents", "#{LABEL}.plist")
++        end
++      end
++
++      def register(run_at_load: false)
++        FileUtils.mkdir_p(File.dirname(service_path))
++        File.write(service_path, render(run_at_load: run_at_load))
++        { supported: true, path: service_path, autostarted: false }
++      end
++
++      def enable_and_start
++        register(run_at_load: true)
++        out, err, status = Open3.capture3("launchctl", "load", "-w", service_path)
++        { supported: true, ok: status.success?, stdout: out, stderr: err, path: service_path }
++      rescue Errno::ENOENT => e
++        { supported: true, ok: false, stderr: e.message, path: service_path }
++      end
++
++      def status
++        out, err, status = Open3.capture3("launchctl", "list", LABEL)
++        state = status.success? ? "registered" : "missing"
++        { supported: true, state: state, stdout: out, stderr: err, path: service_path }
++      rescue Errno::ENOENT => e
++        { supported: true, state: "unsupported", stderr: e.message, path: service_path }
++      end
++
++      def render(run_at_load: false)
++        template = File.read(File.expand_path("../../../templates/service/launchd.plist.erb", __dir__))
++        ERB.new(template, trim_mode: "-").result(binding)
++      end
++    end
++  end
++end
+diff --git a/lib/hive/service/systemd_user.rb b/lib/hive/service/systemd_user.rb
+new file mode 100644
+index 00000000..6fd838ac
+--- /dev/null
++++ b/lib/hive/service/systemd_user.rb
+@@ -0,0 +1,58 @@
++require "erb"
++require "fileutils"
++require "open3"
++require "hive/paths"
++
++module Hive
++  module Service
++    class SystemdUser
++      UNIT_NAME = "hive.service".freeze
++
++      attr_reader :binary_path
++
++      def initialize(binary_path:, home: ENV.fetch("HOME", Dir.home))
++        @binary_path = binary_path
++        @home = home
++      end
++
++      def supported?
++        true
++      end
++
++      def service_path
++        if ENV["HIVE_HOME"]
++          File.join(ENV.fetch("HIVE_HOME"), "systemd", "user", UNIT_NAME)
++        else
++          File.join(@home, ".config", "systemd", "user", UNIT_NAME)
++        end
++      end
++
++      def register
++        FileUtils.mkdir_p(File.dirname(service_path))
++        File.write(service_path, render)
++        { supported: true, path: service_path, autostarted: false }
++      end
++
++      def enable_and_start
++        register unless File.exist?(service_path)
++        out, err, status = Open3.capture3("systemctl", "--user", "enable", "--now", UNIT_NAME)
++        { supported: true, ok: status.success?, stdout: out, stderr: err, path: service_path }
++      rescue Errno::ENOENT => e
++        { supported: true, ok: false, stderr: e.message, path: service_path }
++      end
++
++      def status
++        out, err, status = Open3.capture3("systemctl", "--user", "is-active", UNIT_NAME)
++        state = status.success? ? out.strip : "stopped"
++        { supported: true, state: state, stdout: out, stderr: err, path: service_path }
++      rescue Errno::ENOENT => e
++        { supported: true, state: "unsupported", stderr: e.message, path: service_path }
++      end
++
++      def render
++        template = File.read(File.expand_path("../../../templates/service/systemd.service.erb", __dir__))
++        ERB.new(template, trim_mode: "-").result(binding)
++      end
++    end
++  end
++end
+diff --git a/lib/hive/version.rb b/lib/hive/version.rb
+new file mode 100644
+index 00000000..a0e506f0
+--- /dev/null
++++ b/lib/hive/version.rb
+@@ -0,0 +1,22 @@
++require "hive/build_metadata"
++
++module Hive
++  VERSION = Hive::BuildMetadata::VERSION.freeze
++
++  module BuildInfo
++    module_function
++
++    def to_h
++      {
++        "version" => Hive::VERSION,
++        "commit" => Hive::BuildMetadata::COMMIT,
++        "build_time" => Hive::BuildMetadata::BUILD_TIME,
++        "platform" => Hive::BuildMetadata::PLATFORM
++      }
++    end
++
++    def version_string
++      to_h.fetch("version")
++    end
++  end
++end
+diff --git a/packaging/aur/hive-bin/.SRCINFO b/packaging/aur/hive-bin/.SRCINFO
+new file mode 100644
+index 00000000..72f8a3fd
+--- /dev/null
++++ b/packaging/aur/hive-bin/.SRCINFO
+@@ -0,0 +1,14 @@
++pkgbase = hive-bin
++	pkgdesc = Multi-agent software delivery pipeline
++	pkgver = 0.1.0
++	pkgrel = 1
++	url = https://github.com/<org>/hive
++	install = hive-bin.install
++	arch = x86_64
++	license = MIT
++	provides = hive
++	conflicts = hive
++	source_x86_64 = https://github.com/<org>/hive/releases/download/v0.1.0/hive-v0.1.0-linux-x86_64-gnu.tar.gz
++	sha256sums_x86_64 = 0000000000000000000000000000000000000000000000000000000000000000
++
++pkgname = hive-bin
+diff --git a/packaging/aur/hive-bin/PKGBUILD b/packaging/aur/hive-bin/PKGBUILD
+new file mode 100644
+index 00000000..584f7373
+--- /dev/null
++++ b/packaging/aur/hive-bin/PKGBUILD
+@@ -0,0 +1,19 @@
++# Maintainer: Hive contributors
++pkgname=hive-bin
++pkgver=0.1.0
++pkgrel=1
++pkgdesc='Multi-agent software delivery pipeline'
++arch=('x86_64')
++url='https://github.com/<org>/hive'
++license=('MIT')
++depends=()
++provides=('hive')
++conflicts=('hive')
++install=hive-bin.install
++source_x86_64=("https://github.com/<org>/hive/releases/download/v${pkgver}/hive-v0.1.0-linux-x86_64-gnu.tar.gz")
++sha256sums_x86_64=('0000000000000000000000000000000000000000000000000000000000000000')
++
++package() {
++  install -Dm755 "$srcdir/hive" "$pkgdir/usr/bin/hive"
++  ln -s hive "$pkgdir/usr/bin/hv"
++}
+diff --git a/packaging/aur/hive-bin/hive-bin.install b/packaging/aur/hive-bin/hive-bin.install
+new file mode 100644
+index 00000000..994ad2b1
+--- /dev/null
++++ b/packaging/aur/hive-bin/hive-bin.install
+@@ -0,0 +1,18 @@
++post_install() {
++  cat <<'EOF'
++Hive installed as `hive`; `hv` is also available as a conflict-friendly alias.
++
++Runtime paths:
++  config: ~/.config/hive/config.yml
++  data:   ~/.local/share/hive
++  state:  ~/.local/state/hive
++  cache:  ~/.cache/hive
++
++Run `hive init` inside each project to scaffold project state and register the
++systemd user unit. Hive prompts before enabling or starting autostart.
++EOF
++}
++
++post_upgrade() {
++  post_install
++}
+diff --git a/packaging/aur/update_pkgbuild.rb b/packaging/aur/update_pkgbuild.rb
+new file mode 100755
+index 00000000..4357d345
+--- /dev/null
++++ b/packaging/aur/update_pkgbuild.rb
+@@ -0,0 +1,108 @@
++#!/usr/bin/env ruby
++
++require "optparse"
++require_relative "../build/build_release"
++
++module Hive
++  module Packaging
++    module Aur
++      module Renderer
++        DEFAULT_REPO = ENV.fetch("HIVE_RELEASE_REPO", "<org>/hive").freeze
++        TARGET = "linux-x86_64-gnu".freeze
++
++        module_function
++
++        def pkgver(version)
++          Hive::Packaging::BuildRelease.validate_semver_tag!(version).delete_prefix("v")
++        end
++
++        def artifact(version)
++          Hive::Packaging::BuildRelease.artifact_name(version: version, target: TARGET)
++        end
++
++        def render_pkgbuild(version:, sha256:, repo: DEFAULT_REPO, pkgrel: 1)
++          package_version = pkgver(version)
++          <<~PKGBUILD
++            # Maintainer: Hive contributors
++            pkgname=hive-bin
++            pkgver=#{package_version}
++            pkgrel=#{pkgrel}
++            pkgdesc='Multi-agent software delivery pipeline'
++            arch=('x86_64')
++            url='https://github.com/#{repo}'
++            license=('MIT')
++            depends=()
++            provides=('hive')
++            conflicts=('hive')
++            install=hive-bin.install
++            source_x86_64=("https://github.com/#{repo}/releases/download/v${pkgver}/#{artifact(version)}")
++            sha256sums_x86_64=('#{sha256}')
++
++            package() {
++              install -Dm755 "$srcdir/hive" "$pkgdir/usr/bin/hive"
++              ln -s hive "$pkgdir/usr/bin/hv"
++            }
++          PKGBUILD
++        end
++
++        def render_srcinfo(version:, sha256:, repo: DEFAULT_REPO, pkgrel: 1)
++          package_version = pkgver(version)
++          <<~SRCINFO
++            pkgbase = hive-bin
++            	pkgdesc = Multi-agent software delivery pipeline
++            	pkgver = #{package_version}
++            	pkgrel = #{pkgrel}
++            	url = https://github.com/#{repo}
++            	install = hive-bin.install
++            	arch = x86_64
++            	license = MIT
++            	provides = hive
++            	conflicts = hive
++            #{"\t"}source_x86_64 = https://github.com/#{repo}/releases/download/v#{package_version}/#{artifact(version)}
++            	sha256sums_x86_64 = #{sha256}
++
++            pkgname = hive-bin
++          SRCINFO
++        end
++      end
++
++      module CLI
++        module_function
++
++        def run(argv)
++          options = {
++            repo: Renderer::DEFAULT_REPO,
++            pkgbuild: "packaging/aur/hive-bin/PKGBUILD",
++            srcinfo: "packaging/aur/hive-bin/.SRCINFO",
++            pkgrel: 1
++          }
++          parser = OptionParser.new do |opts|
++            opts.banner = "usage: update_pkgbuild.rb --version v0.1.0 --sha256 SHA [--repo ORG/REPO]"
++            opts.on("--version VERSION") { |v| options[:version] = v }
++            opts.on("--sha256 SHA") { |v| options[:sha256] = v }
++            opts.on("--repo REPO") { |v| options[:repo] = v }
++            opts.on("--pkgrel N", Integer) { |v| options[:pkgrel] = v }
++            opts.on("--pkgbuild PATH") { |v| options[:pkgbuild] = v }
++            opts.on("--srcinfo PATH") { |v| options[:srcinfo] = v }
++          end
++          parser.parse!(argv)
++          abort parser.to_s unless options[:version] && options[:sha256]
++
++          File.write(options.fetch(:pkgbuild), Renderer.render_pkgbuild(**render_options(options)))
++          File.write(options.fetch(:srcinfo), Renderer.render_srcinfo(**render_options(options)))
++        end
++
++        def render_options(options)
++          {
++            version: options.fetch(:version),
++            sha256: options.fetch(:sha256),
++            repo: options.fetch(:repo),
++            pkgrel: options.fetch(:pkgrel)
++          }
++        end
++      end
++    end
++  end
++end
++
++Hive::Packaging::Aur::CLI.run(ARGV) if $PROGRAM_NAME == __FILE__
+diff --git a/packaging/build/README.md b/packaging/build/README.md
+new file mode 100644
+index 00000000..cb36a21a
+--- /dev/null
++++ b/packaging/build/README.md
+@@ -0,0 +1,35 @@
++# Release Build
++
++Hive release assets are built from semver tags and consumed by every install
++channel. The canonical asset contract is implemented in
++`packaging/build/build_release.rb`.
++
++Tier-1 targets:
++
++- `darwin-arm64`
++- `linux-x86_64-gnu`
++
++Artifact names are deterministic:
++
++```text
++hive-v0.1.0-darwin-arm64.tar.gz
++hive-v0.1.0-linux-x86_64-gnu.tar.gz
++hive-v0.1.0-checksums.txt
++```
++
++The build script uses Tebako's documented `press --root --entry-point --output
++--Ruby` interface to produce a bundle-mode executable with Ruby and gems
++embedded. GitHub Releases are the only artifact source for Homebrew, AUR, and
++the script installer.
++
++Local dry run of the contract tests:
++
++```bash
++bundle exec ruby -Itest -Ilib test/release/artifact_contract_test.rb
++```
++
++Actual binary builds require Tebako and the platform toolchain:
++
++```bash
++GITHUB_REF_NAME=v0.1.0 GITHUB_SHA=$(git rev-parse HEAD) ruby packaging/build/build_release.rb
++```
+diff --git a/packaging/build/build_release.rb b/packaging/build/build_release.rb
+new file mode 100755
+index 00000000..0748a962
+--- /dev/null
++++ b/packaging/build/build_release.rb
+@@ -0,0 +1,181 @@
++#!/usr/bin/env ruby
++
++require "digest"
++require "fileutils"
++require "json"
++require "open3"
++require "rubygems"
++require "shellwords"
++require "time"
++
++module Hive
++  module Packaging
++    module BuildRelease
++      ROOT = File.expand_path("../..", __dir__)
++      DIST_DIR = File.join(ROOT, "dist")
++      BUILD_METADATA_PATH = File.join(ROOT, "lib", "hive", "build_metadata.rb")
++      ENTRYPOINT = "hive".freeze
++      RUBY_VERSION = "3.4.7".freeze
++      SUPPORTED_TARGETS = %w[
++        darwin-arm64
++        linux-x86_64-gnu
++      ].freeze
++      SEMVER_TAG = /\Av\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\z/.freeze
++
++      module_function
++
++      def semver_tag?(tag)
++        tag.to_s.match?(SEMVER_TAG)
++      end
++
++      def validate_semver_tag!(tag)
++        return tag if semver_tag?(tag)
++
++        raise ArgumentError, "release ref must be a semver tag like v0.1.0; got #{tag.inspect}"
++      end
++
++      def artifact_name(version:, target:)
++        validate_target!(target)
++        "hive-#{validate_semver_tag!(version)}-#{target}.tar.gz"
++      end
++
++      def checksum_name(version:, target:)
++        "#{artifact_name(version: version, target: target)}.sha256"
++      end
++
++      def checksums_name(version:)
++        "hive-#{validate_semver_tag!(version)}-checksums.txt"
++      end
++
++      def manifest_name(version:, target:)
++        validate_target!(target)
++        "hive-#{validate_semver_tag!(version)}-#{target}.json"
++      end
++
++      def manifest(version:, target:, commit:, built_at:, channel: nil)
++        validate_target!(target)
++        {
++          "schema" => "hive-release-artifact",
++          "schema_version" => 1,
++          "version" => validate_semver_tag!(version),
++          "commit" => commit,
++          "built_at" => built_at,
++          "target" => target,
++          "binary" => ENTRYPOINT,
++          "install_channel" => channel
++        }.compact
++      end
++
++      def build_all(version:, commit:, targets: SUPPORTED_TARGETS, dist_dir: DIST_DIR)
++        validate_semver_tag!(version)
++        targets.each { |target| build_one(version: version, commit: commit, target: target, dist_dir: dist_dir) }
++        write_checksums(version: version, dist_dir: dist_dir)
++      end
++
++      def build_one(version:, commit:, target:, dist_dir: DIST_DIR)
++        validate_target!(target)
++        build_root = File.join(dist_dir, "build", "#{version}-#{target}")
++        binary = File.join(build_root, ENTRYPOINT)
++        built_at = Time.now.utc.iso8601
++        FileUtils.rm_rf(build_root)
++        FileUtils.mkdir_p(build_root)
++
++        run_tebako!(binary: binary, version: version, commit: commit, built_at: built_at, target: target)
++        File.write(File.join(build_root, manifest_name(version: version, target: target)),
++                   JSON.pretty_generate(manifest(version: version, target: target, commit: commit,
++                                                 built_at: built_at)))
++        archive_path = File.join(dist_dir, artifact_name(version: version, target: target))
++        FileUtils.mkdir_p(dist_dir)
++        Dir.chdir(build_root) do
++          system!("tar", "-czf", archive_path, ENTRYPOINT, manifest_name(version: version, target: target))
++        end
++        write_checksum(archive_path)
++        archive_path
++      end
++
++      def run_tebako!(binary:, version:, commit:, built_at:, target:)
++        cmd = [
++          ENV.fetch("TEBAKO_BIN", "tebako"),
++          "press",
++          "--root", ROOT,
++          "--entry-point", "exe/hive",
++          "--output", binary,
++          "--Ruby", RUBY_VERSION,
++          "--mode", "bundle"
++        ]
++        with_build_metadata(version: version, commit: commit, built_at: built_at, target: target) do
++          system!(*cmd)
++        end
++      end
++
++      def with_build_metadata(version:, commit:, built_at:, target:)
++        original = File.exist?(BUILD_METADATA_PATH) ? File.read(BUILD_METADATA_PATH) : nil
++        File.write(BUILD_METADATA_PATH, render_build_metadata(version: version, commit: commit,
++                                                             built_at: built_at, target: target))
++        yield
++      ensure
++        if original.nil?
++          File.delete(BUILD_METADATA_PATH) if File.exist?(BUILD_METADATA_PATH)
++        else
++          File.write(BUILD_METADATA_PATH, original)
++        end
++      end
++
++      def render_build_metadata(version:, commit:, built_at:, target:)
++        release_version = validate_semver_tag!(version).delete_prefix("v")
++        <<~RUBY
++          module Hive
++            module BuildMetadata
++              VERSION = #{release_version.dump}.freeze
++              COMMIT = #{commit.to_s.dump}.freeze
++              BUILD_TIME = #{built_at.to_s.dump}.freeze
++              PLATFORM = #{validate_target!(target).dump}.freeze
++            end
++          end
++        RUBY
++      end
++
++      def write_checksum(path)
++        digest = Digest::SHA256.file(path).hexdigest
++        File.write("#{path}.sha256", "#{digest}  #{File.basename(path)}\n")
++        digest
++      end
++
++      def write_checksums(version:, dist_dir: DIST_DIR)
++        validate_semver_tag!(version)
++        files = Dir[File.join(dist_dir, "hive-#{version}-*.tar.gz")].sort
++        body = files.map { |path| "#{Digest::SHA256.file(path).hexdigest}  #{File.basename(path)}" }.join("\n")
++        body = "#{body}\n" unless body.empty?
++        File.write(File.join(dist_dir, checksums_name(version: version)), body)
++      end
++
++      def validate_target!(target)
++        return target if SUPPORTED_TARGETS.include?(target)
++
++        raise ArgumentError, "unsupported release target #{target.inspect}; expected #{SUPPORTED_TARGETS.join(', ')}"
++      end
++
++      def system!(*args)
++        env = args.first.is_a?(Hash) ? args.shift : {}
++        stdout, stderr, status = Open3.capture3(env, *args)
++        return true if status.success?
++
++        command = args.shelljoin
++        raise "command failed (#{status.exitstatus}): #{command}\n#{stdout}\n#{stderr}"
++      rescue Errno::ENOENT => e
++        raise "missing packaging tool for #{args.shelljoin}: #{e.message}"
++      end
++
++      def cli(argv)
++        version = ENV.fetch("GITHUB_REF_NAME", nil) || argv[0]
++        commit = ENV.fetch("GITHUB_SHA", nil) || `git -C #{ROOT.shellescape} rev-parse HEAD`.strip
++        targets = ENV.fetch("HIVE_RELEASE_TARGETS", "").split(",").map(&:strip).reject(&:empty?)
++        targets = SUPPORTED_TARGETS if targets.empty?
++        validate_semver_tag!(version)
++        build_all(version: version, commit: commit, targets: targets)
++      end
++    end
++  end
++end
++
++Hive::Packaging::BuildRelease.cli(ARGV) if $PROGRAM_NAME == __FILE__
+diff --git a/packaging/build/smoke_release.rb b/packaging/build/smoke_release.rb
+new file mode 100755
+index 00000000..2594f9d6
+--- /dev/null
++++ b/packaging/build/smoke_release.rb
+@@ -0,0 +1,45 @@
++#!/usr/bin/env ruby
++
++require "fileutils"
++require "open3"
++require "tmpdir"
++
++module Hive
++  module Packaging
++    module SmokeRelease
++      module_function
++
++      def smoke!(artifact:, expected_version:)
++        Dir.mktmpdir("hive-release-smoke") do |dir|
++          system!("tar", "-xzf", artifact, "-C", dir)
++          binary = File.join(dir, "hive")
++          raise "#{artifact} did not unpack an executable hive binary" unless File.executable?(binary)
++
++          out, err, status = Open3.capture3(binary, "--version")
++          unless status.success? && out.strip == expected_version
++            raise "version smoke failed: status=#{status.exitstatus} stdout=#{out.inspect} stderr=#{err.inspect}"
++          end
++
++          help_out, help_err, help_status = Open3.capture3(binary, "daemon", "--help")
++          unless help_status.success? && help_out.include?("hive daemon")
++            raise "daemon help smoke failed: stdout=#{help_out.inspect} stderr=#{help_err.inspect}"
++          end
++        end
++      end
++
++      def system!(*cmd)
++        _out, err, status = Open3.capture3(*cmd)
++        return if status.success?
++
++        raise "command failed: #{cmd.join(' ')}\n#{err}"
++      end
++    end
++  end
++end
++
++if $PROGRAM_NAME == __FILE__
++  artifact, expected_version = ARGV
++  abort "usage: smoke_release.rb ARTIFACT EXPECTED_VERSION" unless artifact && expected_version
++
++  Hive::Packaging::SmokeRelease.smoke!(artifact: artifact, expected_version: expected_version)
++end
+diff --git a/packaging/build/tebako.yml b/packaging/build/tebako.yml
+new file mode 100644
+index 00000000..4ec1715d
+--- /dev/null
++++ b/packaging/build/tebako.yml
+@@ -0,0 +1,6 @@
++options:
++  root: .
++  entry-point: exe/hive
++  output: dist/hive
++  Ruby: 3.4.7
++  mode: bundle
+diff --git a/packaging/homebrew/Formula/hive.rb b/packaging/homebrew/Formula/hive.rb
+new file mode 100644
+index 00000000..6b089ee5
+--- /dev/null
++++ b/packaging/homebrew/Formula/hive.rb
+@@ -0,0 +1,33 @@
++class Hive < Formula
++  desc "Multi-agent software delivery pipeline"
++  homepage "https://github.com/<org>/hive"
++  url "https://github.com/<org>/hive/releases/download/v0.1.0/hive-v0.1.0-darwin-arm64.tar.gz"
++  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
++  version "0.1.0"
++
++  depends_on arch: :arm64
++
++  def install
++    bin.install "hive"
++    bin.install_symlink "hive" => "hv"
++  end
++
++  def caveats
++    <<~EOS
++      Hive stores global config in ~/.config/hive/config.yml, shared assets in
++      ~/.local/share/hive, state in ~/.local/state/hive, and cache files in
++      ~/.cache/hive unless XDG_* variables override those roots.
++
++      Run `hive init` inside each project you want Hive to manage. Init registers
++      the daemon service definition and prompts before enabling autostart.
++
++      This formula also installs `hv` as an alias. Use `hv` if another `hive`
++      executable appears earlier on PATH.
++    EOS
++  end
++
++  test do
++    assert_match version.to_s, shell_output("#{bin}/hive --version")
++    assert_match version.to_s, shell_output("#{bin}/hv --version")
++  end
++end
+diff --git a/packaging/homebrew/README.md b/packaging/homebrew/README.md
+new file mode 100644
+index 00000000..56f00ff5
+--- /dev/null
++++ b/packaging/homebrew/README.md
+@@ -0,0 +1,29 @@
++# Homebrew Tap
++
++macOS arm64 is installed from the project tap:
++
++```bash
++brew install <org>/hive/hive
++```
++
++The formula consumes the macOS arm64 GitHub Release artifact built by
++`packaging/build/build_release.rb`; it does not depend on system Ruby.
++
++Release update flow:
++
++```bash
++ruby packaging/homebrew/update_formula.rb \\
++  --version v0.1.0 \\
++  --sha256 "$(shasum -a 256 dist/hive-v0.1.0-darwin-arm64.tar.gz | cut -d' ' -f1)" \\
++  --repo <org>/hive
++```
++
++The formula installs both `hive` and an `hv` symlink. `hv` exists for users who
++already have another `hive` command, commonly Apache Hive, earlier on `PATH`.
++
++After installation:
++
++```bash
++hive --version
++hive init
++```
+diff --git a/packaging/homebrew/update_formula.rb b/packaging/homebrew/update_formula.rb
+new file mode 100755
+index 00000000..20c62820
+--- /dev/null
++++ b/packaging/homebrew/update_formula.rb
+@@ -0,0 +1,83 @@
++#!/usr/bin/env ruby
++
++require "optparse"
++require_relative "../build/build_release"
++
++module Hive
++  module Packaging
++    module Homebrew
++      module FormulaRenderer
++        DEFAULT_REPO = ENV.fetch("HIVE_RELEASE_REPO", "<org>/hive").freeze
++        TARGET = "darwin-arm64".freeze
++
++        module_function
++
++        def render(version:, sha256:, repo: DEFAULT_REPO)
++          artifact = Hive::Packaging::BuildRelease.artifact_name(version: version, target: TARGET)
++          release_url = "https://github.com/#{repo}/releases/download/#{version}/#{artifact}"
++          <<~RUBY
++            class Hive < Formula
++              desc "Multi-agent software delivery pipeline"
++              homepage "https://github.com/#{repo}"
++              url "#{release_url}"
++              sha256 "#{sha256}"
++              version "#{version.delete_prefix("v")}"
++
++              depends_on arch: :arm64
++
++              def install
++                bin.install "hive"
++                bin.install_symlink "hive" => "hv"
++              end
++
++              def caveats
++                <<~EOS
++                  Hive stores global config in ~/.config/hive/config.yml, shared assets in
++                  ~/.local/share/hive, state in ~/.local/state/hive, and cache files in
++                  ~/.cache/hive unless XDG_* variables override those roots.
++
++                  Run `hive init` inside each project you want Hive to manage. Init registers
++                  the daemon service definition and prompts before enabling autostart.
++
++                  This formula also installs `hv` as an alias. Use `hv` if another `hive`
++                  executable appears earlier on PATH.
++                EOS
++              end
++
++              test do
++                assert_match version.to_s, shell_output("\#{bin}/hive --version")
++                assert_match version.to_s, shell_output("\#{bin}/hv --version")
++              end
++            end
++          RUBY
++        end
++      end
++
++      module CLI
++        module_function
++
++        def run(argv)
++          options = { repo: FormulaRenderer::DEFAULT_REPO, output: "packaging/homebrew/Formula/hive.rb" }
++          parser = OptionParser.new do |opts|
++            opts.banner = "usage: update_formula.rb --version v0.1.0 --sha256 SHA [--repo ORG/REPO]"
++            opts.on("--version VERSION", "Semver release tag, e.g. v0.1.0") { |v| options[:version] = v }
++            opts.on("--sha256 SHA", "macOS artifact SHA256") { |v| options[:sha256] = v }
++            opts.on("--repo REPO", "GitHub repo slug") { |v| options[:repo] = v }
++            opts.on("--output PATH", "Formula path") { |v| options[:output] = v }
++          end
++          parser.parse!(argv)
++          abort parser.to_s unless options[:version] && options[:sha256]
++
++          content = FormulaRenderer.render(
++            version: options.fetch(:version),
++            sha256: options.fetch(:sha256),
++            repo: options.fetch(:repo)
++          )
++          File.write(options.fetch(:output), content)
++        end
++      end
++    end
++  end
++end
++
++Hive::Packaging::Homebrew::CLI.run(ARGV) if $PROGRAM_NAME == __FILE__
+diff --git a/packaging/install/README.md b/packaging/install/README.md
+new file mode 100644
+index 00000000..394f2cd7
+--- /dev/null
++++ b/packaging/install/README.md
+@@ -0,0 +1,22 @@
++# Script Installer
++
++The fallback installer is:
++
++```bash
++curl -fsSL https://github.com/<org>/hive/releases/download/v0.1.0/install.sh | bash
++```
++
++The script:
++
++- detects macOS arm64, Ubuntu-style Linux x86_64 glibc, and Arch x86_64;
++- prefers Homebrew on macOS and AUR helpers on Arch when present;
++- falls back to downloading the matching GitHub Release tarball;
++- verifies SHA256 before installing;
++- installs to `~/.local/bin` by default;
++- creates XDG config/data/state/cache directories;
++- writes `~/.config/hive/install_receipt.yml` for `hive update`;
++- chooses `hv` when an unrelated `hive` executable is already first on `PATH`;
++- prints dependency hints instead of installing tools silently.
++
++Set `HIVE_INSTALL_PREFER_NATIVE=0` to force direct release-artifact install.
++Set `HIVE_INSTALL_DRY_RUN=1` to inspect actions without mutating the system.
+diff --git a/packaging/install/install_receipt.yml.example b/packaging/install/install_receipt.yml.example
+new file mode 100644
+index 00000000..d009e207
+--- /dev/null
++++ b/packaging/install/install_receipt.yml.example
+@@ -0,0 +1,6 @@
++channel: script
++version: v0.1.0
++artifact_url: https://github.com/<org>/hive/releases/download/v0.1.0/hive-v0.1.0-linux-x86_64-gnu.tar.gz
++checksum: 0000000000000000000000000000000000000000000000000000000000000000
++binary_name: hive
++installed_at: 2026-07-10T00:00:00Z
+diff --git a/packaging/install/platforms.yml b/packaging/install/platforms.yml
+new file mode 100644
+index 00000000..968515fd
+--- /dev/null
++++ b/packaging/install/platforms.yml
+@@ -0,0 +1,19 @@
++tier_1:
++  darwin-arm64:
++    os: macos
++    arch: arm64
++    artifact: hive-${version}-darwin-arm64.tar.gz
++    preferred_channel: homebrew
++  linux-x86_64-gnu:
++    os: linux
++    arch: x86_64
++    libc: glibc
++    artifact: hive-${version}-linux-x86_64-gnu.tar.gz
++    preferred_channels:
++      arch: aur
++      default: script
++unsupported_v1:
++  - alpine
++  - nixos
++  - bsd
++  - windows
+diff --git a/prompts/install.md b/prompts/install.md
+new file mode 100644
+index 00000000..6a6839dd
+--- /dev/null
++++ b/prompts/install.md
+@@ -0,0 +1,20 @@
++# Hive Agent Installer Prompt
++
++You are installing Hive for the user. Treat this prompt as the install contract,
++not as permission to overwrite unrelated files.
++
++1. Detect the operating system and architecture.
++   - macOS arm64: prefer `brew install <org>/hive/hive` when Homebrew is available.
++   - Arch Linux x86_64: prefer an AUR helper with `hive-bin` when `yay` or `paru` is available.
++   - Ubuntu 22.04+ or other supported glibc Linux x86_64: use the release `install.sh` fallback.
++   - Alpine, NixOS, BSD, Windows, and unknown platforms: stop and report that Hive v1 does not support this platform.
++2. Check for required tools for the selected channel. Print actionable hints for missing tools. Do not install system dependencies silently.
++3. Install through the selected channel.
++4. Run `hive --version`. Do not proceed to project setup unless version verification succeeds.
++5. If the current directory is a project, ask the user before running `hive init`. If the project already has `.hive-state/` or `.hive/`, explain what exists and ask before changing anything.
++6. If the user approves, run `hive init` in the project and report the `.hive/` and `.hive-state/` paths it created or preserved.
++7. Skills package:
++   - Install Hive skills only through a native marketplace flow exposed by this host agent.
++   - Do not copy files into `~/.claude`, `~/.codex`, Pi, or any other agent-specific directory.
++   - If no marketplace flow exists, report: "Hive skills installation is unavailable in this agent; manual follow-up required."
++8. Report the selected install channel, `command -v hive` or `command -v hv`, `hive --version`, whether `hive init` ran, and whether marketplace-based skills installation succeeded or was unavailable.
+diff --git a/skills/hive/README.md b/skills/hive/README.md
+new file mode 100644
+index 00000000..30fc7cba
+--- /dev/null
++++ b/skills/hive/README.md
+@@ -0,0 +1,7 @@
++# Hive Skills Package
++
++This package contains agent-facing Hive skills. It is released separately from
++the `hive` binary and must be installed through the host agent's marketplace or
++plugin mechanism.
++
++The core `hive` binary never writes agent skill files directly.
+diff --git a/skills/hive/manifest.yml b/skills/hive/manifest.yml
+new file mode 100644
+index 00000000..41a04cd1
+--- /dev/null
++++ b/skills/hive/manifest.yml
+@@ -0,0 +1,17 @@
++name: hive
++version: v0.1.0
++description: Agent skills for operating Hive install, init, status, and lifecycle workflows.
++core_binary: hive
++distribution: marketplace-only
++marketplaces:
++  claude: marketplaces/claude.yml
++  codex: marketplaces/codex.yml
++  pi: marketplaces/pi.yml
++capabilities:
++  - install
++  - init
++  - status
++  - update
++  - uninstall
++prohibited:
++  - direct-agent-directory-copy
+diff --git a/skills/hive/marketplaces/claude.yml b/skills/hive/marketplaces/claude.yml
+new file mode 100644
+index 00000000..5b7b367e
+--- /dev/null
++++ b/skills/hive/marketplaces/claude.yml
+@@ -0,0 +1,5 @@
++agent: claude
++package: hive
++install_policy: native-marketplace-required
++fallback: manual-follow-up-required
++notes: Use Claude's plugin or marketplace flow when one is available; do not copy files into ~/.claude.
+diff --git a/skills/hive/marketplaces/codex.yml b/skills/hive/marketplaces/codex.yml
+new file mode 100644
+index 00000000..2ba99b58
+--- /dev/null
++++ b/skills/hive/marketplaces/codex.yml
+@@ -0,0 +1,5 @@
++agent: codex
++package: hive
++install_policy: native-marketplace-required
++fallback: manual-follow-up-required
++notes: Use Codex marketplace/plugin installation when exposed; do not copy files into ~/.codex.
+diff --git a/skills/hive/marketplaces/pi.yml b/skills/hive/marketplaces/pi.yml
+new file mode 100644
+index 00000000..51081cb6
+--- /dev/null
++++ b/skills/hive/marketplaces/pi.yml
+@@ -0,0 +1,5 @@
++agent: pi
++package: hive
++install_policy: native-marketplace-required
++fallback: manual-follow-up-required
++notes: Use Pi's native skills marketplace when exposed; do not copy files into Pi agent directories.
+diff --git a/templates/project/.hive/README.md b/templates/project/.hive/README.md
+new file mode 100644
+index 00000000..a613377f
+--- /dev/null
++++ b/templates/project/.hive/README.md
+@@ -0,0 +1,7 @@
++# Hive Project Scaffold
++
++This directory is safe to keep in the project checkout. It is distinct from
++`.hive-state/`, which is Hive's stage-state worktree.
++
++Use `.hive/config.yml` for project-local defaults that should travel with the
++repository. Work artifacts and task state remain under `.hive-state/`.
+diff --git a/templates/project/.hive/config.yml b/templates/project/.hive/config.yml
+new file mode 100644
+index 00000000..c872e9a7
+--- /dev/null
++++ b/templates/project/.hive/config.yml
+@@ -0,0 +1,6 @@
++# Project-local Hive scaffold.
++#
++# Pipeline state still lives in .hive-state/. This file is for project-facing
++# defaults that can be versioned on the main branch.
++project:
++  name: null
+diff --git a/templates/service/launchd.plist.erb b/templates/service/launchd.plist.erb
+new file mode 100644
+index 00000000..8dee7dca
+--- /dev/null
++++ b/templates/service/launchd.plist.erb
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
++  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++  <key>Label</key>
++  <string><%= self.class::LABEL %></string>
++  <key>ProgramArguments</key>
++  <array>
++    <string><%= binary_path %></string>
++    <string>daemon</string>
++    <string>start</string>
++  </array>
++  <key>RunAtLoad</key>
++  <<%= run_at_load ? "true" : "false" %>/>
++  <key>KeepAlive</key>
++  <dict>
++    <key>SuccessfulExit</key>
++    <false/>
++  </dict>
++  <key>ThrottleInterval</key>
++  <integer>30</integer>
++</dict>
++</plist>
+diff --git a/templates/service/systemd.service.erb b/templates/service/systemd.service.erb
+new file mode 100644
+index 00000000..b36af2eb
+--- /dev/null
++++ b/templates/service/systemd.service.erb
+@@ -0,0 +1,16 @@
++[Unit]
++Description=Hive auto-advancing dispatcher
++After=default.target
++StartLimitBurst=3
++StartLimitIntervalSec=300
++
++[Service]
++Type=simple
++ExecStart=<%= binary_path %> daemon start
++Restart=on-failure
++RestartSec=30s
++KillMode=mixed
++TimeoutStopSec=900
++
++[Install]
++WantedBy=default.target
+diff --git a/test/e2e/arch_aur_acceptance.md b/test/e2e/arch_aur_acceptance.md
+new file mode 100644
+index 00000000..728dfce9
+--- /dev/null
++++ b/test/e2e/arch_aur_acceptance.md
+@@ -0,0 +1,10 @@
++# Arch AUR Acceptance
++
++- Platform: clean Arch x86_64.
++- Install: `yay -S hive-bin`.
++- Verify: `hive --version` reports the release version.
++- Initialize a clean git project with `hive init`.
++- Confirm `.hive/` and `.hive-state/` exist.
++- Confirm systemd user unit registration is present and autostart was not enabled silently.
++- Run `hive update --dry-run` and verify it delegates to the AUR helper for `hive-bin`.
++- Run `hive uninstall` and verify work artifacts are preserved.
+diff --git a/test/e2e/macos_homebrew_acceptance.md b/test/e2e/macos_homebrew_acceptance.md
+new file mode 100644
+index 00000000..a0c509de
+--- /dev/null
++++ b/test/e2e/macos_homebrew_acceptance.md
+@@ -0,0 +1,10 @@
++# macOS Homebrew Acceptance
++
++- Platform: macOS arm64.
++- Install: `brew install <org>/hive/hive`.
++- Verify: `hive --version` reports the release version.
++- Initialize a clean git project with `hive init`.
++- Confirm `.hive/` and `.hive-state/` exist.
++- Confirm launchd service file registration is present and autostart was not enabled silently.
++- Confirm `hv --version` works.
++- Run `hive uninstall` and verify project work is preserved by default.
+diff --git a/test/e2e/prompt_installer_acceptance.md b/test/e2e/prompt_installer_acceptance.md
+new file mode 100644
+index 00000000..4e8214a4
+--- /dev/null
++++ b/test/e2e/prompt_installer_acceptance.md
+@@ -0,0 +1,9 @@
++# Prompt Installer Acceptance
++
++- Paste `prompts/install.md` into a supported agent.
++- Verify the agent detects OS/arch and selects Homebrew, AUR, or script fallback.
++- Verify unsupported platforms stop with a clear message.
++- Verify the agent runs `hive --version` before asking about `hive init`.
++- Verify the agent asks before initializing the current project.
++- Verify skills installation uses a native marketplace or reports manual follow-up required.
++- Verify no files are copied directly into Claude, Codex, Pi, or other agent directories.
+diff --git a/test/e2e/ubuntu_script_acceptance.md b/test/e2e/ubuntu_script_acceptance.md
+new file mode 100644
+index 00000000..1a527db1
+--- /dev/null
++++ b/test/e2e/ubuntu_script_acceptance.md
+@@ -0,0 +1,11 @@
++# Ubuntu Script Acceptance
++
++- Platform: Ubuntu 22.04+ x86_64 glibc.
++- Install with the release one-liner.
++- Verify `hive --version`.
++- Confirm `~/.config/hive/install_receipt.yml` exists for script installs.
++- Initialize a clean git project with `hive init`.
++- Confirm `.hive/` and `.hive-state/` exist.
++- Confirm systemd user unit registration is present.
++- Run `hive update --dry-run` and verify it re-runs release `install.sh`.
++- Run `hive uninstall` and verify `~/.local/state/hive/` is preserved.
+diff --git a/test/hive/init_command_test.rb b/test/hive/init_command_test.rb
+new file mode 100644
+index 00000000..148d0c0a
+--- /dev/null
++++ b/test/hive/init_command_test.rb
+@@ -0,0 +1,87 @@
++require "test_helper"
++require "hive/commands/init"
++
++class HiveInitCommandPackagingTest < Minitest::Test
++  include HiveTestHelper
++
++  Service = Struct.new(:path, :enable_calls) do
++    def register
++      FileUtils.mkdir_p(File.dirname(path))
++      File.write(path, "service")
++      { supported: true, path: path, autostarted: false }
++    end
++
++    def enable_and_start
++      enable_calls << :enable_and_start
++      { supported: true, ok: true, path: path }
++    end
++  end
++
++  def test_init_scaffolds_project_hive_directory
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        capture_io { Hive::Commands::Init.new(dir).call }
++
++        assert File.exist?(File.join(dir, ".hive", "config.yml"))
++        assert File.exist?(File.join(dir, ".hive", "README.md"))
++      end
++    end
++  end
++
++  def test_init_does_not_overwrite_existing_project_hive_config
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        FileUtils.mkdir_p(File.join(dir, ".hive"))
++        cfg = File.join(dir, ".hive", "config.yml")
++        File.write(cfg, "custom: true\n")
++
++        capture_io { Hive::Commands::Init.new(dir).call }
++
++        assert_equal "custom: true\n", File.read(cfg)
++      end
++    end
++  end
++
++  def test_init_registers_service_without_enabling_autostart_by_default
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        service = Service.new(File.join(dir, "service", "hive.service"), [])
++
++        capture_io { Hive::Commands::Init.new(dir, service: service).call }
++
++        assert File.exist?(service.path)
++        assert_empty service.enable_calls
++      end
++    end
++  end
++
++  def test_init_enables_and_starts_service_after_explicit_prompt_answer
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        service = Service.new(File.join(dir, "service", "hive.service"), [])
++        prompts = Struct.new(:answers) { def collect = answers }.new(default_answers.merge("daemon_autostart" => true))
++
++        capture_io { Hive::Commands::Init.new(dir, prompts: prompts, service: service).call }
++
++        assert_equal [ :enable_and_start ], service.enable_calls
++      end
++    end
++  end
++
++  def default_answers
++    {
++      "planning_agent" => "claude",
++      "development_agent" => "codex",
++      "enabled_reviewers" => Hive::Commands::Init::Prompts::DEFAULT_REVIEWER_NAMES,
++      "triage_bias" => "courageous",
++      "budgets" => Hive::Commands::Init::Prompts::LIMIT_KEYS.each_with_object({}) do |key, hash|
++        hash[key] = Hive::Config::DEFAULTS["budget_usd"].fetch(key)
++      end,
++      "timeouts" => Hive::Commands::Init::Prompts::LIMIT_KEYS.each_with_object({}) do |key, hash|
++        hash[key] = Hive::Config::DEFAULTS["timeout_sec"].fetch(key)
++      end,
++      "daemon_enabled" => true,
++      "daemon_autostart" => false
++    }
++  end
++end
+diff --git a/test/hive/install_receipt_test.rb b/test/hive/install_receipt_test.rb
+new file mode 100644
+index 00000000..219935d6
+--- /dev/null
++++ b/test/hive/install_receipt_test.rb
+@@ -0,0 +1,33 @@
++require "test_helper"
++require "hive/install_receipt"
++
++class HiveInstallReceiptTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_loads_script_receipt
++    with_tmp_dir do |dir|
++      path = File.join(dir, "receipt.yml")
++      File.write(path, <<~YAML)
++        channel: script
++        version: v0.1.0
++        artifact_url: https://github.com/example/hive/releases/download/v0.1.0/hive-v0.1.0-linux-x86_64-gnu.tar.gz
++        binary_name: hv
++      YAML
++
++      receipt = Hive::InstallReceipt.new(path: path)
++
++      assert_equal "script", receipt.channel
++      assert_equal "hv", receipt.binary_name
++      assert_equal "https://github.com/example/hive/releases/download/v0.1.0/install.sh", receipt.install_script_url
++    end
++  end
++
++  def test_bad_receipt_yaml_raises_config_error
++    with_tmp_dir do |dir|
++      path = File.join(dir, "receipt.yml")
++      File.write(path, ":\n")
++
++      assert_raises(Hive::ConfigError) { Hive::InstallReceipt.new(path: path) }
++    end
++  end
++end
+diff --git a/test/hive/service_launchd_test.rb b/test/hive/service_launchd_test.rb
+new file mode 100644
+index 00000000..96a8ef71
+--- /dev/null
++++ b/test/hive/service_launchd_test.rb
+@@ -0,0 +1,36 @@
++require "test_helper"
++require "hive/service/launchd"
++
++class HiveServiceLaunchdTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_register_writes_launchd_plist_with_binary_path
++    with_tmp_dir do |home|
++      old = ENV["HIVE_HOME"]
++      ENV["HIVE_HOME"] = home
++      service = Hive::Service::Launchd.new(binary_path: "/tmp/hive")
++
++      result = service.register
++
++      assert result[:supported]
++      assert_equal File.join(home, "launchd", "org.hive.daemon.plist"), result[:path]
++      body = File.read(result[:path])
++      assert_includes body, "<string>/tmp/hive</string>"
++      assert_includes body, "<string>daemon</string>"
++      assert_includes body, "<string>start</string>"
++      assert_includes body, "<key>RunAtLoad</key>"
++      assert_includes body, "<false/>"
++    ensure
++      ENV["HIVE_HOME"] = old
++    end
++  end
++
++  def test_render_can_mark_run_at_load_after_explicit_autostart_consent
++    service = Hive::Service::Launchd.new(binary_path: "/tmp/hive")
++
++    body = service.render(run_at_load: true)
++
++    assert_includes body, "<key>RunAtLoad</key>"
++    assert_includes body, "<true/>"
++  end
++end
+diff --git a/test/hive/service_systemd_user_test.rb b/test/hive/service_systemd_user_test.rb
+new file mode 100644
+index 00000000..24fa5cd1
+--- /dev/null
++++ b/test/hive/service_systemd_user_test.rb
+@@ -0,0 +1,24 @@
++require "test_helper"
++require "hive/service/systemd_user"
++
++class HiveServiceSystemdUserTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_register_writes_systemd_unit_with_binary_path
++    with_tmp_dir do |home|
++      old = ENV["HIVE_HOME"]
++      ENV["HIVE_HOME"] = home
++      service = Hive::Service::SystemdUser.new(binary_path: "/tmp/hive")
++
++      result = service.register
++
++      assert result[:supported]
++      assert_equal File.join(home, "systemd", "user", "hive.service"), result[:path]
++      body = File.read(result[:path])
++      assert_includes body, "ExecStart=/tmp/hive daemon start"
++      assert_includes body, "WantedBy=default.target"
++    ensure
++      ENV["HIVE_HOME"] = old
++    end
++  end
++end
+diff --git a/test/hive/uninstall_command_test.rb b/test/hive/uninstall_command_test.rb
+new file mode 100644
+index 00000000..68958f2e
+--- /dev/null
++++ b/test/hive/uninstall_command_test.rb
+@@ -0,0 +1,109 @@
++require "test_helper"
++require "hive/commands/uninstall"
++
++class HiveUninstallCommandTest < Minitest::Test
++  Receipt = Struct.new(:channel, :repo, :script_binary_path, keyword_init: true)
++  Service = Struct.new(:path) do
++    def register
++      { supported: true, path: path }
++    end
++  end
++
++  include HiveTestHelper
++
++  def tty_input(text)
++    input = StringIO.new(text)
++    input.define_singleton_method(:tty?) { true }
++    input
++  end
++
++  def test_uninstall_removes_service_and_script_binary_but_preserves_project_by_default
++    with_tmp_dir do |dir|
++      service_path = File.join(dir, "hive.service")
++      binary_path = File.join(dir, "hive")
++      project_hive = File.join(dir, "project", ".hive")
++      FileUtils.mkdir_p(project_hive)
++      File.write(service_path, "service")
++      File.write(binary_path, "binary")
++      out = StringIO.new
++      receipt = Receipt.new(channel: "script", script_binary_path: binary_path)
++
++      Hive::Commands::Uninstall.new(
++        project_root: File.join(dir, "project"),
++        receipt: receipt,
++        service: Service.new(service_path),
++        output: out
++      ).call
++
++      refute File.exist?(service_path)
++      refute File.exist?(binary_path)
++      assert File.directory?(project_hive), ".hive must be preserved by default"
++      assert_match(/preserving .*\.hive/, out.string)
++      assert_match(/skills are managed by agent marketplaces/, out.string)
++    end
++  end
++
++  def test_uninstall_purge_without_separate_confirmation_preserves_project_scaffold
++    with_tmp_dir do |dir|
++      project = File.join(dir, "project")
++      FileUtils.mkdir_p(File.join(project, ".hive"))
++      receipt = Receipt.new(channel: "homebrew", repo: "<org>/hive")
++      out = StringIO.new
++
++      Hive::Commands::Uninstall.new(
++        project_root: project,
++        purge: true,
++        receipt: receipt,
++        service: Service.new(File.join(dir, "missing.service")),
++        output: out
++      ).call
++
++      assert File.exist?(File.join(project, ".hive"))
++      assert_match(/brew uninstall <org>\/hive\/hive/, out.string)
++      assert_match(/preserving .*\.hive/, out.string)
++      assert_match(/preserving ~\/.local\/state\/hive/, out.string)
++    end
++  end
++
++  def test_uninstall_purge_yes_removes_project_scaffold
++    with_tmp_dir do |dir|
++      project = File.join(dir, "project")
++      FileUtils.mkdir_p(File.join(project, ".hive"))
++      receipt = Receipt.new(channel: "homebrew", repo: "<org>/hive")
++      out = StringIO.new
++
++      Hive::Commands::Uninstall.new(
++        project_root: project,
++        purge: true,
++        yes: true,
++        receipt: receipt,
++        service: Service.new(File.join(dir, "missing.service")),
++        output: out
++      ).call
++
++      refute File.exist?(File.join(project, ".hive"))
++      assert_match(/removed .*\.hive/, out.string)
++    end
++  end
++
++  def test_uninstall_purge_prompts_for_project_cleanup_on_tty
++    with_tmp_dir do |dir|
++      project = File.join(dir, "project")
++      FileUtils.mkdir_p(File.join(project, ".hive"))
++      receipt = Receipt.new(channel: "script", script_binary_path: File.join(dir, "missing-bin"))
++      out = StringIO.new
++
++      Hive::Commands::Uninstall.new(
++        project_root: project,
++        purge: true,
++        input: tty_input("yes\n"),
++        receipt: receipt,
++        service: Service.new(File.join(dir, "missing.service")),
++        output: out
++      ).call
++
++      refute File.exist?(File.join(project, ".hive"))
++      assert_match(/remove project \.hive\/ scaffold/, out.string)
++    end
++  end
++end
+diff --git a/test/hive/update_command_test.rb b/test/hive/update_command_test.rb
+new file mode 100644
+index 00000000..aaf1820a
+--- /dev/null
++++ b/test/hive/update_command_test.rb
+@@ -0,0 +1,53 @@
++require "test_helper"
++require "hive/commands/update"
++
++class HiveUpdateCommandTest < Minitest::Test
++  Receipt = Struct.new(:channel, :repo, :aur_helper, :install_script_url, keyword_init: true)
++  Runner = Struct.new(:commands) do
++    def run(command, dry_run:, output:)
++      commands << [ command, dry_run, output.class.name ]
++      true
++    end
++  end
++
++  def test_homebrew_receipt_delegates_to_brew_upgrade
++    runner = Runner.new([])
++    out = StringIO.new
++    receipt = Receipt.new(channel: "homebrew", repo: "<org>/hive")
++
++    Hive::Commands::Update.new(receipt: receipt, runner: runner, output: out).call
++
++    assert_equal [ "brew", "upgrade", "<org>/hive/hive" ], runner.commands.first.first
++    assert_match(/brew upgrade/, out.string)
++  end
++
++  def test_aur_receipt_delegates_to_aur_helper
++    runner = Runner.new([])
++    receipt = Receipt.new(channel: "aur", repo: "<org>/hive", aur_helper: "paru")
++
++    Hive::Commands::Update.new(receipt: receipt, runner: runner, output: StringIO.new).call
++
++    assert_equal [ "paru", "-Syu", "hive-bin" ], runner.commands.first.first
++  end
++
++  def test_script_receipt_delegates_to_install_script
++    runner = Runner.new([])
++    receipt = Receipt.new(channel: "script", install_script_url: "https://example/install.sh")
++
++    Hive::Commands::Update.new(receipt: receipt, runner: runner, output: StringIO.new).call
++
++    assert_equal [ "bash", "-c", "curl -fsSL https://example/install.sh | bash" ], runner.commands.first.first
++  end
++
++  def test_unknown_channel_fails_safely
++    out = StringIO.new
++    receipt = Receipt.new(channel: "mystery")
++
++    err = assert_raises(Hive::Error) do
++      Hive::Commands::Update.new(receipt: receipt, output: out).call
++    end
++
++    assert_match(/install channel is unknown/, err.message)
++    assert_match(/install channel is unknown/, out.string)
++  end
++end
+diff --git a/test/install/fixtures/checksums.txt b/test/install/fixtures/checksums.txt
+new file mode 100644
+index 00000000..221679c6
+--- /dev/null
++++ b/test/install/fixtures/checksums.txt
+@@ -0,0 +1 @@
++e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  hive-v0.1.0-linux-x86_64-gnu.tar.gz
+diff --git a/test/install/install_sh_test.bats b/test/install/install_sh_test.bats
+new file mode 100644
+index 00000000..747b791a
+--- /dev/null
++++ b/test/install/install_sh_test.bats
+@@ -0,0 +1,24 @@
++#!/usr/bin/env bats
++
++setup() {
++  export HIVE_INSTALL_SOURCE_ONLY=1
++  export HOME=/home/tester
++  source ./install.sh
++}
++
++@test "detects macOS arm64" {
++  export HIVE_TEST_UNAME_S=Darwin
++  export HIVE_TEST_UNAME_M=arm64
++  run detect_platform
++  [ "$status" -eq 0 ]
++  [ "$output" = "darwin-arm64" ]
++}
++
++@test "rejects Alpine" {
++  export HIVE_TEST_UNAME_S=Linux
++  export HIVE_TEST_UNAME_M=x86_64
++  export HIVE_TEST_OS_ID=alpine
++  run detect_platform
++  [ "$status" -ne 0 ]
++  [[ "$output" == *"Alpine is out of scope"* ]]
++}
+diff --git a/test/install/install_sh_test.rb b/test/install/install_sh_test.rb
+new file mode 100644
+index 00000000..96ad2687
+--- /dev/null
++++ b/test/install/install_sh_test.rb
+@@ -0,0 +1,88 @@
++require "test_helper"
++require "open3"
++
++class InstallShTest < Minitest::Test
++  include HiveTestHelper
++
++  INSTALL_SH = File.expand_path("../../install.sh", __dir__)
++
++  def bash_eval(script, env: {})
++    merged = {
++      "HIVE_INSTALL_SOURCE_ONLY" => "1",
++      "HOME" => "/home/tester"
++    }.merge(env)
++    Open3.capture3(merged, "bash", "-c", "source #{INSTALL_SH.shellescape}; #{script}")
++  end
++
++  def test_detects_macos_arm64
++    out, err, status = bash_eval("detect_platform", env: {
++      "HIVE_TEST_UNAME_S" => "Darwin",
++      "HIVE_TEST_UNAME_M" => "arm64"
++    })
++
++    assert status.success?, err
++    assert_equal "darwin-arm64", out.strip
++  end
++
++  def test_detects_linux_x86_64_gnu
++    out, err, status = bash_eval("detect_platform", env: {
++      "HIVE_TEST_UNAME_S" => "Linux",
++      "HIVE_TEST_UNAME_M" => "x86_64",
++      "HIVE_TEST_OS_ID" => "ubuntu"
++    })
++
++    assert status.success?, err
++    assert_equal "linux-x86_64-gnu", out.strip
++  end
++
++  def test_rejects_alpine_nixos_and_bsd
++    [
++      [ "Linux", "x86_64", "alpine", /Alpine is out of scope/ ],
++      [ "Linux", "x86_64", "nixos", /NixOS is out of scope/ ],
++      [ "FreeBSD", "x86_64", "", /BSD platforms are out of scope/ ]
++    ].each do |os, arch, distro, message|
++      _out, err, status = bash_eval("detect_platform", env: {
++        "HIVE_TEST_UNAME_S" => os,
++        "HIVE_TEST_UNAME_M" => arch,
++        "HIVE_TEST_OS_ID" => distro
++      })
++
++      refute status.success?
++      assert_match message, err
++    end
++  end
++
++  def test_choose_binary_name_uses_hv_when_unrelated_hive_exists
++    with_tmp_dir do |path_dir|
++      with_tmp_dir do |install_dir|
++        existing = File.join(path_dir, "hive")
++        File.write(existing, "#!/usr/bin/env bash\nexit 0\n")
++        FileUtils.chmod(0o755, existing)
++
++        out, err, status = bash_eval("choose_binary_name #{install_dir.shellescape}", env: {
++          "PATH" => "#{path_dir}:#{ENV.fetch('PATH')}"
++        })
++
++        assert status.success?, err
++        assert_equal "hv", out.strip
++      end
++    end
++  end
++
++  def test_write_receipt_records_script_install_metadata
++    with_tmp_dir do |dir|
++      receipt = File.join(dir, "install_receipt.yml")
++      script = "write_receipt #{receipt.shellescape} script v0.1.0 https://example/artifact.tgz abc123 hv"
++
++      _out, err, status = bash_eval(script)
++
++      assert status.success?, err
++      data = YAML.safe_load(File.read(receipt))
++      assert_equal "script", data.fetch("channel")
++      assert_equal "v0.1.0", data.fetch("version")
++      assert_equal "https://example/artifact.tgz", data.fetch("artifact_url")
++      assert_equal "abc123", data.fetch("checksum")
++      assert_equal "hv", data.fetch("binary_name")
++    end
++  end
++end
+diff --git a/test/packaging/aur_pkgbuild_test.rb b/test/packaging/aur_pkgbuild_test.rb
+new file mode 100644
+index 00000000..a30c32bc
+--- /dev/null
++++ b/test/packaging/aur_pkgbuild_test.rb
+@@ -0,0 +1,62 @@
++require "test_helper"
++require_relative "../../packaging/aur/update_pkgbuild"
++
++class AurPkgbuildTest < Minitest::Test
++  PKGBUILD = File.expand_path("../../packaging/aur/hive-bin/PKGBUILD", __dir__)
++  SRCINFO = File.expand_path("../../packaging/aur/hive-bin/.SRCINFO", __dir__)
++  INSTALL = File.expand_path("../../packaging/aur/hive-bin/hive-bin.install", __dir__)
++
++  def test_pkgbuild_uses_linux_release_artifact_and_no_ruby_dependency
++    body = File.read(PKGBUILD)
++
++    assert_includes body, "pkgname=hive-bin"
++    assert_includes body, "hive-v0.1.0-linux-x86_64-gnu.tar.gz"
++    assert_includes body, "depends=()"
++    refute_includes body, "ruby"
++  end
++
++  def test_pkgbuild_installs_hive_and_hv
++    body = File.read(PKGBUILD)
++
++    assert_includes body, 'install -Dm755 "$srcdir/hive" "$pkgdir/usr/bin/hive"'
++    assert_includes body, 'ln -s hive "$pkgdir/usr/bin/hv"'
++  end
++
++  def test_srcinfo_matches_checked_in_pkgbuild_metadata
++    srcinfo = File.read(SRCINFO)
++
++    assert_includes srcinfo, "pkgbase = hive-bin"
++    assert_includes srcinfo, "pkgver = 0.1.0"
++    assert_includes srcinfo, "source_x86_64 = https://github.com/<org>/hive/releases/download/v0.1.0/"
++  end
++
++  def test_install_message_explains_init_xdg_and_systemd_prompt
++    body = File.read(INSTALL)
++
++    assert_includes body, "~/.config/hive/config.yml"
++    assert_includes body, "systemd user unit"
++    assert_includes body, "prompts before enabling"
++  end
++
++  def test_renderer_stamps_pkgbuild_and_srcinfo_from_release_metadata
++    sha = "b" * 64
++    pkgbuild = Hive::Packaging::Aur::Renderer.render_pkgbuild(
++      version: "v1.2.3",
++      sha256: sha,
++      repo: "example/hive"
++    )
++    srcinfo = Hive::Packaging::Aur::Renderer.render_srcinfo(
++      version: "v1.2.3",
++      sha256: sha,
++      repo: "example/hive"
++    )
++
++    assert_includes pkgbuild, "pkgver=1.2.3"
++    assert_includes pkgbuild, "hive-v1.2.3-linux-x86_64-gnu.tar.gz"
++    assert_includes pkgbuild, "sha256sums_x86_64=('#{sha}')"
++    assert_includes srcinfo, "pkgver = 1.2.3"
++    assert_includes srcinfo, "source_x86_64 = https://github.com/example/hive/releases/download/v1.2.3/hive-v1.2.3-linux-x86_64-gnu.tar.gz"
++    refute_includes srcinfo, 'v${pkgver}'
++    assert_includes srcinfo, "sha256sums_x86_64 = #{sha}"
++  end
++end
+diff --git a/test/packaging/docs_contract_test.rb b/test/packaging/docs_contract_test.rb
+new file mode 100644
+index 00000000..bb7d754b
+--- /dev/null
++++ b/test/packaging/docs_contract_test.rb
+@@ -0,0 +1,40 @@
++require "test_helper"
++
++class PackagingDocsContractTest < Minitest::Test
++  def read(path)
++    File.read(File.expand_path("../../#{path}", __dir__))
++  end
++
++  def test_install_docs_name_all_v1_channels_and_verification
++    body = read("docs/install.md")
++
++    assert_includes body, "brew install <org>/hive/hive"
++    assert_includes body, "hive-bin"
++    assert_includes body, "install.sh"
++    assert_includes body, "hive --version"
++    assert_includes body, "hive init"
++  end
++
++  def test_lifecycle_docs_preserve_work_and_delegate_updates
++    update = read("docs/update.md")
++    uninstall = read("docs/uninstall.md")
++
++    assert_includes update, "brew upgrade <org>/hive/hive"
++    assert_includes update, "hive-bin"
++    assert_includes update, "install_receipt.yml"
++    assert_includes uninstall, "preserves project work"
++    assert_includes uninstall, "~/.local/state/hive/"
++  end
++
++  def test_acceptance_checklists_cover_tier_one_and_prompt
++    [
++      "test/e2e/macos_homebrew_acceptance.md",
++      "test/e2e/arch_aur_acceptance.md",
++      "test/e2e/ubuntu_script_acceptance.md",
++      "test/e2e/prompt_installer_acceptance.md"
++    ].each do |path|
++      body = read(path)
++      assert_includes body, "hive --version", "#{path} must verify installed version"
++    end
++  end
++end
+diff --git a/test/packaging/homebrew_formula_test.rb b/test/packaging/homebrew_formula_test.rb
+new file mode 100644
+index 00000000..937691d7
+--- /dev/null
++++ b/test/packaging/homebrew_formula_test.rb
+@@ -0,0 +1,43 @@
++require "test_helper"
++require_relative "../../packaging/homebrew/update_formula"
++
++class HomebrewFormulaTest < Minitest::Test
++  FORMULA = File.expand_path("../../packaging/homebrew/Formula/hive.rb", __dir__)
++
++  def test_formula_uses_release_tarball_and_no_system_ruby_dependency
++    body = File.read(FORMULA)
++
++    assert_includes body, "hive-v0.1.0-darwin-arm64.tar.gz"
++    refute_includes body, "depends_on \"ruby\""
++    assert_includes body, "depends_on arch: :arm64"
++  end
++
++  def test_formula_installs_hive_and_hv_alias
++    body = File.read(FORMULA)
++
++    assert_includes body, "bin.install \"hive\""
++    assert_includes body, "bin.install_symlink \"hive\" => \"hv\""
++  end
++
++  def test_formula_caveats_explain_xdg_init_daemon_and_conflict_alias
++    body = File.read(FORMULA)
++
++    assert_includes body, "~/.config/hive/config.yml"
++    assert_includes body, "hive init"
++    assert_includes body, "daemon service"
++    assert_includes body, "hv"
++  end
++
++  def test_renderer_stamps_version_repo_url_and_sha
++    body = Hive::Packaging::Homebrew::FormulaRenderer.render(
++      version: "v1.2.3",
++      sha256: "a" * 64,
++      repo: "example/hive"
++    )
++
++    assert_includes body, "https://github.com/example/hive/releases/download/v1.2.3/"
++    assert_includes body, "hive-v1.2.3-darwin-arm64.tar.gz"
++    assert_includes body, "sha256 \"#{"a" * 64}\""
++    assert_includes body, "version \"1.2.3\""
++  end
++end
+diff --git a/test/prompts/install_prompt_contract_test.rb b/test/prompts/install_prompt_contract_test.rb
+new file mode 100644
+index 00000000..a67febb2
+--- /dev/null
++++ b/test/prompts/install_prompt_contract_test.rb
+@@ -0,0 +1,34 @@
++require "test_helper"
++
++class InstallPromptContractTest < Minitest::Test
++  PROMPT = File.expand_path("../../prompts/install.md", __dir__)
++
++  def body
++    File.read(PROMPT)
++  end
++
++  def test_prompt_contains_os_channel_selection_logic
++    text = body
++
++    assert_includes text, "macOS arm64"
++    assert_includes text, "brew install <org>/hive/hive"
++    assert_includes text, "Arch Linux"
++    assert_includes text, "hive-bin"
++    assert_includes text, "Ubuntu 22.04+"
++    assert_includes text, "Alpine, NixOS, BSD, Windows"
++  end
++
++  def test_prompt_requires_version_verification_before_init
++    text = body
++
++    assert_operator text.index("Run `hive --version`"), :<, text.index("ask the user before running `hive init`")
++  end
++
++  def test_prompt_forbids_manual_skill_copying
++    text = body
++
++    assert_includes text, "Do not copy files into"
++    assert_includes text, "native marketplace flow"
++    assert_includes text, "manual follow-up required"
++  end
++end
+diff --git a/test/release/artifact_contract_test.rb b/test/release/artifact_contract_test.rb
+new file mode 100644
+index 00000000..7606b417
+--- /dev/null
++++ b/test/release/artifact_contract_test.rb
+@@ -0,0 +1,84 @@
++require "test_helper"
++require "tmpdir"
++require "fileutils"
++require_relative "../../packaging/build/build_release"
++
++class ReleaseArtifactContractTest < Minitest::Test
++  BuildRelease = Hive::Packaging::BuildRelease
++
++  def test_semver_tag_accepts_release_tag
++    assert BuildRelease.semver_tag?("v0.1.0")
++    assert BuildRelease.semver_tag?("v1.2.3-rc.1")
++  end
++
++  def test_semver_tag_rejects_non_release_refs
++    refute BuildRelease.semver_tag?("main")
++    refute BuildRelease.semver_tag?("0.1.0")
++    refute BuildRelease.semver_tag?("release/v0.1.0")
++  end
++
++  def test_artifact_names_are_deterministic
++    assert_equal "hive-v0.1.0-darwin-arm64.tar.gz",
++                 BuildRelease.artifact_name(version: "v0.1.0", target: "darwin-arm64")
++    assert_equal "hive-v0.1.0-linux-x86_64-gnu.tar.gz.sha256",
++                 BuildRelease.checksum_name(version: "v0.1.0", target: "linux-x86_64-gnu")
++    assert_equal "hive-v0.1.0-checksums.txt", BuildRelease.checksums_name(version: "v0.1.0")
++  end
++
++  def test_release_workflow_generates_combined_checksum_manifest_before_publish
++    workflow = File.read(File.expand_path("../../.github/workflows/release.yml", __dir__))
++
++    assert_includes workflow, "Create checksum manifest"
++    assert_includes workflow, "sha256sum hive-${{ github.ref_name }}-*.tar.gz > hive-${{ github.ref_name }}-checksums.txt"
++    assert_includes workflow, "files: dist/*"
++  end
++
++  def test_unsupported_target_is_rejected
++    err = assert_raises(ArgumentError) do
++      BuildRelease.artifact_name(version: "v0.1.0", target: "linux-musl")
++    end
++    assert_match(/unsupported release target/, err.message)
++  end
++
++  def test_manifest_includes_release_metadata_hooks
++    manifest = BuildRelease.manifest(
++      version: "v0.1.0",
++      target: "linux-x86_64-gnu",
++      commit: "abc123",
++      built_at: "2026-07-10T00:00:00Z",
++      channel: "script"
++    )
++
++    assert_equal "hive-release-artifact", manifest.fetch("schema")
++    assert_equal "v0.1.0", manifest.fetch("version")
++    assert_equal "abc123", manifest.fetch("commit")
++    assert_equal "linux-x86_64-gnu", manifest.fetch("target")
++    assert_equal "script", manifest.fetch("install_channel")
++  end
++
++  def test_render_build_metadata_embeds_release_values
++    body = BuildRelease.render_build_metadata(
++      version: "v1.2.3",
++      commit: "abc123",
++      built_at: "2026-07-10T00:00:00Z",
++      target: "linux-x86_64-gnu"
++    )
++
++    assert_includes body, 'VERSION = "1.2.3".freeze'
++    assert_includes body, 'COMMIT = "abc123".freeze'
++    assert_includes body, 'BUILD_TIME = "2026-07-10T00:00:00Z".freeze'
++    assert_includes body, 'PLATFORM = "linux-x86_64-gnu".freeze'
++  end
++
++  def test_write_checksum_uses_sha256_and_artifact_basename
++    Dir.mktmpdir("hive-artifact-contract") do |dir|
++      artifact = File.join(dir, "hive-v0.1.0-linux-x86_64-gnu.tar.gz")
++      File.write(artifact, "payload")
++
++      digest = BuildRelease.write_checksum(artifact)
++
++      assert_equal Digest::SHA256.hexdigest("payload"), digest
++      assert_equal "#{digest}  #{File.basename(artifact)}\n", File.read("#{artifact}.sha256")
++    end
++  end
++end
+diff --git a/test/skills/skills_manifest_test.rb b/test/skills/skills_manifest_test.rb
+new file mode 100644
+index 00000000..35fd2dfb
+--- /dev/null
++++ b/test/skills/skills_manifest_test.rb
+@@ -0,0 +1,25 @@
++require "test_helper"
++
++class SkillsManifestTest < Minitest::Test
++  ROOT = File.expand_path("../../skills/hive", __dir__)
++
++  def test_manifest_declares_marketplace_only_distribution
++    manifest = YAML.safe_load(File.read(File.join(ROOT, "manifest.yml")))
++
++    assert_equal "hive", manifest.fetch("name")
++    assert_equal "marketplace-only", manifest.fetch("distribution")
++    assert_includes manifest.fetch("prohibited"), "direct-agent-directory-copy"
++  end
++
++  def test_each_marketplace_target_degrades_to_manual_follow_up
++    manifest = YAML.safe_load(File.read(File.join(ROOT, "manifest.yml")))
++
++    manifest.fetch("marketplaces").each do |agent, path|
++      target = YAML.safe_load(File.read(File.join(ROOT, path)))
++      assert_equal agent, target.fetch("agent")
++      assert_equal "native-marketplace-required", target.fetch("install_policy")
++      assert_equal "manual-follow-up-required", target.fetch("fallback")
++      assert_match(/do not copy files/i, target.fetch("notes"))
++    end
++  end
++end
+diff --git a/test/unit/commands/daemon_envelope_test.rb b/test/unit/commands/daemon_envelope_test.rb
+index 4e270298..3a7c3217 100644
+--- a/test/unit/commands/daemon_envelope_test.rb
++++ b/test/unit/commands/daemon_envelope_test.rb
+@@ -13,6 +13,34 @@ require "hive/commands/daemon"
+ class HiveCommandsDaemonEnvelopeTest < Minitest::Test
+   include HiveTestHelper
+ 
++  def test_default_runtime_files_use_xdg_state_home
++    old_home = ENV["HOME"]
++    old_hive_home = ENV["HIVE_HOME"]
++    old_xdg_state = ENV["XDG_STATE_HOME"]
++    Dir.mktmpdir("hive-daemon-state-test") do |home|
++      ENV["HOME"] = home
++      ENV.delete("HIVE_HOME")
++      ENV.delete("XDG_STATE_HOME")
++
++      daemon = Hive::Commands::Daemon.new("status")
++
++      assert_equal File.join(home, ".local", "state", "hive", ".daemon.pid"), daemon.pid_file
++      assert_equal File.join(home, ".local", "state", "hive", "logs", "daemon.log"), daemon.log_file
++    end
++  ensure
++    ENV["HOME"] = old_home
++    if old_hive_home.nil?
++      ENV.delete("HIVE_HOME")
++    else
++      ENV["HIVE_HOME"] = old_hive_home
++    end
++    if old_xdg_state.nil?
++      ENV.delete("XDG_STATE_HOME")
++    else
++      ENV["XDG_STATE_HOME"] = old_xdg_state
++    end
++  end
++
+   # Verifies the StandardError → InternalError → envelope chain the
+   # EnvelopeEmitter mixin promises in lib/hive.rb. Without this test,
+   # a refactor of call_with_envelope could silently lose the envelope
+diff --git a/test/unit/commands/init/prompts_test.rb b/test/unit/commands/init/prompts_test.rb
+index 734b955d..f9d94ee6 100644
+--- a/test/unit/commands/init/prompts_test.rb
++++ b/test/unit/commands/init/prompts_test.rb
+@@ -46,7 +46,8 @@ class InitPromptsTest < Minitest::Test
+       "timeouts" => Hive::Commands::Init::Prompts::LIMIT_KEYS.each_with_object({}) do |k, h|
+         h[k] = Hive::Config::DEFAULTS["timeout_sec"][k]
+       end,
+-      "daemon_enabled" => true
++      "daemon_enabled" => true,
++      "daemon_autostart" => false
+     }
+   end
+ 
+@@ -59,11 +60,12 @@ class InitPromptsTest < Minitest::Test
+   #         open_pr, finalize, review_ci, review_triage, review_fix,
+   #         review_browser)
+   #  14. daemon enable Y/n            (added under ADR-024)
+-  #  15. confirmation Y/n
++  #  15. daemon autostart y/N
++  #  16. confirmation Y/n
+   # Each line is one answer; blank line = accept default.
+   def interactive_input(planning: "", development: "", reviewers: "",
+-                        triage_bias: "", limits: ([ "" ] * 9), daemon: "", confirm: "")
+-    [ planning, development, reviewers, triage_bias, *limits, daemon, confirm ].map { |a| "#{a}\n" }.join
++                        triage_bias: "", limits: ([ "" ] * 9), daemon: "", autostart: "", confirm: "")
++    [ planning, development, reviewers, triage_bias, *limits, daemon, autostart, confirm ].map { |a| "#{a}\n" }.join
+   end
+ 
+   # --- non-TTY: short-circuit to defaults ----------------------------------
+@@ -138,10 +140,10 @@ class InitPromptsTest < Minitest::Test
+ 
+   def test_interactive_planning_agent_unknown_reprompts_then_accepts
+     # First answer is invalid → re-prompt; second answer is valid.
+-    # 16 reads total: planning (invalid + retry) + dev + reviewers
+-    # + triage bias + 9 limits + daemon + confirm. Each blank line
++    # 17 reads total: planning (invalid + retry) + dev + reviewers
++    # + triage bias + 9 limits + daemon + autostart + confirm. Each blank line
+     # accepts the default.
+-    raw = ([ "nonexistent", "claude" ] + ([ "" ] * 14)).join("\n") + "\n"
++    raw = ([ "nonexistent", "claude" ] + ([ "" ] * 15)).join("\n") + "\n"
+     prompts, output, _summary = make_prompts(raw)
+     answers = prompts.collect
+     assert_equal "claude", answers["planning_agent"]
+@@ -149,7 +151,7 @@ class InitPromptsTest < Minitest::Test
+   end
+ 
+   def test_interactive_planning_agent_index_out_of_range_reprompts
+-    raw = ([ "7", "claude" ] + ([ "" ] * 14)).join("\n") + "\n"
++    raw = ([ "7", "claude" ] + ([ "" ] * 15)).join("\n") + "\n"
+     prompts, output, _summary = make_prompts(raw)
+     answers = prompts.collect
+     assert_equal "claude", answers["planning_agent"]
+@@ -188,8 +190,8 @@ class InitPromptsTest < Minitest::Test
+   def test_interactive_reviewers_out_of_range_index_reprompts
+     # Build the input manually since interactive_input doesn't allow
+     # multi-line reviewer answers cleanly. Trailing values are triage
+-    # bias, nine limits, daemon, and confirm.
+-    input = ([ "", "", "7", "1,2" ] + ([ "" ] * 12)).join("\n") + "\n"
++    # bias, nine limits, daemon, autostart, and confirm.
++    input = ([ "", "", "7", "1,2" ] + ([ "" ] * 13)).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal %w[claude-ce-code-review codex-ce-code-review], answers["enabled_reviewers"]
+@@ -197,7 +199,7 @@ class InitPromptsTest < Minitest::Test
+   end
+ 
+   def test_interactive_reviewers_unknown_name_reprompts
+-    input = ([ "", "", "nope", "1" ] + ([ "" ] * 12)).join("\n") + "\n"
++    input = ([ "", "", "nope", "1" ] + ([ "" ] * 13)).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal %w[claude-ce-code-review], answers["enabled_reviewers"]
+@@ -231,7 +233,7 @@ class InitPromptsTest < Minitest::Test
+   end
+ 
+   def test_interactive_triage_bias_unknown_reprompts
+-    input = ([ "", "", "", "bad", "2" ] + ([ "" ] * 11)).join("\n") + "\n"
++    input = ([ "", "", "", "bad", "2" ] + ([ "" ] * 12)).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal "safetyist", answers["triage_bias"]
+@@ -277,8 +279,8 @@ class InitPromptsTest < Minitest::Test
+ 
+   def test_interactive_limits_zero_budget_reprompts
+     # First answer 0,300 fails validation → re-prompt; second answer 10,600 accepted.
+-    # Trailing pair is daemon + confirm (both blank → daemon enabled, confirm yes).
+-    input = ([ "", "", "", "", "0,300", "10,600" ] + ([ "" ] * 10)).join("\n") + "\n"
++    # Trailing answers include daemon + autostart + confirm.
++    input = ([ "", "", "", "", "0,300", "10,600" ] + ([ "" ] * 11)).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal 10, answers["budgets"]["brainstorm"]
+@@ -288,7 +290,7 @@ class InitPromptsTest < Minitest::Test
+ 
+   def test_interactive_limits_malformed_format_reprompts
+     # "30" without comma fails the <budget>,<timeout> shape → re-prompt
+-    input = ([ "", "", "", "", "30", "30,900" ] + ([ "" ] * 10)).join("\n") + "\n"
++    input = ([ "", "", "", "", "30", "30,900" ] + ([ "" ] * 11)).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal 30, answers["budgets"]["brainstorm"]
+@@ -340,14 +342,7 @@ class InitPromptsTest < Minitest::Test
+   end
+ 
+   def test_interactive_daemon_unknown_reprompts
+-    # First answer "maybe" is unrecognised → re-prompt; second answer y → enabled.
+-    # interactive_input feeds 14 reads (9 limits + daemon + confirm); add one
+-    # more "y\n" before the final confirm? No — the daemon prompt is BEFORE
+-    # confirm, and re-prompting on bad input consumes one extra read at the
+-    # daemon slot. interactive_input(daemon: "maybe") provides "maybe" + "" (confirm).
+-    # We need: maybe (rejected) → y (accepted as daemon=enabled) → blank (confirm).
+-    # So push two extra reads in.
+-    input = interactive_input(daemon: "maybe", confirm: "") + "y\n\n"
++    input = ([ "", "", "", "" ] + ([ "" ] * 9) + [ "maybe", "y", "", "" ]).join("\n") + "\n"
+     prompts, output = make_prompts(input)
+     answers = prompts.collect
+     assert_equal true, answers["daemon_enabled"]
+@@ -361,6 +356,38 @@ class InitPromptsTest < Minitest::Test
+     assert_match(/daemon\s+= disabled/, summary)
+   end
+ 
++  def test_interactive_daemon_autostart_blank_defaults_to_disabled
++    prompts, _output = make_prompts(interactive_input(autostart: ""))
++    answers = prompts.collect
++    assert_equal false, answers["daemon_autostart"]
++  end
++
++  def test_interactive_daemon_autostart_y_enables
++    prompts, _output = make_prompts(interactive_input(autostart: "y"))
++    answers = prompts.collect
++    assert_equal true, answers["daemon_autostart"]
++  end
++
++  def test_interactive_daemon_autostart_no_disables
++    prompts, _output = make_prompts(interactive_input(autostart: "no"))
++    answers = prompts.collect
++    assert_equal false, answers["daemon_autostart"]
++  end
++
++  def test_interactive_daemon_autostart_unknown_reprompts
++    input = ([ "", "", "", "" ] + ([ "" ] * 9) + [ "", "maybe", "yes", "" ]).join("\n") + "\n"
++    prompts, output = make_prompts(input)
++    answers = prompts.collect
++    assert_equal true, answers["daemon_autostart"]
++    assert_match(/please answer y or n/, output.string)
++  end
++
++  def test_interactive_daemon_autostart_summary_shows_choice
++    prompts, output = make_prompts(interactive_input(autostart: "yes"))
++    prompts.collect
++    assert_match(/daemon_autostart\s+= enabled/, output.string)
++  end
++
+   def test_non_tty_default_includes_daemon_enabled_true
+     prompts, _output, _summary = make_prompts("", tty: false)
+     answers = prompts.collect
+@@ -372,6 +399,13 @@ class InitPromptsTest < Minitest::Test
+     prompts, _output, summary_io = make_prompts("", tty: false)
+     prompts.collect
+     assert_match(/daemon=enabled/, summary_io.string)
++    assert_match(/autostart=disabled/, summary_io.string)
++  end
++
++  def test_non_tty_default_includes_daemon_autostart_false
++    prompts, _output, _summary = make_prompts("", tty: false)
++    answers = prompts.collect
++    assert_equal false, answers["daemon_autostart"]
+   end
+ 
+   def test_non_tty_default_includes_triage_bias_courageous
+@@ -465,7 +499,7 @@ class InitPromptsTest < Minitest::Test
+     # Truncate the input transcript right before confirmation. read_line
+     # must distinguish nil-from-gets (EOF) from an empty line and bubble
+     # Aborted up the stack rather than silently confirming.
+-    inputs = ([ "" ] * 14).join("\n") + "\n"  # 14 blank reads, then EOF
++    inputs = ([ "" ] * 15).join("\n") + "\n"  # 15 blank reads, then EOF
+     prompts, _output, _summary = make_prompts(inputs)
+     assert_raises(Hive::Commands::Init::Prompts::Aborted) { prompts.collect }
+   end
+@@ -493,8 +527,8 @@ class InitPromptsTest < Minitest::Test
+   # that would produce an invalid YAML key (parses to nil) which
+   # validate_reviewers! rejects on the next `hive run`. Re-prompt instead.
+   def test_reviewers_comma_only_reprompts
+-    # Trailing values are triage bias, nine limits, daemon, and confirm.
+-    input = ([ "", "", ",", "1" ] + ([ "" ] * 12)).join("\n") + "\n"
++    # Trailing values are triage bias, nine limits, daemon, autostart, and confirm.
++    input = ([ "", "", ",", "1" ] + ([ "" ] * 13)).join("\n") + "\n"
+     prompts, output, _summary = make_prompts(input)
+     answers = prompts.collect
+     assert_equal %w[claude-ce-code-review], answers["enabled_reviewers"]
+@@ -502,7 +536,7 @@ class InitPromptsTest < Minitest::Test
+   end
+ 
+   def test_reviewers_whitespace_only_reprompts
+-    input = ([ "", "", "  ,  ,  ", "2" ] + ([ "" ] * 12)).join("\n") + "\n"
++    input = ([ "", "", "  ,  ,  ", "2" ] + ([ "" ] * 13)).join("\n") + "\n"
+     prompts, output, _summary = make_prompts(input)
+     answers = prompts.collect
+     assert_equal %w[codex-ce-code-review], answers["enabled_reviewers"]
+diff --git a/test/unit/dependency_check_test.rb b/test/unit/dependency_check_test.rb
+new file mode 100644
+index 00000000..50e65b42
+--- /dev/null
++++ b/test/unit/dependency_check_test.rb
+@@ -0,0 +1,38 @@
++require "test_helper"
++require "hive/dependency_check"
++
++class DependencyCheckTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_required_missing_dependency_reports_hint_and_raises
++    io = StringIO.new
++    err = assert_raises(Hive::DependencyError) do
++      Hive::DependencyCheck.verify!(required: [ "git" ], env: { "PATH" => "" }, io: io)
++    end
++
++    assert_match(/missing required dependency: git/, err.message)
++    assert_match(/required dependency missing: git/, io.string)
++    assert_match(/Install git/, io.string)
++  end
++
++  def test_optional_missing_dependency_reports_hint_and_continues
++    io = StringIO.new
++    deps = Hive::DependencyCheck.verify!(optional: [ "claude" ], env: { "PATH" => "" }, io: io)
++
++    assert_equal [ "claude" ], deps.map(&:name)
++    assert_match(/optional dependency missing: claude/, io.string)
++    assert_match(/Install the Claude CLI/, io.string)
++  end
++
++  def test_present_dependency_is_detected_on_path
++    with_tmp_dir do |dir|
++      executable = File.join(dir, "git")
++      File.write(executable, "#!/bin/sh\nexit 0\n")
++      FileUtils.chmod(0o755, executable)
++
++      deps = Hive::DependencyCheck.verify!(required: [ "git" ], env: { "PATH" => dir }, io: StringIO.new)
++
++      assert_equal true, deps.first.present
++    end
++  end
++end
+diff --git a/test/unit/install_command_name_test.rb b/test/unit/install_command_name_test.rb
+new file mode 100644
+index 00000000..a1fa9355
+--- /dev/null
++++ b/test/unit/install_command_name_test.rb
+@@ -0,0 +1,38 @@
++require "test_helper"
++require "hive/install/command_name"
++
++class InstallCommandNameTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_choose_hive_when_no_conflict_exists
++    with_tmp_dir do |install_dir|
++      assert_equal "hive", Hive::Install::CommandName.choose(install_dir: install_dir, path_env: "")
++    end
++  end
++
++  def test_choose_hv_when_unrelated_hive_is_first_on_path
++    with_tmp_dir do |existing_dir|
++      with_tmp_dir do |install_dir|
++        existing = File.join(existing_dir, "hive")
++        File.write(existing, "#!/bin/sh\nexit 0\n")
++        FileUtils.chmod(0o755, existing)
++
++        chosen = Hive::Install::CommandName.choose(install_dir: install_dir, path_env: existing_dir)
++
++        assert_equal "hv", chosen
++      end
++    end
++  end
++
++  def test_choose_hive_when_path_points_to_owned_install
++    with_tmp_dir do |install_dir|
++      installed = File.join(install_dir, "hive")
++      File.write(installed, "#!/bin/sh\nexit 0\n")
++      FileUtils.chmod(0o755, installed)
++
++      chosen = Hive::Install::CommandName.choose(install_dir: install_dir, path_env: install_dir)
++
++      assert_equal "hive", chosen
++    end
++  end
++end
+diff --git a/test/unit/paths_test.rb b/test/unit/paths_test.rb
+new file mode 100644
+index 00000000..4aa1b36a
+--- /dev/null
++++ b/test/unit/paths_test.rb
+@@ -0,0 +1,43 @@
++require "test_helper"
++require "hive/paths"
++
++class PathsTest < Minitest::Test
++  def test_xdg_defaults_append_hive
++    env = { "HOME" => "/home/tester" }
++
++    assert_equal "/home/tester/.config/hive", Hive::Paths.config_dir(env)
++    assert_equal "/home/tester/.local/share/hive", Hive::Paths.data_dir(env)
++    assert_equal "/home/tester/.local/state/hive", Hive::Paths.state_dir(env)
++    assert_equal "/home/tester/.cache/hive", Hive::Paths.cache_dir(env)
++  end
++
++  def test_xdg_overrides_append_hive
++    env = {
++      "HOME" => "/home/tester",
++      "XDG_CONFIG_HOME" => "/cfg",
++      "XDG_DATA_HOME" => "/data",
++      "XDG_STATE_HOME" => "/state",
++      "XDG_CACHE_HOME" => "/cache"
++    }
++
++    assert_equal "/cfg/hive", Hive::Paths.config_dir(env)
++    assert_equal "/data/hive", Hive::Paths.data_dir(env)
++    assert_equal "/state/hive", Hive::Paths.state_dir(env)
++    assert_equal "/cache/hive", Hive::Paths.cache_dir(env)
++  end
++
++  def test_config_and_receipt_paths
++    env = { "HOME" => "/home/tester" }
++
++    assert_equal "/home/tester/.config/hive/config.yml", Hive::Paths.config_file(env)
++    assert_equal "/home/tester/.config/hive/install_receipt.yml", Hive::Paths.install_receipt(env)
++  end
++
++  def test_legacy_paths_are_readable_compatibility_locations
++    env = { "HOME" => "/home/tester" }
++
++    assert_equal "/home/tester/Dev/hive", Hive::Paths.legacy_hive_home(env)
++    assert_equal "/home/tester/Dev/hive/config.yml", Hive::Paths.legacy_global_config(env)
++    assert_equal "/home/tester/.hive-state", Hive::Paths.legacy_dot_state(env)
++  end
++end
+diff --git a/test/unit/version_test.rb b/test/unit/version_test.rb
+new file mode 100644
+index 00000000..7f2a7dc7
+--- /dev/null
++++ b/test/unit/version_test.rb
+@@ -0,0 +1,23 @@
++require "test_helper"
++require "open3"
++require "hive/version"
++
++class VersionTest < Minitest::Test
++  def test_build_info_includes_version
++    assert_equal Hive::VERSION, Hive::BuildInfo.to_h.fetch("version")
++  end
++
++  def test_version_string_is_plain_version_for_smoke_checks
++    assert_equal Hive::VERSION, Hive::BuildInfo.version_string
++  end
++
++  def test_runtime_env_cannot_override_embedded_version
++    out, _err, status = Open3.capture3(
++      { "HIVE_BUILD_VERSION" => "v9.9.9" },
++      "ruby", "-Ilib", "-e", "require 'hive/version'; puts Hive::VERSION"
++    )
++
++    assert status.success?
++    assert_equal "#{Hive::VERSION}\n", out
++  end
++end
+diff --git a/wiki/commands/daemon.md b/wiki/commands/daemon.md
+index 308f04ce..4cc2f4c8 100644
+--- a/wiki/commands/daemon.md
++++ b/wiki/commands/daemon.md
+@@ -30,11 +30,11 @@ hive daemon disable PROJECT | --all  [--json]
+ 
+ | Subcommand | Behavior |
+ |-----------|----------|
+-| `start`    | Acquires the PID file (`~/Dev/hive/.daemon.pid`); without `--detach` runs in the foreground. With `--detach` calls `Process.daemon(true, true)` and the parent returns immediately. With `--dry-run` logs every dispatch decision but does NOT spawn child `hive ...` processes. Refuses with exit `75 (TEMPFAIL)` if a live daemon already holds the PID file. |
++| `start`    | Acquires the PID file (`~/.local/state/hive/.daemon.pid` by default, or `HIVE_HOME/.daemon.pid` when the compatibility override is set); without `--detach` runs in the foreground. With `--detach` calls `Process.daemon(true, true)` and the parent returns immediately. With `--dry-run` logs every dispatch decision but does NOT spawn child `hive ...` processes. Refuses with exit `75 (TEMPFAIL)` if a live daemon already holds the PID file. |
+ | `stop`     | Sends `SIGTERM` to the running daemon's PID. Waits up to `daemon.shutdown_grace_sec` (default 600s) for the daemon to exit, then escalates to `SIGKILL`. Idempotent: `stop` with no PID file exits 0 with `daemon not running` on stderr; a stale PID file (process gone) is removed and the call exits 0. With `--json`, emits a `hive-daemon-stop` envelope (fields: `running`, `was_running`, `stale_pid?`, `reason?` — `pid_reused` / `unverified` for safety bailouts). |
+ | `status`   | Reports running / not running. Exit code 0 if running, 1 if not. With `--json`, emits a `hive-daemon-status` envelope with `running`, `pid`, `uptime_sec`, `pid_file`, `log_file`. |
+ | `reload`   | Sends `SIGHUP` to the running daemon's PID, which triggers config reload at the next tick boundary. In-flight children continue uninterrupted. Exit 1 if no daemon running. With `--json`, emits a `hive-daemon-reload` envelope (`ok`, `reason`, `pid`, `message`). |
+-| `tail`     | `tail -F` semantics on `~/Dev/hive/logs/daemon.log` (self-implemented; doesn't shell out to the `tail` binary). Exit 1 if the log file doesn't exist. |
++| `tail`     | `tail -F` semantics on `~/.local/state/hive/logs/daemon.log` by default (self-implemented; doesn't shell out to the `tail` binary). Exit 1 if the log file doesn't exist. |
+ | `enable`   | Sets `daemon.enabled: true` in `<project>/.hive-state/config.yml`. Surgical line-level YAML editor (upsert) preserves comments, key order, and file-mode bits across enable/disable flips; rejects inline-flow `daemon: { ... }`, CRLF endings, and 4-space-indented children before any write. Atomic write goes via tempfile + `flock(LOCK_EX)` + `fsync` + rename; tempfile is ensure-cleaned on rename failure (ENOSPC / EACCES / EXDEV). Pre-flight (`preflight_targets`) validates every target before any write so `--all` cannot half-flip the registry on a bad middle project. Pass a registered project name OR `--all` (mutually exclusive — passing both raises USAGE 64). Exit 64 on missing/unknown target / not-initialised project / no registered projects. With `--json`, emits a `hive-daemon-enroll` envelope on success and an `EnrollErrorKind` JSON error envelope on failure (`missing_project` / `unknown_project` / `project_and_all` / `not_initialised` / `no_projects` / `config` / `internal`); YAML parse failures surface as `Hive::ConfigError` (exit 78). |
+ | `disable`  | Same shape as `enable`, sets `daemon.enabled: false`. The next dispatcher tick honours the change automatically (per-tick enable-cache invalidation); `hive daemon reload` is optional for instant pickup. |
+ 
+@@ -93,7 +93,7 @@ All under `daemon:` in `~/Dev/hive/config.yml`:
+ | `max_runs_per_day_per_project` | 50 | Circuit breaker for runaway loops. |
+ | `transient_retry_backoff_sec` | 60 | Base of `60 → 120 → 300 s` backoff schedule. |
+ | `shutdown_grace_sec` | 600 | TERM→KILL window for in-flight children on `daemon stop`. |
+-| `log_file` | `~/Dev/hive/logs/daemon.log` | Structured-log destination. |
++| `log_file` | `~/.local/state/hive/logs/daemon.log` | Structured-log destination, unless overridden in global config. |
+ | `log_max_bytes` | 10485760 | 10 MB rotation threshold. |
+ | `log_max_files` | 5 | 5 × 10 MB = 50 MB log budget. |
+ 
+@@ -111,7 +111,7 @@ All under `daemon:` in `~/Dev/hive/config.yml`:
+ 
+ ## Structured log
+ 
+-`~/Dev/hive/logs/daemon.log` is one JSON document per line:
++`~/.local/state/hive/logs/daemon.log` is one JSON document per line by default:
+ 
+ ```json
+ {"ts":"2026-05-06T12:00:00Z","schema":"hive-daemon-log","schema_version":1,"event":"dispatched","pid":12345,"project":"writero","slug":"fix-x","stage":"6-review","command":"hive run fix-x --json","dry_run":false}
+diff --git a/wiki/commands/init.md b/wiki/commands/init.md
+index ee73c372..9c0817b1 100644
+--- a/wiki/commands/init.md
++++ b/wiki/commands/init.md
+@@ -39,17 +39,20 @@ hive init [PROJECT_PATH] [--force]
+    - Initial commit `hive: bootstrap` on `hive/state`.
+ 5. **Render `<path>/.hive-state/config.yml`** from `templates/project_config.yml.erb`, threading the answers hash from step 3 through `ProjectConfigBinding`. Skipped if the file already exists.
+ 6. **Ignore `.hive-state/` on master** via `GitOps#add_hive_state_to_master_gitignore!`: appends `/.hive-state/` to `.gitignore` (idempotent), then commits `chore: ignore .hive-state worktree` on master.
+-7. **Register globally** via `Hive::Config.register_project(name: basename(path), path: path)`, writing into `~/Dev/hive/config.yml`.
+-8. Print summary: project name, default branch, hive-state path, worktree root, and a `next:` line with the `hive new ...` invocation.
++7. **Register globally** via `Hive::Config.register_project(name: basename(path), path: path)`, writing into `~/.config/hive/config.yml` by default (`HIVE_HOME` remains the compatibility/test override).
++8. **Register service definition** via `Hive::Service.manager.register`. If the prompt answers include `daemon_autostart: true`, call `enable_and_start`; otherwise leave the service installed but not enabled or started.
++9. Print summary: project name, default branch, hive-state path, worktree root, service file when supported, and a `next:` line with the `hive new ...` invocation.
+ 
+ ## Prompt flow (ADR-023)
+ 
+-On TTY input streams the prompt walks the operator through four sections in order:
++On TTY input streams the prompt walks the operator through six sections in order:
+ 
+ 1. **Planning agent** (`brainstorm.agent` + `plan.agent`): one combined choice; the answer maps to both keys. Recommended default `claude`.
+ 2. **Development agent** (`execute.agent`): the implementer in `4-execute`. Recommended default `codex` (its edit-mode is more efficient for implementation work). Codex's status-detection mode is `:output_file_exists`, but the execute spawn pins `status_mode: :state_file_marker` because the stage's lifecycle contract is the marker the agent writes — the pin keeps that contract independent of the chosen profile.
+ 3. **Review agents** (`review.reviewers[]`): multi-select over the three default reviewers (claude-ce-code-review, codex-ce-code-review, pr-review-toolkit). Disabled entries are omitted from the rendered array.
+-4. **Per-stage limits**: budget+timeout for each of 8 effective keys (`brainstorm`, `plan`, `execute_implementation`, `pr`, `review_ci`, `review_triage`, `review_fix`, `review_browser`). Defaults are generous sanity caps — most tasks finish well within them.
++4. **Triage bias** (`review.triage.bias`): `courageous` (default) or `safetyist`.
++5. **Per-stage limits**: budget+timeout for each of 9 effective keys (`brainstorm`, `plan`, `execute_implementation`, `open_pr`, `finalize`, `review_ci`, `review_triage`, `review_fix`, `review_browser`). Defaults are generous sanity caps — most tasks finish well within them.
++6. **Daemon consent**: `daemon.enabled` defaults to yes for the project enrollment flag, while `daemon_autostart` defaults to no and is required before enabling/starting the OS user service.
+ 
+ Each agent and reviewer prompt accepts **either a name or a 1-based index** (e.g., `codex` or `2`; `claude-ce-code-review,pr-review-toolkit` or `1,3`). Name strings are the recommended path for scripted automation since they're stable across template-default reordering.
+ 
+@@ -66,7 +69,7 @@ Reordering either is a **breaking change for scripted automation** that uses ind
+ When `$stdin.tty?` is false the prompt module skips every question and emits exactly one line to `$stdout`:
+ 
+ ```
+-hive: using defaults — planning=claude, dev=codex, reviewers=all3, limits=defaults
++hive: using defaults — planning=claude, dev=codex, reviewers=all3, triage=courageous, limits=defaults, daemon=enabled, autostart=disabled
+ ```
+ 
+ Piped input is **not** consumed — `printf 'codex\n...' | hive init` ignores the piped data and uses defaults. Document this contract for any automation that wants to set non-default values: use `--force` plus an explicitly-edited YAML rather than expecting heredoc piping to populate answers.
+diff --git a/wiki/index.md b/wiki/index.md
+index 2b728a8f..5c80d5eb 100644
+--- a/wiki/index.md
++++ b/wiki/index.md
+@@ -3,15 +3,15 @@ title: hive Wiki
+ type: index
+ source: wiki/**/*.md
+ created: 2026-05-14
+-updated: 2026-05-16
++updated: 2026-07-10
+ tags: [index, wiki]
+ ---
+ 
+ 
+ **TLDR**: Catalog of the LLM-maintained wiki for `hive`.
+ 
+-Page count: 60
+-Updated: 2026-05-16
++Page count: 61
++Updated: 2026-07-10
+ 
+ Folder-as-agent pipeline: a Ruby 3.4 / Thor CLI control plane that drives an eight-stage filesystem state machine (`1-inbox` → `2-brainstorm` → `3-plan` → `4-execute` → `5-open-pr` → `6-review` → `7-finalize` → `8-done`) where stage agents run via configurable AgentProfile CLIs (`claude` default, `codex`, `pi`) and `mv` between directories is the approval primitive.
+ 
+@@ -65,6 +65,7 @@ Folder-as-agent pipeline: a Ruby 3.4 / Thor CLI control plane that drives an eig
+ - [[modules/workflows]] — `wiki/modules/workflows.md`
+ - [[modules/worktree]] — `wiki/modules/worktree.md`
+ - [[operating]] — `wiki/operating.md`
++- [[packaging]] — `wiki/packaging.md`
+ - [[stages/brainstorm]] — `wiki/stages/brainstorm.md`
+ - [[stages/done]] — `wiki/stages/done.md`
+ - [[stages/execute]] — `wiki/stages/execute.md`
+diff --git a/wiki/log.md b/wiki/log.md
+index 641bec70..2be74707 100644
+--- a/wiki/log.md
++++ b/wiki/log.md
+@@ -1607,3 +1607,24 @@ dispatch while preserving first-sight brainstorm baseline behavior.
+ - `wiki/commands/tui.md` — documented red-status detail mode, keybindings, snapshot refresh behavior, and preserved direct recovery exceptions.
+ - `wiki/decisions.md` — ADR-027 records the diagnose-then-act policy and its relationship to ADR-025.
+ - `wiki/index.md` — bumped refresh date.
++## 2026-07-10
++
++**Action:** Started installable packaging work from the stage-4 execution plan. Added the XDG path decision to [[modules/config]] and [[state-model]]: new global config defaults to `~/.config/hive/config.yml`, runtime state helpers point at `~/.local/state/hive`, and `HIVE_HOME` remains the compatibility/test override.
++
++**Action:** Added [[packaging]] for the release artifact contract. Release builds now have a shared Ruby contract for semver-only tags, tier-1 target names, SHA256 files, and Tebako-backed bundle artifacts; `rake test` now includes `test/release`.
++
++**Action:** Added the Homebrew tap formula contract to [[packaging]]. The formula consumes the macOS arm64 GitHub Release tarball, avoids a Ruby dependency, installs `hive` plus `hv`, and explains XDG paths plus `hive init` daemon registration in caveats.
++
++**Action:** Added the AUR `hive-bin` package contract to [[packaging]]. The package consumes the Linux GitHub Release tarball, avoids a Ruby dependency, installs `hive` plus `hv`, and ships post-install guidance for XDG paths plus systemd-user registration through `hive init`.
++
++**Action:** Added the script installer contract to [[packaging]]. `install.sh` detects tier-1 platforms, prefers Homebrew/AUR when available, falls back to GitHub Release artifacts with SHA256 verification, writes an XDG install receipt, and chooses `hv` when `hive` conflicts on PATH.
++
++**Action:** Added init/service packaging behavior to [[packaging]]. `hive init` now creates a versioned `.hive/` project scaffold and registers a launchd/systemd-user service file through `Hive::Service` adapters without implicitly enabling autostart.
++
++**Action:** Added lifecycle commands to [[packaging]]. `hive update` delegates to Homebrew, AUR, or the script installer based on `install_receipt.yml`; `hive uninstall` removes service registrations and script-owned binaries while preserving project scaffolds and `~/.local/state/hive` work artifacts by default.
++
++**Action:** Added the agent prompt and separate skills-package contract to [[packaging]]. `prompts/install.md` selects native channels, verifies `hive --version` before `hive init`, asks before project setup, and requires marketplace-only skills installation; `skills/hive/` declares marketplace metadata without direct file-copy commands.
++
++**Action:** Added operator packaging docs and tier-1 acceptance checklists to [[packaging]]. Docs now cover install, update, uninstall, daemon service registration, and release gates; `test/e2e/*acceptance.md` captures macOS Homebrew, Arch AUR, Ubuntu script, and prompt-installer scenarios.
++
++**Action:** Fixed stage-6 packaging review findings in [[packaging]], [[commands/init]], [[commands/daemon]], and [[modules/daemon]]. Release publishing now creates the combined checksum manifest required by `install.sh`; Tebako builds stamp and restore embedded build metadata instead of relying on end-user `HIVE_BUILD_*` environment variables, with `Hive::VERSION` kept as plain semver for gemspec safety; init keeps OS service autostart behind a separate default-no prompt and renders launchd `RunAtLoad` false unless explicitly enabled; daemon PID/log defaults use `Config.runtime_home` (`~/.local/state/hive`) with `HIVE_HOME` as the compatibility override; unknown `hive update` channels now raise; generated AUR `.SRCINFO` expands `vX.Y.Z`; and `hive uninstall --purge` preserves `.hive/` until a TTY yes or `--yes` confirms project cleanup.
+diff --git a/wiki/modules/config.md b/wiki/modules/config.md
+index b7c53d6f..91c1bc49 100644
+--- a/wiki/modules/config.md
++++ b/wiki/modules/config.md
+@@ -3,11 +3,11 @@ title: Hive::Config
+ type: module
+ source: lib/hive/config.rb
+ created: 2026-04-25
+-updated: 2026-05-14
++updated: 2026-07-10
+ tags: [config, yaml, validation]
+ ---
+ 
+-**TLDR**: Two YAML configs — global at `~/Dev/hive/config.yml` (registered projects) and per-project at `<project>/.hive-state/config.yml` (default branch, worktree root, budgets, timeouts, **stage agents**, review-stage roles). `Config.load(project_root)` **recursively** deep-merges per-project values onto `Config::DEFAULTS`, then runs `validate!`. Arrays (notably `review.reviewers`) are replaced wholesale, never per-element merged.
++**TLDR**: Two YAML configs — global at `~/.config/hive/config.yml` by default (registered projects) and per-project at `<project>/.hive-state/config.yml` (default branch, worktree root, budgets, timeouts, **stage agents**, review-stage roles). `HIVE_HOME` remains a compatibility/test override for the global config root. `Config.load(project_root)` **recursively** deep-merges per-project values onto `Config::DEFAULTS`, then runs `validate!`. Arrays (notably `review.reviewers`) are replaced wholesale, never per-element merged.
+ 
+ ## Defaults (`Config::DEFAULTS`)
+ 
+@@ -68,8 +68,9 @@ tags: [config, yaml, validation]
+ 
+ | Function | Returns / does |
+ |----------|----------------|
+-| `hive_home` | `ENV["HIVE_HOME"] || ~/Dev/hive` |
++| `hive_home` | `ENV["HIVE_HOME"] || Hive::Paths.config_dir` (`~/.config/hive`) |
+ | `global_config_path` | `<hive_home>/config.yml` |
++| `runtime_home` | `ENV["HIVE_HOME"] || Hive::Paths.state_dir` (`~/.local/state/hive`) |
+ | `hive_state_dir(project_root, name = ".hive-state")` | `<project_root>/<name>` |
+ | `load(project_root)` | Reads `<project_root>/.hive-state/config.yml`, recursively deep-merges onto DEFAULTS, validates, returns Hash with `"project_root"` injected. Returns DEFAULTS-only hash if config absent. |
+ | `registered_projects` | Reads global config; returns `[{name, path, hive_state_path}, …]` (paths `expand_path`-ed). |
+diff --git a/wiki/modules/daemon.md b/wiki/modules/daemon.md
+index 81498482..523b4799 100644
+--- a/wiki/modules/daemon.md
++++ b/wiki/modules/daemon.md
+@@ -31,9 +31,9 @@ decisions are unit-testable without forking.
+ ```
+ hive daemon start
+   └─ Hive::Commands::Daemon
+-       ├─ writes ~/Dev/hive/.daemon.pid
++       ├─ writes ~/.local/state/hive/.daemon.pid
+        └─ Hive::Daemon::Dispatcher.run_forever
+-            ├─ Hive::Daemon::Logger      (~/Dev/hive/logs/daemon.log, JSON-line)
++            ├─ Hive::Daemon::Logger      (~/.local/state/hive/logs/daemon.log, JSON-line)
+             ├─ Hive::Daemon::ConcurrencyController
+             ├─ Hive::Daemon::ChildSupervisor   (Process.spawn pgroup: true)
+             ├─ Hive::Daemon::StatusConsumer    (Open3.capture3 hive status --json)
+diff --git a/wiki/packaging.md b/wiki/packaging.md
+new file mode 100644
+index 00000000..ddec620e
+--- /dev/null
++++ b/wiki/packaging.md
+@@ -0,0 +1,71 @@
++---
++title: Packaging
++type: release
++source: packaging/, hive.gemspec, .github/workflows/release.yml
++created: 2026-07-10
++updated: 2026-07-10
++tags: [packaging, release, install]
++---
++
++**TLDR**: Hive release artifacts are semver-tagged GitHub Release tarballs built from `packaging/build/build_release.rb`. The contract names tier-1 assets as `hive-vX.Y.Z-<target>.tar.gz`, writes `.sha256` files plus a combined checksums file, and embeds version/commit/build-time/target metadata beside the packaged `hive` executable.
++
++## Artifact Contract
++
++The shared contract lives in `Hive::Packaging::BuildRelease`:
++
++- Semver tags must match `vMAJOR.MINOR.PATCH` with optional prerelease/build metadata.
++- Tier-1 targets are `darwin-arm64` and `linux-x86_64-gnu`.
++- The canonical names are `hive-v0.1.0-darwin-arm64.tar.gz`, `hive-v0.1.0-linux-x86_64-gnu.tar.gz`, and `hive-v0.1.0-checksums.txt`.
++- Each tarball unpacks an executable named `hive` and a JSON manifest with the `hive-release-artifact` schema.
++
++The release workflow uses Tebako `press` in bundle mode so the binary includes Ruby and gem dependencies. During packaging it stamps `lib/hive/build_metadata.rb` with the plain semver version, commit, build time, and target before running Tebako, then restores the source file. Artifact names and manifests keep the `vX.Y.Z` tag contract, while `Hive::VERSION` stays gemspec-safe (`X.Y.Z`). The publish job generates the combined `hive-vX.Y.Z-checksums.txt` after both platform artifacts are downloaded so `install.sh` has one canonical manifest. Install channels consume these release artifacts instead of rebuilding from source. See [[modules/config]] for the XDG runtime paths that packaged installs use.
++
++## Homebrew
++
++`packaging/homebrew/Formula/hive.rb` is the tap formula for macOS arm64. It downloads `hive-vX.Y.Z-darwin-arm64.tar.gz`, verifies SHA256, installs `hive`, and adds an `hv` symlink for command-name conflicts. The formula intentionally has no `depends_on "ruby"` because the release artifact is self-contained.
++
++`packaging/homebrew/update_formula.rb` renders the formula from release metadata. The checked-in formula keeps a placeholder checksum until the release workflow or maintainer stamps the real SHA from GitHub Releases.
++
++## Arch AUR
++
++`packaging/aur/hive-bin/PKGBUILD` is the binary Arch package. It downloads `hive-vX.Y.Z-linux-x86_64-gnu.tar.gz`, verifies SHA256, installs `/usr/bin/hive`, and adds `/usr/bin/hv`. The package is named `hive-bin`, provides `hive`, conflicts with a source-built `hive`, and does not depend on Ruby.
++
++`packaging/aur/update_pkgbuild.rb` renders both `PKGBUILD` and `.SRCINFO` from release metadata. `PKGBUILD` can keep `v${pkgver}` shell expansion, but `.SRCINFO` is rendered with the expanded `vX.Y.Z` URL to match `makepkg --printsrcinfo`. The checked-in files keep placeholder checksums until release time.
++
++## Script Installer
++
++`install.sh` is the fallback `curl | bash` installer. It detects tier-1 platforms, prefers Homebrew on macOS and AUR helpers on Arch unless `HIVE_INSTALL_PREFER_NATIVE=0`, downloads GitHub Release artifacts for direct installs, verifies SHA256, installs into `~/.local/bin`, creates XDG directories, and writes `~/.config/hive/install_receipt.yml`.
++
++The script chooses `hv` when an unrelated `hive` executable is already first on `PATH`. It prints actionable hints for missing dependencies and does not install third-party tools.
++
++## Init and Service Registration
++
++`hive init` now also creates a project-facing `.hive/` scaffold from `templates/project/.hive/`. The existing `.hive-state/` worktree remains the pipeline state store; `.hive/` is for versioned project-local defaults.
++
++Service templates live under `templates/service/`. `Hive::Service::SystemdUser` renders `hive.service`; `Hive::Service::Launchd` renders `org.hive.daemon.plist`. `hive init` registers the service definition but does not enable autostart implicitly. The init prompt has a separate default-no `daemon_autostart` question; only an explicit yes calls `enable_and_start`, and launchd registration renders `RunAtLoad` false until that consent is given.
++
++## Lifecycle Commands
++
++`Hive::InstallReceipt` reads `~/.config/hive/install_receipt.yml` for script installs. `hive update` delegates to the native owner: Homebrew runs `brew upgrade <org>/hive/hive`, AUR runs the configured helper against `hive-bin`, and script installs re-run the release `install.sh`. Unknown install channels raise `Hive::Error` after printing manual reinstall guidance so wrapper agents see a non-zero exit.
++
++`hive uninstall` removes service registrations and script-owned binaries, but package-manager installs are told to use their native uninstall command. Project `.hive/` cleanup is preserved by default. `--purge` expresses cleanup intent, then `.hive/` removal still requires either a TTY yes at the project-cleanup prompt or `--yes` for non-interactive confirmation. `~/.local/state/hive` work artifacts are preserved.
++
++## Agent Prompt and Skills Package
++
++`prompts/install.md` is the published agent-installer prompt. It requires OS/channel detection, `hive --version` verification before `hive init`, an explicit prompt before project setup, and marketplace-only skills installation.
++
++The skills package source lives under `skills/hive/` but is a separate distribution artifact. The core binary must not write agent directories; unsupported marketplace targets degrade to manual follow-up.
++
++## Operator Documentation and Acceptance
++
++Operator docs live in `docs/install.md`, `docs/update.md`, `docs/uninstall.md`, `docs/daemon.md`, and `docs/release.md`. Tier-1 acceptance checklists live under `test/e2e/*acceptance.md`; `.github/workflows/e2e-install.yml` runs the Ubuntu script-installer dry run and docs contract tests.
++
++## Tests
++
++`test/release/artifact_contract_test.rb` validates semver gating, target rejection, deterministic names, manifest metadata, and SHA256 file format. `test/packaging/homebrew_formula_test.rb` validates the tap formula contract. `test/packaging/aur_pkgbuild_test.rb` validates the AUR metadata contract. `test/install/install_sh_test.rb` validates script-installer platform detection, unsupported-platform behavior, command conflict handling, and receipt writing. The default `rake test` task includes `test/release`, `test/packaging`, and `test/install`.
++
++## Backlinks
++
++- [[architecture]]
++- [[dependencies]]
++- [[testing]]
+diff --git a/wiki/state-model.md b/wiki/state-model.md
+index 29a9e1a2..280b5c9f 100644
+--- a/wiki/state-model.md
++++ b/wiki/state-model.md
+@@ -3,11 +3,11 @@ title: State Model
+ type: data-model
+ source: lib/hive/task.rb, lib/hive/markers.rb, lib/hive/config.rb, lib/hive/lock.rb, lib/hive/worktree.rb, lib/hive/metrics.rb, lib/hive/bot/*
+ created: 2026-04-25
+-updated: 2026-05-14
++updated: 2026-07-10
+ tags: [state, filesystem, model, architecture, review]
+ ---
+ 
+-**TLDR**: Hive has no database. Persistent state lives entirely in two filesystem trees per project — `<project>/.hive-state/` (an orphan-branch worktree holding task folders, configs, locks, logs) and `~/Dev/<project>.worktrees/<slug>/` (feature worktrees holding actual code) — plus one global `~/Dev/hive/config.yml`. The "data model" is the directory layout, marker grammar, and YAML schemas described below.
++**TLDR**: Hive has no database. Persistent state lives entirely in two filesystem trees per project — `<project>/.hive-state/` (an orphan-branch worktree holding task folders, configs, locks, logs) and `~/Dev/<project>.worktrees/<slug>/` (feature worktrees holding actual code) — plus one global config at `~/.config/hive/config.yml` by default. The "data model" is the directory layout, marker grammar, and YAML schemas described below.
+ 
+ ## Stage directory layout
+ 
+@@ -142,7 +142,7 @@ No `pass:` frontmatter or sidecar — recovery is "delete the highest-NN files t
+ 
+ ## Configs
+ 
+-### Global: `~/Dev/hive/config.yml`
++### Global: `~/.config/hive/config.yml`
+ 
+ ```yaml
+ registered_projects:
+@@ -166,7 +166,7 @@ bot:
+   last_seen_state_file: ~/Dev/hive/.bot.last_seen_update_id
+ ```
+ 
+-Managed by `Hive::Config.register_project` (`lib/hive/config.rb:79`); deregistered by `unregister_project` (one row, by name) and `prune_missing_projects!` (every row whose `path` is missing OR whose shape is invalid). `HIVE_HOME` env var overrides the default `~/Dev/hive`.
++Managed by `Hive::Config.register_project` (`lib/hive/config.rb:79`); deregistered by `unregister_project` (one row, by name) and `prune_missing_projects!` (every row whose `path` is missing OR whose shape is invalid). `HIVE_HOME` env var overrides the default `~/.config/hive` for compatibility and tests.
+ 
+ Loader tolerance (`Config.registered_projects` / `load_global_config`): a non-Hash row, a row missing `name`, or a row whose `path` isn't a String is *skipped silently* instead of raising — a single hand-edit accident can no longer brick `status`/`forget`/`prune`/TUI. `Psych::Exception` (any malformed YAML — syntax, disallowed-class, alias-not-enabled) plus `Errno::EACCES`/`EISDIR` are rewrapped as `ConfigError` (exit 78); `chmod 000 ~/Dev/hive/config.yml` no longer leaks as exit-70 InternalError. `prune` is the cleanup verb for invalid rows surfaced this way (predicate `Config.droppable_registry_entry?` covers both missing-path and invalid-shape; `valid_registry_entry?` is the shared shape gate). All writes go through `write_global_config!` so the read/write classification is symmetric and a future flock upgrade (Issue #31) lands in one place. See [[commands/forget]] · [[commands/prune]] · [[modules/config]]. All writers (`register_project`, `unregister_project`, `prune_missing_projects!`) go through `Hive::Config.write_global_config!`, which rewraps `Errno::EACCES`/`EROFS`/`ENOSPC` as `Hive::ConfigError` (exit 78). The reader (`load_global_config`) likewise rewraps `Psych::SyntaxError` AND `Errno::EACCES`/`EISDIR` to `ConfigError` so a `chmod 000` on `~/Dev/hive/config.yml` surfaces as exit 78, not exit 70. Name matching in `unregister_project` is `to_s`-symmetric so a hand-edited Integer `name:` in YAML still resolves. `forget`/`prune` `--json` envelopes use `Hive::Schemas::EnvelopeEmitter` (`lib/hive.rb`) and `File.expand_path` raw `path` / `hive_state_path` to honor the schemas' "Absolute path" contract regardless of how the registry row was hand-edited.
+ 
+diff --git a/wiki/testing.md b/wiki/testing.md
+index 28096a6d..d466ccdf 100644
+--- a/wiki/testing.md
++++ b/wiki/testing.md
+@@ -3,11 +3,11 @@ title: Testing
+ type: reference
+ source: test/, Rakefile, .rubocop.yml
+ created: 2026-04-25
+-updated: 2026-04-29
++updated: 2026-07-10
+ tags: [test, minitest, fixtures]
+ ---
+ 
+-**TLDR**: Minitest for unit/integration coverage, plus an opt-in outer e2e layer. `test/unit/` covers modules, `test/integration/` covers command/stage behaviour in-process, and `test/e2e/` drives the real `bin/hive` subprocess plus tmux for TUI scenarios.
++**TLDR**: Minitest for unit/integration/release/packaging/install coverage, plus an opt-in outer e2e layer. `test/unit/` covers modules, `test/integration/` covers command/stage behaviour in-process, `test/release/` covers release artifact contracts, `test/packaging/` covers install-channel metadata, `test/install/` covers the script installer contract, and `test/e2e/` drives the real `bin/hive` subprocess plus tmux for TUI scenarios.
+ 
+ ## Run all
+ 
+@@ -20,7 +20,7 @@ bundle exec rake test
+ Rake::TestTask.new do |t|
+   t.libs << "test"
+   t.libs << "lib"
+-  t.test_files = FileList["test/**/*_test.rb"]
++  t.test_files = FileList["test/{unit,integration,release,packaging,install,hive,prompts,skills}/**/*_test.rb"]
+   t.warning = false
+ end
+ task default: :test
+@@ -52,6 +52,33 @@ task default: :test
+ | `git_ops_test.rb` | `Hive::GitOps` — default-branch detection, orphan worktree bootstrap, idempotent gitignore, empty-diff commit skip. |
+ | `agent_test.rb` | `Hive::Agent` — spawn/wait/timeout/SIGINT forwarding, version check. |
+ 
++## Release suite (`test/release/`)
++
++| File | Covers |
++|------|--------|
++| `artifact_contract_test.rb` | Release semver gate, tier-1 artifact naming, manifest metadata, SHA256 files. |
++
++## Packaging suite (`test/packaging/`)
++
++| File | Covers |
++|------|--------|
++| `homebrew_formula_test.rb` | Homebrew URL/SHA renderer, no system Ruby dependency, `hv` alias, caveats. |
++| `aur_pkgbuild_test.rb` | AUR `hive-bin` metadata, Linux release artifact URL, `hv` alias, install message. |
++| `docs_contract_test.rb` | Packaging docs and tier-1 acceptance checklist channel/verification coverage. |
++
++## Install suite (`test/install/`)
++
++| File | Covers |
++|------|--------|
++| `install_sh_test.rb` | Bash installer platform detection, unsupported platforms, `hv` conflict choice, receipt YAML. |
++
++## Prompt and skills suites
++
++| Path | Covers |
++|------|--------|
++| `test/prompts/install_prompt_contract_test.rb` | Agent install prompt channel logic, version-before-init ordering, marketplace-only skills language. |
++| `test/skills/skills_manifest_test.rb` | Hive skills manifest metadata and marketplace fallback behavior. |
++
+ ## Integration suite (`test/integration/`)
+ 
+ | File | Covers |

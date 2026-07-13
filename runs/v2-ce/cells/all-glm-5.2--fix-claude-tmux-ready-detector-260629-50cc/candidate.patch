@@ -1,0 +1,707 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 56eb7b33..e4a040f0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,23 @@
+ 
+ All notable changes are documented here, newest first. Hive ships frequent micro-releases (see [docs/RELEASING.md](docs/RELEASING.md#versioning-policy)): each `vX.Y.Z` git tag gets a `## X.Y.Z` section with terse bullets — no `[Unreleased]` accumulator. Versioning is [SemVer](https://semver.org): PATCH for fixes and small changes (the common case), MINOR for notable features, MAJOR for milestones.
+ 
++## 0.3.3
++
++Two coupled defects blocked `hive run` in Claude tmux mode against Claude Code 2.1.179 on a clean install of the `hive-cli` release gem. Both are fixed here; a 0.3.3 patch release is the intended vehicle (not published by this change).
++
++### Packaging
++
++- Fixed: `hive.gemspec`'s `spec.files` glob was `lib/**/*.rb` (Ruby files only), so the built gem shipped without `lib/hive/scripts/interactive_claude_wrapper.sh` and `lib/hive/scripts/stop_hook.sh`. `bash <missing-file>` exited instantly and killed the tmux session before Hive could inspect it (`claude_launch_failed` / can't find pane); the missing stop hook also meant `.done` / `result.json` were never written, so `exit_code_only` / `state_file_marker` waits hung to timeout. Added `lib/hive/scripts/**/*.sh` to `spec.files`.
++- Added a built-gem packaging guard (builds the actual `.gem`, inspects its contents) plus a lighter `spec.files` unit check so a runtime shell script referenced by `ClaudeLauncher` / `StopHookInstaller` can never again ship missing from the artifact.
++
++### Claude tmux ready detector
++
++- Fixed: Claude Code 2.1.179's idle prompt was not recognized. The caret line uses a non-breaking space (U+00A0) after `❯`, and the input box now ends with separator / caret / separator / footer. The detector matched `\s` after `❯` (which does not match NBSP) and only inspected the last 2 nonblank lines, so it missed the caret and timed out with "claude interactive prompt did not become ready". The ready line now uses `[[:space:]]` plus an explicit `\p{Zs}` alternation (Unicode separator space, incl. NBSP) and scans a wider tail window, requiring every line beneath the matched caret to be chrome (footer / decorative separator) so a stale `❯` in scrollback cannot read as ready.
++
++### Also
++
++- End-to-end validation note (not fixed here): daemon/systemd binary drift (`/usr/bin/hive` 0.3.1 vs `~/.local/bin/hive` 0.3.2) is tracked as separate local-setup / daemon auto-retry work.
++
+ ## 0.3.2
+ 
+ Setup, the Telegram bot, and TUI performance are the focus of this release. Selected agent backends now persist globally so new projects inherit them; the bot gains idea-by-default capture, a `/waiting` view backed by a daily pending-answer digest, task-id slash commands, and structured JSON errors; and TUI status polling now scales with the number of active tasks instead of the whole archive.
+diff --git a/hive.gemspec b/hive.gemspec
+index d1e8c7cf..9a9823cc 100644
+--- a/hive.gemspec
++++ b/hive.gemspec
+@@ -35,6 +35,17 @@ Gem::Specification.new do |spec|
+     "bin/hive-babysitter-stub-git",
+     "bin/hv",
+     "lib/**/*.rb",
++    # Shell scripts invoked at runtime by ClaudeLauncher
++    # (interactive_claude_wrapper.sh) and StopHookInstaller
++    # (stop_hook.sh). The `lib/**/*.rb` glob above omits non-Ruby files,
++    # so without this entry the built gem shipped without the wrapper —
++    # `bash <missing-file>` exited instantly and killed the tmux session
++    # before Hive could inspect it (claude_launch_failed / can't find
++    # pane), and the Stop hook path pointed at a missing script so
++    # .done / result.json were never written. Keep the glob scoped to
++    # scripts/**.sh rather than broadening to lib/**/* (which would pull
++    # in non-runtime files).
++    "lib/hive/scripts/**/*.sh",
+     "templates/**/*",
+     "schemas/**/*.json",
+     "examples/systemd/*",
+diff --git a/lib/hive/claude_launcher.rb b/lib/hive/claude_launcher.rb
+index 742bbdc5..4c0b8e95 100644
+--- a/lib/hive/claude_launcher.rb
++++ b/lib/hive/claude_launcher.rb
+@@ -31,21 +31,28 @@ module Hive
+     CLAUDE_READY_POLL_INTERVAL_SEC = 0.25
+     MIN_TMUX_VERSION = "3.0"
+     TERMINAL_MARKERS = %i[waiting complete error execute_complete review_complete review_waiting review_error].freeze
+-    # Observed against Claude Code 2.1.133 (2026-05-25 dogfood) and the
++    # Observed against Claude Code 2.1.133 (2026-05-25 dogfood), the
+     # 2026-05-27 build that moved the input caret to the end of a
+-    # context-prefixed line and added a hint footer beneath it.
++    # context-prefixed line and added a hint footer beneath it, and
++    # 2.1.179 (2026-07-10) which renders the idle caret as
++    # `❯<U+00A0>Try "…"` — a non-breaking space (U+00A0) after the
++    # caret, with separator/caret/separator/footer stacked at the
++    # bottom of the input box.
+     #
+     # Robustness note: readiness detection keys on the `❯` input caret, the
+     # most stable signal across the Claude Code TUI revisions seen so far.
+     # What churns between releases is the caret's POSITION on its line
+     # (older builds: `❯ Try …` at line start; newer: `<cwd> <git-status>  ❯`
+-    # at line end) and what renders BELOW it (e.g. a `⏵⏵ bypass permissions …`
+-    # hint footer, so the caret is no longer the last line). To tolerate that
+-    # without treating a `❯` Claude prints in its OWN output (shell snippets,
+-    # prose, bullets) as ready, we (a) require the caret to be the first or
+-    # last glyph of its line — never mid-prose — and (b) only look at the
+-    # bottom of the input box: the last non-blank line, or the line above it
+-    # when a one-line hint footer renders beneath the caret.
++    # at line end; 2.1.179: `❯<NBSP>Try …` back at line start but with a
++    # non-breaking space) and what renders BELOW it (e.g. a `⏵⏵ bypass
++    # permissions …` hint footer plus box-drawing separators, so the caret
++    # is no longer the last line). To tolerate that without treating a `❯`
++    # Claude prints in its OWN output (shell snippets, prose, bullets) as
++    # ready, we (a) require the caret to be the first or last glyph of its
++    # line — never mid-prose — and (b) only look at the bottom of the input
++    # box: scan a tail window for the caret and require every non-blank line
++    # beneath it to be chrome (footer / decorative separator), never real
++    # agent output.
+     #
+     # Copy strings still gate readiness in two places, both version-coupled
+     # and both to update when Claude Code changes them: the positive
+@@ -57,17 +64,70 @@ module Hive
+     ].freeze
+     CLAUDE_PERMISSION_PROMPT_MARKER = "Do you want to".freeze
+     CLAUDE_READY_BANNER_MARKER = "Claude Code".freeze
+-    CLAUDE_READY_FOOTER_MARKER = "for agents".freeze
+-    # The caret as the FIRST glyph (`❯ …`, older builds) or the LAST glyph
+-    # (`… ?  ❯`, the line-end caret newer builds render after the cwd/git
+-    # context). A caret embedded mid-line is Claude's own output, not the
+-    # idle prompt, so it is intentionally not matched.
+-    CLAUDE_READY_PROMPT_LINE = /\A❯(?:\s|\z)|\s❯\z/.freeze
++    # The footer's distinctive line TAIL (`… · ← for agents`), anchored to
++    # end-of-line in `chrome_below_caret?`. The bare substring "for agents"
++    # is too loose: real agent prose can end EXACTLY with "for agents"
++    # (e.g. "this report is for agents"), which would then be misclassified
++    # as footer chrome and let a stale `❯` above it read as ready — Hive
++    # would send the prompt into a busy pane and silently lose keystrokes.
++    # The `· ←` prefix (middle dot U+00B7 + leftwards arrow U+2190) is
++    # unique to the hint footer, so prose ending in bare "for agents" is
++    # not chrome. Also used as a substring in the readiness banner/footer
++    # guard, where the footer always carries this tail.
++    CLAUDE_READY_FOOTER_MARKER = "· ← for agents".freeze
++    # The caret as the FIRST glyph (`❯ …`, older builds; `❯<NBSP>Try …` on
++    # 2.1.179) or the LAST glyph (`… ?  ❯`, the line-end caret newer builds
++    # render after the cwd/git context). A caret embedded mid-line is
++    # Claude's own output, not the idle prompt, so it is intentionally not
++    # matched. The whitespace after/before the caret is matched with
++    # `[[:space:]]` plus an explicit `\p{Zs}` alternation because Ruby's
++    # ASCII-only `\s` does NOT match U+00A0 (NBSP) — the exact byte Claude
++    # Code 2.1.179 emits after `❯` — so the prior `\s`-based match missed
++    # the caret and every launch timed out as "did not become ready".
++    # `[[:space:]]` covers NBSP on Ruby 3.4; `\p{Zs}` (Unicode separator
++    # space, which also includes U+202F narrow no-break space) is kept as
++    # belt-and-suspenders documentation of the intent.
++    CLAUDE_READY_PROMPT_LINE = /\A❯(?:[[:space:]]|\p{Zs}|\z)|[[:space:]]❯\z/.freeze
+     CLAUDE_MENU_OPTION_LINE = /\A\s*❯\s*\d+\./.freeze
+-    CLAUDE_PROMPT_CONTEXT_LINES = 4
+-    # Lines at the bottom of the input box to inspect for the idle caret:
+-    # the caret line itself plus at most one hint footer rendered below it.
+-    CLAUDE_PROMPT_TAIL_LINES = 2
++    # The single bottom window shared by the idle-caret scan AND the
++    # `current_prompt_text` cap. 2.1.179 stacks separator / caret /
++    # separator / footer beneath the banner, so the caret is no longer
++    # within the last two non-blank lines; scanning this window (and
++    # requiring chrome — not agent output — beneath the matched caret, see
++    # `chrome_below_caret?`) keeps a stale `❯` in scrollback from reading
++    # as ready while finding the live caret regardless of how many
++    # footer/separator lines render below it. The caret-scan window and the
++    # prompt-text cap share ONE constant so the two layers cannot drift;
++    # the only separate window is the narrower marker guard below.
++    CLAUDE_PROMPT_TAIL_LINES = 10
++    # Narrow bottom window for the permission/trust MARKER guards: the
++    # `return false` checks in `claude_ready_prompt?` and the positive
++    # `claude_trust_prompt?` detection. Kept deliberately smaller than the
++    # caret-scan tail: a DISMISSED permission/trust prompt lingering in
++    # scrollback ≥4 non-blank lines above the live caret (with no
++    # intervening blank/banner) must not keep tripping the guard and timing
++    # out the launch, while a LIVE prompt — which IS the bottom region —
++    # keeps its markers in the window. The prior fix scoped these guards to
++    # the full 10-line caret-scan tail, so a dismissed prompt only stopped
++    # rejecting at 11+ lines of distance (and wrongly rejected a would-be
++    # ready caret at 6-line distance); this restores the narrow ~4-line
++    # marker window the original fix intended, distinct from the 10-line
++    # caret-scan tail.
++    CLAUDE_MARKER_GUARD_LINES = 4
++    # A line that may legitimately render beneath the idle caret: the hint
++    # footer (matched by its own `CLAUDE_READY_FOOTER_MARKER` above) or a
++    # decorative separator/border line — box-drawing glyphs (U+2500–U+257F)
++    # and whitespace only. Real agent output is rejected EVEN WHEN
++    # letterless: Claude prints `❯ git …` shell snippets as their own line
++    # (which matches the caret), and a letterless result line beneath such
++    # a stale caret like "42/100", "100%", or "✓" must NOT count as chrome,
++    # or that stale caret reads as ready and Hive sends the prompt into a
++    # busy pane (silent keystroke loss). The prior `[^\p{L}]*` matched ANY
++    # letterless line (digits, symbols, punctuation), so a stale caret +
++    # letterless result-line pair read as ready; restricting to box-drawing
++    # + whitespace keeps only true separator/border lines as chrome (the
++    # footer stays matched via its own marker).
++    CLAUDE_CHROME_LINE = /\A[[:space:]\p{Zs}\u2500-\u257F]*\z/.freeze
+     # Allowed-tool sets shared by every stage that spawns Claude. Keeping
+     # them as constants means a policy change lands in one place; previous
+     # PRs inlined the string literal across 11 sites and silently drifted
+@@ -602,29 +662,94 @@ module Hive
+     end
+ 
+     def claude_trust_prompt?(pane)
+-      current_prompt_text(pane).then do |text|
+-        CLAUDE_TRUST_PROMPT_MARKERS.all? { |marker| text.include?(marker) }
+-      end
++      # Scoped to the narrow marker-guard window (last
++      # CLAUDE_MARKER_GUARD_LINES non-blank lines), NOT the wider caret-scan
++      # tail: a dismissed trust prompt lingering in scrollback above a live
++      # caret — with no intervening blank line or banner — would otherwise
++      # keep this returning true, so `prepare_claude_session!` would
++      # re-send Enter into the live ready prompt every poll and the launch
++      # would drain to the ready-wait timeout. A LIVE trust prompt IS the
++      # bottom region (header + option + confirm ≈ 3 lines), so its markers
++      # stay in the narrow window and it is still detected and dismissed.
++      guard_text = marker_guard_lines(pane).join("\n")
++      CLAUDE_TRUST_PROMPT_MARKERS.all? { |marker| guard_text.include?(marker) }
+     end
+ 
+     def claude_ready_prompt?(pane)
+       current_text = current_prompt_text(pane)
+-      current_lines = current_text.each_line.map(&:strip).reject(&:empty?)
+-
+-      return false if CLAUDE_TRUST_PROMPT_MARKERS.all? { |marker| current_text.include?(marker) }
+-      return false if current_text.include?(CLAUDE_PERMISSION_PROMPT_MARKER)
++      tail = active_bottom_lines(pane)
++
++      # Negative marker guards are scoped to the NARROW marker-guard window
++      # (last CLAUDE_MARKER_GUARD_LINES non-blank lines), distinct from the
++      # `tail` caret-scan window (CLAUDE_PROMPT_TAIL_LINES). Scoping them to
++      # the full 10-line tail re-introduced the launch-timeout failure mode
++      # this detector fixes: a dismissed permission/trust prompt lingering
++      # in scrollback ≥4 non-blank lines above the live caret (no intervening
++      # blank/banner) stayed in the 10-line tail and tripped `return false`
++      # even though the idle caret was present — verified false at 6-line
++      # distance. The narrow window still catches a LIVE prompt (which IS the
++      # bottom region, markers in the last few lines) while letting a
++      # dismissed one in upper scrollback not reject; a would-be ready caret
++      # at 6-line distance now correctly reads as ready.
++      guard_text = marker_guard_lines(pane).join("\n")
++      return false if CLAUDE_TRUST_PROMPT_MARKERS.all? { |marker| guard_text.include?(marker) }
++      return false if guard_text.include?(CLAUDE_PERMISSION_PROMPT_MARKER)
+       return false unless pane.include?(CLAUDE_READY_BANNER_MARKER) ||
+                           current_text.include?(CLAUDE_READY_FOOTER_MARKER)
+ 
+-      # The idle caret sits at the bottom of the input box: it is the last
+-      # non-blank line, or the line above it when a one-line hint footer
+-      # renders beneath it. Limiting the scan to those two lines (rather than
+-      # the whole region) keeps a caret Claude printed earlier in its own
+-      # output from reading as ready. A numbered menu option (`❯ 1.`) is an
+-      # interactive selection, not the idle prompt, so it never counts.
+-      current_lines.last(CLAUDE_PROMPT_TAIL_LINES).any? do |line|
+-        line.match?(CLAUDE_READY_PROMPT_LINE) && !line.match?(CLAUDE_MENU_OPTION_LINE)
++      # The idle caret sits at the bottom of the input box. Below it the only
++      # content is chrome — a hint footer and/or box-drawing separators; real
++      # agent output (prose, build steps, a quoted ❯) beneath the caret means
++      # it is stale scrollback, not the live prompt. Scan the tail window for
++      # a caret line, then require every non-blank line beneath it to be
++      # chrome so a wider window (needed for 2.1.179's separator/caret/
++      # separator/footer stack) does not let a stale caret read as ready. A
++      # numbered menu option (`❯ 1.`) is an interactive selection, not the
++      # idle prompt, so it never counts; the first caret with all-chrome
++      # beneath it wins.
++      tail.each_with_index do |line, idx|
++        next unless line.match?(CLAUDE_READY_PROMPT_LINE)
++        next if line.match?(CLAUDE_MENU_OPTION_LINE)
++
++        below = tail[(idx + 1)..] || []
++        return true if below.all? { |below_line| chrome_below_caret?(below_line) }
+       end
++      false
++    end
++
++    # A line that may legitimately render beneath the idle caret: the hint
++    # footer (matched by its stable `… · ← for agents` line TAIL — anchored
++    # to end-of-line via the distinctive `· ←` prefix rather than a bare
++    # "for agents" substring, so real agent output that ends exactly with
++    # "for agents" is not classified as chrome and a stale `❯` above it
++    # does not read as ready) or a decorative separator/border line
++    # (box-drawing U+2500–U+257F + whitespace only — NOT digits/symbols, so
++    # a letterless result line like "42/100"/"✓" beneath a stale `❯ git …`
++    # caret is not chrome and that caret does not read as ready).
++    def chrome_below_caret?(line)
++      line.end_with?(CLAUDE_READY_FOOTER_MARKER) || line.match?(CLAUDE_CHROME_LINE)
++    end
++
++    # The active bottom region of the pane: the last CLAUDE_PROMPT_TAIL_LINES
++    # non-blank lines of the current prompt region (after the last banner /
++    # blank line). This is the caret-SCAN window. The permission/trust marker
++    # guards use the separate, narrower `marker_guard_lines` window so a
++    # dismissed prompt lingering in scrollback above a live caret does not
++    # trip them; `current_prompt_text` is capped by the SAME constant so the
++    # caret-scan window and the prompt-text cap share one value and cannot
++    # drift.
++    def active_bottom_lines(pane)
++      current_prompt_text(pane).each_line.map(&:strip).reject(&:empty?).last(CLAUDE_PROMPT_TAIL_LINES)
++    end
++
++    # The narrow bottom window for permission/trust marker guards: the last
++    # CLAUDE_MARKER_GUARD_LINES non-blank lines of the current prompt region.
++    # Both the negative guards in `claude_ready_prompt?` and the positive
++    # `claude_trust_prompt?` detection are evaluated against this window so a
++    # dismissed prompt ≥4 lines above the live caret does not reject /
++    # re-trigger, while a live prompt (the bottom region itself) still does.
++    def marker_guard_lines(pane)
++      current_prompt_text(pane).each_line.map(&:strip).reject(&:empty?).last(CLAUDE_MARKER_GUARD_LINES)
+     end
+ 
+     def current_prompt_text(pane)
+@@ -635,7 +760,10 @@ module Hive
+       start_index = [ last_banner_index, last_blank_start, 0 ].compact.max
+       current_lines = raw_lines[start_index..] || []
+ 
+-      current_lines.reject(&:empty?).last(CLAUDE_PROMPT_CONTEXT_LINES).join("\n")
++      # Capped by CLAUDE_PROMPT_TAIL_LINES (the same constant as the
++      # caret-scan tail) so the prompt-text cap and the caret-scan window
++      # share one value; only the marker-guard window is separately smaller.
++      current_lines.reject(&:empty?).last(CLAUDE_PROMPT_TAIL_LINES).join("\n")
+     end
+ 
+     def wait_for_terminal_marker(task, runner, timeout)
+diff --git a/test/fixtures/panes/claude_2_1_179_banner_scrolled_out.txt b/test/fixtures/panes/claude_2_1_179_banner_scrolled_out.txt
+new file mode 100644
+index 00000000..454db574
+--- /dev/null
++++ b/test/fixtures/panes/claude_2_1_179_banner_scrolled_out.txt
+@@ -0,0 +1,4 @@
++────────────────────────────────────────────────────────────────────────
++❯ Try "fix lint errors"
++────────────────────────────────────────────────────────────────────────
++⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+diff --git a/test/fixtures/panes/claude_2_1_179_ready.txt b/test/fixtures/panes/claude_2_1_179_ready.txt
+new file mode 100644
+index 00000000..9843f982
+--- /dev/null
++++ b/test/fixtures/panes/claude_2_1_179_ready.txt
+@@ -0,0 +1,6 @@
++Welcome to Claude Code!
++
++────────────────────────────────────────────────────────────────────────
++❯ Try "fix lint errors"
++────────────────────────────────────────────────────────────────────────
++⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+diff --git a/test/fixtures/panes/claude_menu_selection.txt b/test/fixtures/panes/claude_menu_selection.txt
+new file mode 100644
+index 00000000..42bc65e6
+--- /dev/null
++++ b/test/fixtures/panes/claude_menu_selection.txt
+@@ -0,0 +1,6 @@
++Welcome to Claude Code!
++
++Proceed with the action?
++❯ 1. Yes
++  2. No
++⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+diff --git a/test/fixtures/panes/claude_permission_prompt.txt b/test/fixtures/panes/claude_permission_prompt.txt
+new file mode 100644
+index 00000000..0992bbc5
+--- /dev/null
++++ b/test/fixtures/panes/claude_permission_prompt.txt
+@@ -0,0 +1,7 @@
++Welcome to Claude Code!
++
++Do you want to make this edit to lib/hive/claude_launcher.rb?
++❯ 1. Yes
++  2. Yes, and don't ask again this session
++  3. No
++⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+diff --git a/test/fixtures/panes/claude_prior_ready.txt b/test/fixtures/panes/claude_prior_ready.txt
+new file mode 100644
+index 00000000..bc1877dc
+--- /dev/null
++++ b/test/fixtures/panes/claude_prior_ready.txt
+@@ -0,0 +1,4 @@
++Welcome to Claude Code!
++
++❯ Try "refactor <filepath>"
++⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+diff --git a/test/fixtures/panes/claude_trust_prompt.txt b/test/fixtures/panes/claude_trust_prompt.txt
+new file mode 100644
+index 00000000..847cf38a
+--- /dev/null
++++ b/test/fixtures/panes/claude_trust_prompt.txt
+@@ -0,0 +1,3 @@
++Quick safety check
++❯ 1. Yes, I trust this folder
++Enter to confirm
+diff --git a/test/unit/claude_launcher_test.rb b/test/unit/claude_launcher_test.rb
+index e9c71b65..54648302 100644
+--- a/test/unit/claude_launcher_test.rb
++++ b/test/unit/claude_launcher_test.rb
+@@ -528,6 +528,57 @@ class ClaudeLauncherTest < Minitest::Test
+     assert Hive::ClaudeLauncher.claude_ready_prompt?(pane)
+   end
+ 
++  # The stale-permission case above only stays safe because a SECOND banner
++  # re-anchors `current_prompt_text` and pushes the dismissed marker out of
++  # the window. The negative guards are scoped to the NARROW marker-guard
++  # window (CLAUDE_MARKER_GUARD_LINES, the last few non-blank lines),
++  # distinct from the 10-line caret-scan tail, so a DISMISSED permission
++  # prompt that lingers in scrollback ≥4 non-blank lines above the live
++  # caret — with NO intervening blank line or banner — no longer trips
++  # `return false` and times out the launch as "did not become ready" even
++  # though the idle caret was present. A LIVE permission prompt (the
++  # bottom region itself) keeps its marker in the narrow window and still
++  # rejects. (The prior fix scoped these guards to the full 10-line tail,
++  # so the marker only stopped rejecting at 11+ lines of distance — this
++  # 11-line fixture is the far-distance case; see the 6-line companion for
++  # the regression the narrow window restores.)
++  def test_claude_ready_prompt_accepts_dismissed_permission_prompt_in_scrollback_without_banner
++    pane = "Claude Code v2.1.133\n" \
++           "Do you want to make this edit?\n" \
++           "❯ 1. Yes\n" \
++           "background indexing step 1\nbackground indexing step 2\n" \
++           "background indexing step 3\nbackground indexing step 4\n" \
++           "background indexing step 5\nbackground indexing step 6\n" \
++           "background indexing step 7\nbackground indexing step 8\n" \
++           "❯ Try \"refactor <filepath>\""
++
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "a dismissed permission prompt in scrollback above a live caret " \
++           "(no intervening blank/banner) must not trip the bottom-scoped guard"
++  end
++
++  # Mirror of the permission regression for the trust prompt: the
++  # positive `claude_trust_prompt?` is ALSO scoped to the active bottom
++  # region now, so a dismissed trust prompt in scrollback (here with the
++  # banner scrolled out of the captured tail and only the live footer
++  # remaining) does not keep re-sending Enter into the live ready prompt
++  # and drain the launch to the ready-wait timeout. A LIVE trust prompt
++  # (the bottom region itself) is still detected and dismissed.
++  def test_claude_trust_prompt_rejects_dismissed_trust_in_scrollback_without_banner
++    pane = "Quick safety check\n❯ 1. Yes, I trust this folder\nEnter to confirm\n" \
++           "background indexing step 1\nbackground indexing step 2\n" \
++           "background indexing step 3\nbackground indexing step 4\n" \
++           "background indexing step 5\nbackground indexing step 6\n" \
++           "background indexing step 7\nbackground indexing step 8\n" \
++           "❯ Try \"refactor <filepath>\"\n" \
++           "⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents"
++
++    refute Hive::ClaudeLauncher.claude_trust_prompt?(pane),
++           "a dismissed trust prompt in scrollback above a live caret must " \
++           "not keep returning true once trust detection is bottom-scoped"
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane)
++  end
++
+   def test_claude_ready_prompt_rejects_numbered_menu_option_after_copy_drift
+     pane = "Claude Code v2.1.133\nProceed with the action?\n❯ 1. Yes"
+ 
+@@ -594,12 +645,155 @@ class ClaudeLauncherTest < Minitest::Test
+     assert Hive::ClaudeLauncher.claude_ready_prompt?(pane)
+   end
+ 
++  # The footer-chrome match is anchored to the line TAIL (`… · ← for agents`),
++  # not a bare substring, so real agent output that merely mentions "for
++  # agents" mid-prose is NOT classified as chrome — a stale `❯` above such a
++  # prose line stays rejected instead of reading as ready.
++  def test_claude_ready_prompt_rejects_stale_caret_above_prose_mentioning_for_agents
++    pane = "Claude Code v2.1.133\n\n❯ Try \"refactor <filepath>\"\n" \
++           "I tuned the polling loop for agents in the review stage"
++
++    refute Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "agent prose mentioning 'for agents' mid-line is not the footer chrome"
++  end
++
++  # The footer marker is the distinctive `… · ← for agents` TAIL, not bare
++  # "for agents". Real agent prose can end EXACTLY with "for agents" (e.g.
++  # "this report is for agents"); the prior bare-substring match classified
++  # such a line as footer chrome, so a stale `❯` above it read as ready and
++  # Hive sent the prompt into a busy pane (silent keystroke loss). The
++  # `· ←` prefix is unique to the hint footer, so prose ending in bare
++  # "for agents" is not chrome.
++  def test_claude_ready_prompt_rejects_stale_caret_above_prose_ending_with_for_agents
++    pane = "Claude Code v2.1.133\n\n❯ Try \"refactor <filepath>\"\n" \
++           "this report is for agents"
++
++    refute Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "agent prose ending exactly with 'for agents' is not the footer chrome"
++  end
++
++  # `CLAUDE_CHROME_LINE` is restricted to box-drawing separators/borders +
++  # whitespace, NOT any letterless line. Claude prints `❯ git …` shell
++  # snippets as their own line (which matches the caret), and a letterless
++  # result line beneath such a STALE caret — "42/100", "100%", or "✓" —
++  # must NOT count as chrome, or that stale caret reads as ready and Hive
++  # sends the prompt into a busy pane (silent keystroke loss). The prior
++  # `[^\p{L}]*` matched any letterless line (digits/symbols/punctuation),
++  # so this pair read as ready.
++  def test_claude_ready_prompt_rejects_stale_caret_above_letterless_result_line
++    ["42/100", "100%", "✓"].each do |result_line|
++      pane = "Claude Code v2.1.133\n\n❯ git status\n#{result_line}"
++      refute Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++             "a stale ❯-prefixed shell snippet above the letterless result line " \
++             "'#{result_line}' must not read as ready"
++    end
++  end
++
++  # The negative permission/trust marker guards are scoped to a NARROW
++  # bottom window (CLAUDE_MARKER_GUARD_LINES), distinct from the 10-line
++  # caret-scan tail. A DISMISSED permission prompt lingering in scrollback
++  # ≥4 non-blank lines above the live caret (no intervening blank/banner)
++  # must not keep tripping `return false` and timing out the launch. The
++  # prior fix scoped these guards to the full 10-line tail, so the marker
++  # only stopped rejecting at 11+ lines of distance — and wrongly rejected
++  # a would-be ready caret at 6-line distance. This pins the 6-line case.
++  def test_claude_ready_prompt_accepts_dismissed_permission_prompt_6_lines_above_caret
++    pane = "Claude Code v2.1.133\n" \
++           "Do you want to make this edit?\n" \
++           "❯ 1. Yes\n" \
++           "background indexing step 1\nbackground indexing step 2\n" \
++           "background indexing step 3\nbackground indexing step 4\n" \
++           "❯ Try \"refactor <filepath>\""
++
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "a dismissed permission prompt 6 non-blank lines above a live caret " \
++           "must not trip the narrow marker guard"
++  end
++
+   def test_claude_trust_prompt_matches_observed_folder_trust_prompt
+     pane = "Quick safety check\n❯ 1. Yes, I trust this folder\nEnter to confirm"
+ 
+     assert Hive::ClaudeLauncher.claude_trust_prompt?(pane)
+   end
+ 
++  # --- Fixture-backed ready-detector regression suite (IU-3) ---
++  #
++  # The 2.1.179 fixture carries a REAL U+00A0 NBSP byte after `❯` (not a
++  # literal escape) so the test exercises the exact byte the detector must
++  # match. Assert the codepoint in setup so an editor that normalizes the
++  # whitespace fails loudly here instead of silently weakening the test.
++  def assert_fixture_carries_real_nbsp(name)
++    pane = pane_fixture(name)
++    assert_includes pane.codepoints, 0x00A0,
++                   "#{name} must carry a real U+00A0 NBSP after ❯; " \
++                   "an editor normalized the fixture — regenerate it"
++  end
++
++  # Claude Code 2.1.179 (2026-07-10): the idle caret renders as
++  # `❯<U+00A0>Try "…"` — a non-breaking space after `❯` — stacked as
++  # separator / caret / separator / footer. The prior `\s`-after-❯ match
++  # does not match NBSP, so every launch timed out as "did not become
++  # ready". Pin the exact shape so a detector or Claude Code change cannot
++  # silently regress it.
++  def test_claude_ready_prompt_accepts_claude_2_1_179_nbsp_shape
++    assert_fixture_carries_real_nbsp("claude_2_1_179_ready.txt")
++    pane = pane_fixture("claude_2_1_179_ready.txt")
++
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "the 2.1.179 idle caret (NBSP after ❯, separators + footer beneath) must read as ready"
++    refute Hive::ClaudeLauncher.claude_trust_prompt?(pane)
++  end
++
++  # The widened tail window must not REQUIRE the banner: the live footer
++  # keeps readiness visible after the Claude Code banner scrolls out of the
++  # captured tail, mirroring the inline footer-only test for the 2.1.179
++  # separator/caret/separator/footer stack.
++  def test_claude_ready_prompt_accepts_2_1_179_with_banner_scrolled_out
++    assert_fixture_carries_real_nbsp("claude_2_1_179_banner_scrolled_out.txt")
++    pane = pane_fixture("claude_2_1_179_banner_scrolled_out.txt")
++
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane),
++           "the 2.1.179 caret must read as ready from the footer alone once the banner scrolls out"
++  end
++
++  # Pre-2.1.179 ready shape (caret at line start, ASCII space) — keep a
++  # fixture-backed regression so the version-tolerant detector does not
++  # silently drop the shape it already handled.
++  def test_claude_ready_prompt_accepts_prior_ready_shape_fixture
++    pane = pane_fixture("claude_prior_ready.txt")
++
++    assert Hive::ClaudeLauncher.claude_ready_prompt?(pane)
++  end
++
++  # A permission prompt must NOT read as ready — misreading would send the
++  # prompt into a permission dialog and silently lose keystrokes.
++  def test_claude_ready_prompt_rejects_permission_prompt_fixture
++    pane = pane_fixture("claude_permission_prompt.txt")
++
++    refute Hive::ClaudeLauncher.claude_ready_prompt?(pane)
++  end
++
++  # A trust prompt must NOT read as ready, but MUST still be detected as
++  # trust by `claude_trust_prompt?` so `prepare_claude_session!` can dismiss
++  # it. (The inline trust test only asserted the positive trust detection;
++  # this pins the ready-rejects-trust counterpart.)
++  def test_claude_ready_prompt_rejects_trust_prompt_but_trust_detector_fires
++    pane = pane_fixture("claude_trust_prompt.txt")
++
++    refute Hive::ClaudeLauncher.claude_ready_prompt?(pane)
++    assert Hive::ClaudeLauncher.claude_trust_prompt?(pane)
++  end
++
++  # A numbered menu option (`❯ 1.`) is an interactive selection, never the
++  # idle prompt — keep it rejected even with a hint footer beneath it so
++  # scanning the wider region for the caret does not start treating a
++  # selection as idle.
++  def test_claude_ready_prompt_rejects_menu_selection_fixture
++    pane = pane_fixture("claude_menu_selection.txt")
++
++    refute Hive::ClaudeLauncher.claude_ready_prompt?(pane)
++  end
++
+   def test_spawn_claude_bang_propagates_agent_error_unchanged
+     # `spawn_claude!` no longer catches tmux-unavailable AgentErrors;
+     # the propagation is what lets the review stage's outer rescue
+diff --git a/test/unit/gemspec_test.rb b/test/unit/gemspec_test.rb
+index c4cd96dd..d629cbeb 100644
+--- a/test/unit/gemspec_test.rb
++++ b/test/unit/gemspec_test.rb
+@@ -1,7 +1,13 @@
+ require "test_helper"
++require "rubygems"
++require "rubygems/package"
++require "tmpdir"
++require "pathname"
+ 
+ class GemspecTest < Minitest::Test
+   GEMSPEC_PATH = File.expand_path("../../hive.gemspec", __dir__)
++  REPO_ROOT = File.dirname(GEMSPEC_PATH)
++  SCRIPTS_GLOB = "lib/hive/scripts/**/*.sh".freeze
+ 
+   def test_gem_package_includes_babysitter_dry_run_stubs
+     spec = Gem::Specification.load(GEMSPEC_PATH)
+@@ -29,4 +35,109 @@ class GemspecTest < Minitest::Test
+     refute spec.files.any? { |f| f.start_with?("public/") },
+            "no Sinatra-era static assets should be packaged"
+   end
++
++  # --- IU-4: runtime shell scripts must ship inside the gem ---
++  #
++  # hive.gemspec's spec.files glob was historically "lib/**/*.rb" (Ruby
++  # files only), so the built gem shipped without
++  # interactive_claude_wrapper.sh (invoked by ClaudeLauncher) and
++  # stop_hook.sh (invoked by StopHookInstaller). `bash <missing-file>`
++  # exited instantly and killed the tmux session before Hive could
++  # inspect it; the missing stop hook meant .done / result.json were
++  # never written. These tests guard the packaging fix end-to-end.
++
++  # Cheap unit check that runs in every test invocation: the gemspec's
++  # spec.files lists every runtime shell script under lib/hive/scripts/.
++  def test_gemspec_files_include_every_runtime_shell_script
++    spec = Gem::Specification.load(GEMSPEC_PATH)
++    on_disk = Dir.glob(SCRIPTS_GLOB, base: REPO_ROOT).sort
++
++    refute_empty on_disk, "lib/hive/scripts/ should ship runtime scripts"
++    on_disk.each do |rel|
++      assert_includes spec.files, rel,
++                      "#{rel} is on disk but missing from spec.files (packaging glob regression)"
++    end
++    assert_includes spec.files, "lib/hive/scripts/interactive_claude_wrapper.sh"
++    assert_includes spec.files, "lib/hive/scripts/stop_hook.sh"
++  end
++
++  # CI-grade guard: build the ACTUAL .gem and inspect its contents. Asserts
++  # every script referenced by ClaudeLauncher / StopHookInstaller is inside
++  # the packaged artifact, AND that the packaged script set equals the
++  # on-disk set (a script added to disk but not to the gemspec fails loudly,
++  # future-proofing beyond the two known references). Skips with a clear
++  # message if the rubygems build toolchain is unavailable so minimal dev
++  # environments are not broken while CI still runs the full guard.
++  def test_built_gem_contains_every_runtime_shell_script
++    spec = Gem::Specification.load(GEMSPEC_PATH)
++    packaged_scripts = nil
++    Dir.mktmpdir do |dir|
++      out = File.join(dir, "#{spec.name}-#{spec.version}.gem")
++      built_gem =
++        begin
++          # Gem::Package.build prints "Successfully built RubyGem…" via
++          # Gem.ui.say and a homepage_uri/source_code_uri warning via
++          # Gem.ui.alert_warning to stdout/stderr; route both through a
++          # SilentUI so the test output stays clean (the assertions below
++          # are the deliberate signal).
++          Gem::DefaultUserInteraction.use_ui(Gem::SilentUI.new) do
++            Gem::Package.build(spec, false, false, out)
++          end
++        rescue StandardError => e
++          skip "rubygems build toolchain unavailable: #{e.class}: #{e.message}"
++        end
++      # `Gem::Package#contents` historically returns unprefixed paths
++      # (`lib/…`), but a future rubygems that prefixes entries with `./`
++      # would make `start_with?("lib/hive/scripts/")` return empty and fail
++      # with a confusing parity message. Normalize by stripping a leading
++      # `./` before filtering so the parity narrative survives both shapes.
++      packaged_scripts = Gem::Package.new(built_gem)
++                                       .contents
++                                       .map { |f| f.sub(/\A\.\//, "") }
++                                       .select { |f| f.start_with?("lib/hive/scripts/") }
++                                       .sort
++    end
++
++    on_disk = Dir.glob(SCRIPTS_GLOB, base: REPO_ROOT).sort
++
++    # Parity: every script on disk is packaged, and no extras sneak in.
++    assert_equal on_disk, packaged_scripts,
++                 "on-disk lib/hive/scripts/**/*.sh must equal the packaged set; " \
++                 "a script added to disk but not the gemspec is a packaging regression"
++
++    # Dynamic references: enumerate the scripts the launcher modules
++    # actually resolve at runtime, not just the two known paths, so a
++    # future added script is covered as long as it is referenced through
++    # these chokepoints.
++    referenced = launcher_referenced_scripts
++    referenced.each do |abs|
++      rel = relative_to_repo(abs)
++      assert_includes packaged_scripts, rel,
++                      "#{rel} is referenced by ClaudeLauncher/StopHookInstaller but " \
++                      "is missing from the built gem"
++    end
++  end
++
++  private
++
++  # Collect the absolute script paths the runtime actually resolves:
++  # ClaudeLauncher#wrapper_command builds `bash <scripts/wrapper.sh>` as
++  # its argv[1], and StopHookInstaller::HOOK_PATH is the stop-hook
++  # constant. Pair this with the on-disk-vs-packaged parity check above
++  # so a script referenced only inside a method body (not a constant) is
++  # still caught by the glob parity if it lives under lib/hive/scripts/.
++  def launcher_referenced_scripts
++    require "hive/claude_launcher"
++    require "hive/stop_hook_installer"
++    profile = Hive::AgentProfiles.lookup(:claude)
++    wrapper_argv = Hive::ClaudeLauncher.wrapper_command(
++      cwd: "/tmp", add_dirs: [], profile: profile,
++      permission_mode: "bypassPermissions"
++    )
++    [ wrapper_argv[1], Hive::StopHookInstaller::HOOK_PATH ].compact
++  end
++
++  def relative_to_repo(path)
++    Pathname.new(path).relative_path_from(Pathname.new(REPO_ROOT)).to_s
++  end
+ end

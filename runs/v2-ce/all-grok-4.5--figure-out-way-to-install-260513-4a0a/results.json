@@ -1,0 +1,85 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-11T09:07:24Z",
+  "cells": [
+    {
+      "task_id": "figure-out-way-to-install-260513-4a0a",
+      "agent_id": "all-grok-4.5",
+      "mode": "hive",
+      "model_version": "grok-4.5-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "gpt-5.6-sol": {
+          "mean": 2.0,
+          "interval": [
+            2.0,
+            2.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        },
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        }
+      },
+      "efficiency": {
+        "wall_clock_sec": 1640.99,
+        "plan_forced_complete": true,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-grok-4.5": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "gpt-5.6-sol": 2.0,
+          "fable-5": 6.5
+        },
+        "mean_quality_cross_family": {
+          "gpt-5.6-sol": 2.0,
+          "fable-5": 6.5
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": null,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

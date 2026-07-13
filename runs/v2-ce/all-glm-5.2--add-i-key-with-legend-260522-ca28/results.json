@@ -1,0 +1,101 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-10T14:11:04Z",
+  "cells": [
+    {
+      "task_id": "add-i-key-with-legend-260522-ca28",
+      "agent_id": "all-glm-5.2",
+      "mode": "hive",
+      "model_version": "glm-5.2",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 6.5,
+          "interval": [
+            6.5,
+            6.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.5-pro": {
+          "mean": 4.0,
+          "interval": [
+            4.0,
+            4.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 4068790,
+        "output_tokens": 385355,
+        "cached_tokens": 60139434,
+        "wall_clock_sec": 6847.31,
+        "cost_usd": 15.8465,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-glm-5.2": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 6.5,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 5.5
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 6.5,
+          "gpt-5.5-pro": 4.0,
+          "gpt-5.6-sol": 5.5
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 15.8465,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

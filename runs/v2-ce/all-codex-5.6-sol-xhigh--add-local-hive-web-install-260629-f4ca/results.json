@@ -1,0 +1,87 @@
+{
+  "schema": "hive-bench-results",
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-07-11T15:49:12Z",
+  "cells": [
+    {
+      "task_id": "add-local-hive-web-install-260629-f4ca",
+      "agent_id": "all-codex-5.6-sol-xhigh",
+      "mode": "hive",
+      "model_version": "gpt-5.6-sol-xhigh",
+      "run_status": "generated",
+      "subset": "judged",
+      "gate": {
+        "status": "no_gate",
+        "reason": "rejudge (no gate)"
+      },
+      "judges": {
+        "fable-5": {
+          "mean": 7.0,
+          "interval": [
+            7.0,
+            7.0
+          ],
+          "reference_withheld": false,
+          "same_family": false,
+          "reasoning_effort": "unspecified",
+          "reasoning_effort_explicit": false
+        },
+        "gpt-5.6-sol": {
+          "mean": 5.5,
+          "interval": [
+            5.5,
+            5.5
+          ],
+          "reference_withheld": false,
+          "same_family": true,
+          "reasoning_effort": "xhigh",
+          "reasoning_effort_explicit": true
+        }
+      },
+      "efficiency": {
+        "input_tokens": 142182840,
+        "output_tokens": 246859,
+        "wall_clock_sec": 13641.55,
+        "cost_usd": 718.32,
+        "open_pr_ok": true,
+        "review_ok": true,
+        "review_changed_diff": true
+      }
+    }
+  ],
+  "agents": {
+    "all-codex-5.6-sol-xhigh": {
+      "cells": 1,
+      "preliminary": true,
+      "generation": {
+        "generated": 1
+      },
+      "gated": {
+        "total": 0,
+        "passed": 0,
+        "pass_rate": null
+      },
+      "judged": {
+        "scored_cells": 1,
+        "mean_quality": {
+          "fable-5": 7.0,
+          "gpt-5.6-sol": 5.5
+        },
+        "mean_quality_cross_family": {
+          "fable-5": 7.0,
+          "gpt-5.6-sol": null
+        }
+      },
+      "efficiency": {
+        "total_cost_usd": 718.32,
+        "mean_wall_clock_sec": null,
+        "wall_clock_sample": 0
+      },
+      "provenance": {
+        "reused": 0,
+        "fresh": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,2064 @@
+diff --git a/docs/faq.md b/docs/faq.md
+index ca95b115..d3a34edf 100644
+--- a/docs/faq.md
++++ b/docs/faq.md
+@@ -84,6 +84,19 @@ Cause: the CI-fix phase exhausted its attempts. Fix: inspect `reviews/ci-blocked
+ 
+ Cause: a review phase failed or protected-file tampering was detected. Fix: inspect `task.md`, `logs/`, and `reviews/`, clear with `hive markers clear <folder> --name REVIEW_ERROR`, then re-run.
+ 
++### `REVIEW_ERROR` … `claude stop hook did not signal completion`
++
++Cause: tmux Claude finished work (or exited) but the Stop hook never wrote `task.folder/.done`, so older Hive builds timed out the `:exit_code_only` wait and stamped `phase=fix reason=fix_failed` with that exact message. Current Hive treats clean session death / idle ready-prompt as success (WARN `claude_completion_fallback`) when evidence holds; the daemon healer also bounded-retries this exact marker.
++
++Fix:
++
++1. Inspect worktree commits, `reviews/`, and `events.jsonl` before clearing.
++2. Prefer letting the daemon healer clear the exact stop-hook message, or manually:
++   `hive markers clear <slug> --name REVIEW_ERROR --project <project>`
++3. `hive run <slug> --project <project>` to re-enter `6-review`.
++
++Workaround on unfixed versions: set `claude.mode: headless` (do not auto-revert configs). Full RCA and recovery notes: `docs/notes/claude-tmux-launch-mode.md`.
++
+ ### `reviewer_tampered`, `triage_tampered`, or `fix_tampered`
+ 
+ Cause: an agent changed a protected file such as `plan.md`, `worktree.yml`, or `task.md` during a phase that must not touch it. Fix: inspect the worktree, restore the protected file from git if needed, clear the error marker, and re-run.
+diff --git a/docs/notes/claude-tmux-launch-mode.md b/docs/notes/claude-tmux-launch-mode.md
+index 7fd1d5fd..17c10104 100644
+--- a/docs/notes/claude-tmux-launch-mode.md
++++ b/docs/notes/claude-tmux-launch-mode.md
+@@ -137,3 +137,125 @@ the runtime can override them in the calling shell:
+ 
+ Legacy `HIVE_BRAINSTORM_TMUX_*` names are still honored as fallbacks for
+ one release while projects migrate from the old brainstorm-only runtime.
++
++## Stop-hook completion (RCA + fallback) — 2026-06-29
++
++### Failure mode observed
++
++Tmux Claude spawns that use `status_mode: :exit_code_only` (review fix,
++execute implementer, CI-fix) wait on the Stop-hook sentinel
++`task.folder/.done` via `ClaudeLauncher.wait_for_done_signal`. When Claude
++finishes useful work and the process/session ends cleanly—or returns to the
++idle ready prompt—but the Stop hook never writes `.done` (or writes it too
++late), Hive timed out with:
++
++```text
++claude stop hook did not signal completion
++```
++
++Review then stamped terminal `REVIEW_ERROR phase=fix reason=fix_failed`
++with that exact message (observed 2026-06-29 on tasks 58/PR #622, 287/PR
++#623, 288/PR #624). `agent_end … phase complete` still fires from the
++review ensure path and must **not** be treated as success evidence alone.
++
++### Architectural root cause (primary)
++
++**Tmux `:exit_code_only` made the Stop hook mandatory, while headless treats
++process exit as completion.** Headless `Hive::Agent#handle_exit` returns
++`:ok` on exit code 0 without requiring `.done`. The tmux wait path did not
++mirror that contract: unlike `wait_for_expected_output` (artifact + ready
++prompt / session-death checks), `wait_for_done_signal` only polled
++`.done` until deadline.
++
++### Contributing factors (checked)
++
++| Factor | Status |
++|--------|--------|
++| Installer dual-writes settings to task folder + worktree cwd, both with `HIVE_TASK_STAGE_DIR=<task.folder>` | Correct; hardened with `mkdir -p` stage dir at install |
++| Hook script writes `result.json` then `touch .done` under absolute stage dir | Correct; hardened with `mkdir -p` so missing stage dir cannot abort before `.done` |
++| Settings backup/restore / 0o444 rewrite | Existing contract; not the primary failure mode |
++| Cleanup deleting `.done` mid-wait | Cleanup runs only in `with_shared_session` ensure **after** wait |
++| Claude Code Stop hook not firing on idle turn end / session death | **Residual upstream risk** — not deterministically reproducible in CI; mitigated by fallback |
++
++Most likely production failure sequence:
++
++1. Fix spawn uses `status_mode: :exit_code_only` → `wait_for_done_signal`.
++2. Claude completes and exits (or idles at ready prompt); Stop hook never
++   fires (upstream TUI/session lifecycle).
++3. Deadline → `{ status: :timeout, error_message: "claude stop hook did not signal completion" }`.
++4. `agent_failed?` → `REVIEW_ERROR phase=fix reason=fix_failed`.
++
++### Fix shipped
++
++1. **Signaling hardening** — `stop_hook.sh` and `StopHookInstaller` always
++   ensure the stage directory exists; installer sentinel paths remain the
++   same absolute task-folder paths `ClaudeLauncher.done_path` /
++   `result_path` poll.
++2. **Shared completion fallback** — `wait_for_done_signal` treats clean
++   session death or idle ready-prompt (after a min elapsed guard) as
++   success with `completion_via: :fallback`, emits WARN
++   `claude_completion_fallback` (Events + log line). Limit walls, crashes,
++   and still-running sessions without ready idle still hard-fail.
++3. **Review-fix evidence gate** — review fix passes a
++   `completion_evidence` predicate requiring escalations artifact, no open
++   escalation checkboxes, readable worktree, and commit / dirty / explicit
++   no-change evidence. Post-spawn reclassification covers late evidence.
++4. **Healer backstop** — `StaleAgentHealer` still auto-clears the exact
++   stop-hook `fix_failed` message (bounded). Prefer in-path completion so
++   the healer is rarely needed.
++
++### Mode policy
++
++- **`claude.mode: headless` remains the recommended workaround** on versions
++  **without** this fix. Do **not** auto-revert operator config.
++- After this fix is released and verified in your environment, **tmux is
++  supported again**; operators may switch `claude.mode` back to `tmux`
++  manually.
++- This change does **not** rewrite local `.hive-state/config.yml` defaults.
++
++### Recovery of stuck stop-hook `REVIEW_ERROR` rows
++
++**Automatic:** Daemon `StaleAgentHealer` clears markers matching exactly:
++
++```text
++REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"
++```
++
++Generic `fix_failed` messages stay manual. After clear, re-entry requeues
++review; if `reviews/fix-success-NN.md` already exists the pass advances;
++otherwise Phase 4 may re-run (inspect worktree/PR first to avoid churn).
++
++**Manual (inspect first, never silent multi-task wipe):**
++
++```sh
++# 1. Inspect evidence
++#    - task.md marker text (exact stop-hook message?)
++#    - events.jsonl for agent_end / claude_completion_fallback
++#    - reviews/escalations-NN.md, reviews/fix-success-NN.md
++#    - git log / status on the feature worktree
++#    - PR state if already opened
++
++hive markers clear <slug-or-folder> --name REVIEW_ERROR --project <project>
++# optional tighter match:
++# hive markers clear <slug> --name REVIEW_ERROR --project <project> \
++#   --match-attr phase=fix,reason=fix_failed
++
++hive run <slug> --project <project>   # re-enter 6-review
++```
++
++**Named stuck tasks (2026-06-29):** 58 / PR #622, 287 / PR #623, 288 / PR #624 —
++for each: confirm marker text is the exact stop-hook message, confirm
++commits/PR already contain the intended fix, clear only that task's
++`REVIEW_ERROR`, re-run review so Phase 4 is skipped when
++`fix-success-NN.md` is present or re-evaluated when missing.
++
++### Related env tunables
++
++- `HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC` (default `2.0`) — minimum
++  wall time after prompt send before **session-death** fallback may fire
++  (guards instant-crash false positives).
++- `HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_MIN_ELAPSED_SEC` (default `15.0`) —
++  longer idle required before **ready-prompt** fallback (guards ready-before-work
++  on execute/ci_fix, which have no evidence gate).
++- `HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_STREAK` (default `3`) — consecutive
++  ready-prompt polls required before ready-prompt fallback.
+diff --git a/lib/hive/claude_launcher.rb b/lib/hive/claude_launcher.rb
+index b6820a41..9e7aae86 100644
+--- a/lib/hive/claude_launcher.rb
++++ b/lib/hive/claude_launcher.rb
+@@ -2,10 +2,12 @@ require "fileutils"
+ require "json"
+ require "open3"
+ require "time"
++require "yaml"
+ 
+ require "hive/agent_profiles"
+ require "hive/agent_limit"
+ require "hive/config"
++require "hive/events"
+ require "hive/lock"
+ require "hive/markers"
+ require "hive/permission_scope"
+@@ -102,6 +104,18 @@ module Hive
+     IMPLEMENTER_ALLOWED_TOOLS = "Read,Write,Edit,Bash,LS,Glob,Grep".freeze
+     DEFAULT_ALLOWED_TOOLS = PLANNER_ALLOWED_TOOLS
+ 
++    # Minimum wall time after prompt send before a missing Stop-hook
++    # signal may be treated as clean completion via *session death*.
++    # Guards against immediate-crash false positives. Ready-prompt
++    # fallback uses the higher READY_PROMPT min (see below).
++    DONE_SIGNAL_FALLBACK_MIN_ELAPSED_SEC = 2.0
++    # Ready-prompt fallback needs a longer post-send idle: a brief
++    # post-paste ready chrome (or stalled ready after failed submit)
++    # must not green-light execute/ci_fix without `.done`.
++    DONE_SIGNAL_READY_PROMPT_MIN_ELAPSED_SEC = 15.0
++    # Consecutive ready-prompt polls required before ready-prompt
++    # fallback (with default 0.5s poll ≈ 1.5s of stable ready chrome).
++    DONE_SIGNAL_READY_PROMPT_STREAK = 3
+     ORPHAN_SWEEP_LOG_MAX_BYTES = 64 * 1024
+     # Patterns that mark tmux itself as unavailable (binary missing, too
+     # old, unparseable). A session-startup TIMEOUT (`tmux session … did
+@@ -128,7 +142,8 @@ module Hive
+ 
+     SessionHandle = Struct.new(:task, :runner, :reestablish, keyword_init: true) do
+       def send_and_wait!(prompt:, expected_output: nil, timeout_sec:,
+-                         status_mode: nil, log_label: nil, deadline: nil)
++                         status_mode: nil, log_label: nil, deadline: nil,
++                         completion_evidence: nil)
+         Hive::ClaudeLauncher.send_prompt_and_wait!(
+           task: task,
+           runner: runner,
+@@ -138,7 +153,8 @@ module Hive
+           status_mode: status_mode,
+           log_label: log_label,
+           deadline: deadline,
+-          reestablish: reestablish
++          reestablish: reestablish,
++          completion_evidence: completion_evidence
+         )
+       end
+     end
+@@ -151,7 +167,8 @@ module Hive
+                 allowed_tools: nil,
+                 disallowed_tools: nil,
+                 permission_mode: nil, mcp_config_path: nil,
+-                strict_mcp_config: false)
++                strict_mcp_config: false,
++                completion_evidence: nil)
+       profile ||= Hive::AgentProfiles.lookup(:claude, cfg: cfg)
+       ensure_claude_profile!(profile)
+       permission_mode ||= Hive::Config.claude_permission_mode(cfg)
+@@ -202,7 +219,8 @@ module Hive
+           expected_output: expected_output,
+           timeout_sec: timeout_sec,
+           status_mode: status_mode || profile.status_detection_mode,
+-          log_label: log_label
++          log_label: log_label,
++          completion_evidence: completion_evidence
+         )
+       end
+       result
+@@ -281,11 +299,20 @@ module Hive
+ 
+     def send_prompt_and_wait!(task:, runner:, prompt:, timeout_sec:,
+                               expected_output: nil, status_mode: nil,
+-                              log_label: nil, deadline: nil, reestablish: nil)
++                              log_label: nil, deadline: nil, reestablish: nil,
++                              completion_evidence: nil)
+       reset_signal_files(task)
+       cleanup_expected_output(expected_output)
+-      reestablish_dead_session!(runner, reestablish)
+-      prepare_claude_session!(runner, deadline: deadline)
++      # Prep/reestablish raise AgentError (including TmuxError wraps). Return
++      # an error envelope so review/execute `agent_failed?` stamps phase
++      # failure rather than letting non-tmux_unavailable AgentError re-raise
++      # past Review's outer rescue (which only swallows tmux_unavailable).
++      begin
++        reestablish_dead_session!(runner, reestablish)
++        prepare_claude_session!(runner, deadline: deadline)
++      rescue Hive::AgentError => e
++        return { status: :error, error_message: e.message, log_label: log_label }
++      end
+       effective_timeout_sec = timeout_sec
+       if deadline
+         remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+@@ -305,7 +332,10 @@ module Hive
+                           started: Time.now.utc.iso8601)
+       end
+       runner.send_prompt(prompt)
+-      result = wait_for_status(task, runner, effective_timeout_sec, status_mode, expected_output, log_label)
++      result = wait_for_status(
++        task, runner, effective_timeout_sec, status_mode, expected_output, log_label,
++        completion_evidence: completion_evidence
++      )
+       # Headless launches drop a `<log_label>-<ts>.log` under
+       # `task.log_dir`; tmux launches need the same shared log path so
+       # downstream Claude-driven stages can find per-invocation output.
+@@ -364,7 +394,8 @@ module Hive
+       nil
+     end
+ 
+-    def wait_for_status(task, runner, timeout, status_mode, expected_output, log_label)
++    def wait_for_status(task, runner, timeout, status_mode, expected_output, log_label,
++                        completion_evidence: nil)
+       case status_mode || :state_file_marker
+       when :state_file_marker
+         marker = wait_for_terminal_marker(task, runner, timeout)
+@@ -372,7 +403,10 @@ module Hive
+       when :output_file_exists
+         wait_for_expected_output(task, runner, timeout, expected_output, log_label)
+       when :exit_code_only
+-        wait_for_done_signal(task, runner, timeout, log_label)
++        wait_for_done_signal(
++          task, runner, timeout, log_label,
++          completion_evidence: completion_evidence
++        )
+       else
+         raise ArgumentError, "unknown status_mode: #{status_mode.inspect}"
+       end
+@@ -427,7 +461,13 @@ module Hive
+     def preflight!(profile, runner)
+       preflight_tmux!
+       profile.check_version!
+-      if runner.session_exists?
++      begin
++        exists = runner.session_exists?
++      rescue Hive::TmuxError => e
++        raise Hive::AgentError,
++              "could not inspect claude tmux session #{runner.name}: #{e.message}"
++      end
++      if exists
+         raise Hive::AgentError,
+               "tmux session #{runner.name} already exists; attach with `tmux attach -t #{runner.name}` " \
+               "or run `tmux kill-session -t #{runner.name}` to clear it before retrying"
+@@ -515,7 +555,15 @@ module Hive
+ 
+     def wait_until_session_exists!(runner)
+       deadline = Time.now + session_ready_wait_timeout
+-      until runner.session_exists?
++      loop do
++        begin
++          return if runner.session_exists?
++        rescue Hive::TmuxError => e
++          # Transport blips must not false-green as "session missing" or
++          # escape unattributed — match prepare/sentinel wait attribution.
++          raise Hive::AgentError,
++                "could not inspect claude tmux session #{runner.name}: #{e.message}"
++        end
+         raise Hive::AgentError, "tmux session #{runner.name} did not start" if Time.now >= deadline
+ 
+         sleep 0.1
+@@ -552,7 +600,14 @@ module Hive
+     # single-shot path (`reestablish` nil), preserving the hard-fail there.
+     def reestablish_dead_session!(runner, reestablish)
+       return unless reestablish
+-      return unless runner.respond_to?(:session_exists?) && !runner.session_exists?
++      return unless runner.respond_to?(:session_exists?)
++
++      begin
++        return if runner.session_exists?
++      rescue Hive::TmuxError => e
++        raise Hive::AgentError,
++              "could not inspect claude tmux session #{runner.name}: #{e.message}"
++      end
+ 
+       reestablish.call
+     end
+@@ -778,7 +833,15 @@ module Hive
+           }
+         end
+ 
+-        unless expected_output_session_alive?(runner)
++        begin
++          session_alive = expected_output_session_alive?(runner)
++        rescue Hive::TmuxError => e
++          return {
++            status: :error,
++            error_message: "tmux_pane_unreadable: #{e.message}"
++          }
++        end
++        unless session_alive
+           return { status: :ok, log_label: log_label } if output_available && File.exist?(done_path(task))
+ 
+           return {
+@@ -825,12 +888,13 @@ module Hive
+       File.exist?(expected_output.to_s) && File.size(expected_output.to_s).positive?
+     end
+ 
++    # Returns true when the session is still present. Propagates
++    # `Hive::TmuxError` so callers can attribute transport failures as
++    # `tmux_pane_unreadable` rather than session death.
+     def expected_output_session_alive?(runner)
+       return true unless runner.respond_to?(:session_exists?)
+ 
+       runner.session_exists?
+-    rescue Hive::TmuxError
+-      false
+     end
+ 
+     def capture_limit_tail(runner)
+@@ -841,8 +905,22 @@ module Hive
+       ""
+     end
+ 
+-    def wait_for_done_signal(task, runner, timeout, log_label)
++    # Wait for the Claude Stop hook's `.done` sentinel under task.folder.
++    #
++    # Architectural contract (aligned with headless exit-code semantics):
++    # - Prefer the Stop hook (`.done` + optional `result.json`).
++    # - A live usage-limit wall always wins (never fallback success).
++    # - When the hook never fires but the tmux session ends cleanly — or
++    #   returns to an idle ready prompt after a non-trivial post-send
++    #   wait — treat as success via `completion_via: :fallback` and emit
++    #   a WARN `claude_completion_fallback` audit event.
++    # - Optional `completion_evidence:` callable (review-fix) further
++    #   gates fallback; when omitted, clean session/process completion
++    #   alone matches headless exit 0 (execute / ci_fix).
++    def wait_for_done_signal(task, runner, timeout, log_label, completion_evidence: nil)
+       deadline = Time.now + timeout
++      started_at = Time.now
++      ready_prompt_streak = 0
+       loop do
+         # A usage/credit wall stalls claude WITHOUT ever touching `.done`,
+         # so this exit_code_only path (the default `claude`/tmux execute
+@@ -868,13 +946,19 @@ module Hive
+           # other non-success completions; the real status lives in
+           # `result.json`. Without this check, an exit_code_only
+           # caller (e.g. the Phase 4 fix agent) would see `:ok` for
+-          # an errored claude run.
++          # an errored claude run. Non-ok statuses are normalized to
++          # `:error` so callers that only treat `%i[error timeout]` as
++          # failure (review/execute `agent_failed?`) still hard-fail —
++          # matching headless `handle_exit_exit_code_only`.
+           status = read_result_json_status(task)
+           if status == :ok
+             return { status: :ok, log_label: log_label }
+           elsif status
+-            return { status: status, log_label: log_label,
+-                     error_message: "claude reported #{status.inspect} via result.json" }
++            return {
++              status: :error,
++              log_label: log_label,
++              error_message: "claude reported #{status.inspect} via result.json"
++            }
+           end
+           # No result.json on disk yet — the .done write may have
+           # raced the result write. Treat as completion since
+@@ -882,7 +966,40 @@ module Hive
+           return { status: :ok, log_label: log_label }
+         end
+ 
++        # Non-ok result.json without `.done` is still a hard failure —
++        # never green-light via session-death / ready-prompt fallback.
++        if (failed = non_ok_result_json_status(task))
++          return failed.merge(log_label: log_label)
++        end
++
++        ready_prompt_streak = next_ready_prompt_streak(ready_prompt_streak, pane_tail)
++
++        elapsed = Time.now - started_at
++        fallback = done_signal_fallback_candidate(
++          task, runner, pane_tail: pane_tail, elapsed: elapsed,
++          ready_prompt_streak: ready_prompt_streak
++        )
++        if (hard = fallback_hard_error(fallback))
++          return hard.merge(log_label: log_label)
++        end
++        if fallback && completion_evidence_allows?(completion_evidence, fallback)
++          return emit_done_signal_fallback(task, log_label, fallback)
++        end
++
+         if Time.now >= deadline
++          # Final attempt at deadline: session may have just died.
++          fallback = done_signal_fallback_candidate(
++            task, runner, pane_tail: pane_tail, elapsed: Time.now - started_at,
++            ready_prompt_streak: ready_prompt_streak,
++            at_deadline: true
++          )
++          if (hard = fallback_hard_error(fallback))
++            return hard.merge(log_label: log_label)
++          end
++          if fallback && completion_evidence_allows?(completion_evidence, fallback)
++            return emit_done_signal_fallback(task, log_label, fallback)
++          end
++
+           return { status: :timeout, error_message: "claude stop hook did not signal completion" }
+         end
+ 
+@@ -890,6 +1007,229 @@ module Hive
+       end
+     end
+ 
++    # Returns a fallback payload Hash when secondary completion is proven,
++    # a hard-error Hash (`:hard_error => true`) for unreadable tmux, or
++    # nil when the run is still in progress / not safely completable.
++    def done_signal_fallback_candidate(task, runner, pane_tail:, elapsed:,
++                                       ready_prompt_streak: 0, at_deadline: false)
++      return nil unless task_folder_readable?(task)
++
++      # Limit walls must never fall through to success (caller also checks,
++      # but re-check here so deadline-path is self-contained).
++      return nil if Hive::AgentLimit.live_limit_line(pane_tail)
++
++      begin
++        session_alive = expected_output_session_alive?(runner)
++      rescue Hive::TmuxError => e
++        return {
++          hard_error: true,
++          status: :error,
++          error_message: "tmux_pane_unreadable: #{e.message}",
++          reason: :tmux_pane_unreadable,
++          missing_signal: "stop_hook_done",
++          expected_sentinel: done_path(task),
++          elapsed_sec: elapsed.round(3),
++          session_name: runner_session_name(runner),
++          at_deadline: at_deadline
++        }
++      end
++
++      unless session_alive
++        return nil if elapsed < done_signal_fallback_min_elapsed
++
++        return {
++          reason: :session_dead,
++          missing_signal: "stop_hook_done",
++          expected_sentinel: done_path(task),
++          elapsed_sec: elapsed.round(3),
++          session_name: runner_session_name(runner),
++          at_deadline: at_deadline
++        }
++      end
++
++      # Session still alive: only accept idle ready-prompt after the
++      # stricter ready-prompt elapsed + consecutive-ready streak guards
++      # (prompt was already sent before this wait).
++      return nil if elapsed < done_signal_ready_prompt_min_elapsed
++      return nil if ready_prompt_streak < done_signal_ready_prompt_streak
++      return nil if pane_tail.to_s.empty?
++      return nil unless claude_ready_prompt?(pane_tail)
++
++      {
++        reason: :ready_prompt,
++        missing_signal: "stop_hook_done",
++        expected_sentinel: done_path(task),
++        elapsed_sec: elapsed.round(3),
++        session_name: runner_session_name(runner),
++        ready_prompt_streak: ready_prompt_streak,
++        at_deadline: at_deadline
++      }
++    end
++
++    def done_signal_fallback_min_elapsed
++      Float(tmux_env("DONE_FALLBACK_MIN_ELAPSED_SEC", DONE_SIGNAL_FALLBACK_MIN_ELAPSED_SEC.to_s))
++    end
++
++    def done_signal_ready_prompt_min_elapsed
++      Float(tmux_env(
++              "DONE_FALLBACK_READY_PROMPT_MIN_ELAPSED_SEC",
++              DONE_SIGNAL_READY_PROMPT_MIN_ELAPSED_SEC.to_s
++            ))
++    end
++
++    def done_signal_ready_prompt_streak
++      Integer(tmux_env(
++                "DONE_FALLBACK_READY_PROMPT_STREAK",
++                DONE_SIGNAL_READY_PROMPT_STREAK.to_s
++              ))
++    end
++
++    def next_ready_prompt_streak(current, pane_tail)
++      return 0 if pane_tail.to_s.empty?
++      return current + 1 if claude_ready_prompt?(pane_tail)
++
++      0
++    end
++
++    # When result.json is present with an explicit non-ok status and `.done`
++    # is still missing, surface that failure instead of fallback success.
++    # Always normalize to `:error` (headless parity) so stage-level
++    # `agent_failed?` predicates that only know `:error`/`:timeout` still
++    # stamp REVIEW_ERROR / implementer_failed rather than false-greening.
++    def non_ok_result_json_status(task)
++      status = read_result_json_status(task)
++      return nil if status.nil? || status == :ok
++
++      {
++        status: :error,
++        error_message: "claude reported #{status.inspect} via result.json"
++      }
++    end
++
++    def fallback_hard_error(fallback)
++      return nil unless fallback.is_a?(Hash) && fallback[:hard_error]
++
++      {
++        status: fallback[:status] || :error,
++        error_message: fallback[:error_message].to_s
++      }
++    end
++
++    def task_folder_readable?(task)
++      folder = task && task.folder
++      return false if folder.to_s.empty?
++
++      File.directory?(folder) && File.readable?(folder)
++    rescue SystemCallError
++      false
++    end
++
++    def runner_session_name(runner)
++      return nil unless runner.respond_to?(:name)
++
++      runner.name
++    end
++
++    # completion_evidence may return:
++    # - true  → allow fallback
++    # - false / nil → deny
++    # - Hash  → allow and merge audit fields into the fallback payload
++    def completion_evidence_allows?(completion_evidence, fallback)
++      return true if completion_evidence.nil?
++
++      result = completion_evidence.call(fallback)
++      case result
++      when Hash
++        fallback.merge!(result)
++        true
++      when true
++        true
++      else
++        false
++      end
++    rescue StandardError => e
++      warn "[hive] completion_evidence raised #{e.class}: #{e.message}; denying fallback"
++      false
++    end
++
++    def emit_done_signal_fallback(task, log_label, fallback)
++      payload = build_completion_fallback_payload(task, log_label, fallback)
++      # Nested values (especially artifacts) are already compact JSON strings
++      # from build_completion_fallback_payload — avoid Hash#inspect here so
++      # events.jsonl stays greppable and under the Events message budget.
++      message = payload.map { |k, v| "#{k}=#{v}" }.join(" ")
++      warn "[hive] claude_completion_fallback #{message}"
++      begin
++        Hive::Events.emit(
++          task_folder: task.folder,
++          slug: task_slug(task),
++          stage: log_label.to_s,
++          agent: "claude",
++          event_type: :claude_completion_fallback,
++          message: message
++        )
++      rescue StandardError => e
++        warn "[hive] failed to emit claude_completion_fallback: #{e.class}: #{e.message}"
++      end
++
++      {
++        status: :ok,
++        log_label: log_label,
++        completion_via: :fallback,
++        fallback: fallback
++      }
++    end
++
++    def build_completion_fallback_payload(task, log_label, fallback)
++      pass = fallback[:pass] || pass_from_log_label(log_label)
++      payload = {
++        phase: log_label.to_s,
++        reason: fallback[:reason].to_s,
++        missing_signal: (fallback[:missing_signal] || "stop_hook_done").to_s,
++        expected_sentinel: (fallback[:expected_sentinel] || done_path(task)).to_s,
++        elapsed_sec: fallback[:elapsed_sec],
++        session_name: fallback[:session_name],
++        task_slug: task_slug(task),
++        claude_pid: fallback[:claude_pid] || task_claude_pid(task)
++      }
++      payload[:pass] = pass if pass
++      %i[head_before head_after dirty ready_prompt_streak].each do |key|
++        payload[key] = fallback[key] unless fallback[key].nil?
++      end
++      unless fallback[:artifacts].nil?
++        # Compact JSON (not Hash#inspect) so operators can parse events.jsonl
++        # and long nested paths stay under Events' message truncation budget.
++        artifacts = fallback[:artifacts]
++        payload[:artifacts] =
++          if artifacts.is_a?(String)
++            artifacts
++          else
++            JSON.generate(artifacts)
++          end
++      end
++      payload.compact
++    end
++
++    def pass_from_log_label(log_label)
++      m = log_label.to_s.match(/pass0*(\d+)/i)
++      m && m[1].to_i
++    end
++
++    def task_claude_pid(task)
++      folder = task && task.folder
++      return nil if folder.to_s.empty?
++
++      lock_path = File.join(folder, ".lock")
++      return nil unless File.file?(lock_path)
++
++      data = YAML.safe_load(File.read(lock_path), permitted_classes: [ Time ])
++      return nil unless data.is_a?(Hash)
++
++      data["claude_pid"]
++    rescue StandardError
++      nil
++    end
++
+     # Read `result.json` (if present) and translate `status` into the
+     # caller's symbol vocabulary. Unknown / unparseable shapes return
+     # nil so the caller can fall through to its default success path.
+diff --git a/lib/hive/events.rb b/lib/hive/events.rb
+index 31ecc07a..f8bca816 100644
+--- a/lib/hive/events.rb
++++ b/lib/hive/events.rb
+@@ -14,6 +14,7 @@ module Hive
+       round_waiting
+       round_complete
+       clean_exit_auto_committed
++      claude_completion_fallback
+     ].freeze
+ 
+     STATUS_TAIL_LINES = 20
+diff --git a/lib/hive/scripts/stop_hook.sh b/lib/hive/scripts/stop_hook.sh
+index 086433f0..e681c2ee 100755
+--- a/lib/hive/scripts/stop_hook.sh
++++ b/lib/hive/scripts/stop_hook.sh
+@@ -3,16 +3,26 @@ set -eu
+ 
+ : "${HIVE_TASK_STAGE_DIR:?HIVE_TASK_STAGE_DIR required}"
+ 
++# Ensure the orchestrator-owned stage dir exists. Claude may invoke the
++# Stop hook after a cwd-based settings discovery; if the stage path is
++# missing or not yet created, `set -eu` would abort before `touch .done`
++# and Hive would hang until the stop-hook timeout.
++mkdir -p "${HIVE_TASK_STAGE_DIR}"
++
+ # Buffer stdin first so an empty payload doesn't silently produce a
+ # zero-byte result.json — that file is forensic evidence, and an empty
+ # write is indistinguishable from "hook ran but Claude Code passed no
+ # data". If stdin is empty, write an explicit sentinel JSON object
+ # instead so the operator can tell the difference.
+ result_path="${HIVE_TASK_STAGE_DIR}/result.json"
++done_path="${HIVE_TASK_STAGE_DIR}/.done"
+ payload=$(cat)
+ if [ -z "$payload" ]; then
+   printf '%s\n' '{"hive_stop_hook":"empty_stdin"}' > "$result_path"
+ else
+   printf '%s' "$payload" > "$result_path"
+ fi
+-touch "${HIVE_TASK_STAGE_DIR}/.done"
++# Touch the wake-up sentinel last so waiters that observe `.done` can
++# also observe a complete `result.json` (best-effort ordering; a crash
++# between the two writes is still possible but rare).
++touch "$done_path"
+diff --git a/lib/hive/stages/base.rb b/lib/hive/stages/base.rb
+index 979b4800..59909f14 100644
+--- a/lib/hive/stages/base.rb
++++ b/lib/hive/stages/base.rb
+@@ -562,7 +562,7 @@ module Hive
+                          profile: nil, expected_output: nil, status_mode: nil,
+                          permission_mode: nil, allowed_tools: nil,
+                          disallowed_tools: nil, mcp_config_path: nil,
+-                         strict_mcp_config: false)
++                         strict_mcp_config: false, completion_evidence: nil)
+         require "hive/claude_launcher"
+ 
+         profile ||= Hive::AgentProfiles.lookup(:claude, cfg: cfg)
+@@ -588,7 +588,8 @@ module Hive
+           allowed_tools: allowed_tools,
+           disallowed_tools: disallowed_tools,
+           mcp_config_path: mcp_config_path,
+-          strict_mcp_config: strict_mcp_config
++          strict_mcp_config: strict_mcp_config,
++          completion_evidence: completion_evidence
+         )
+       end
+ 
+diff --git a/lib/hive/stages/execute.rb b/lib/hive/stages/execute.rb
+index c3081b89..95b58ea1 100644
+--- a/lib/hive/stages/execute.rb
++++ b/lib/hive/stages/execute.rb
+@@ -200,7 +200,10 @@ module Hive
+       def agent_failed?(result)
+         return true if result.nil?
+ 
+-        %i[error timeout].include?(result[:status])
++        # Any non-ok envelope is failure (parity with review). Catches
++        # residual non-ok statuses that are not :error/:timeout.
++        status = result[:status]
++        status.nil? || status != :ok
+       end
+ 
+       def mark_implementer_failure(task, cfg, impl_result)
+diff --git a/lib/hive/stages/review.rb b/lib/hive/stages/review.rb
+index 7ca0fb20..49d927fb 100644
+--- a/lib/hive/stages/review.rb
++++ b/lib/hive/stages/review.rb
+@@ -582,7 +582,10 @@ module Hive
+           before_fix_sha = Hive::ProtectedFiles.snapshot(task.folder, protected_set)
+           before_fix_head = git_head(worktree_path)
+ 
+-          fix_result = spawn_fix_agent(task, cfg, ctx_pass, accepted: accepted)
++          fix_result = spawn_fix_agent(
++            task, cfg, ctx_pass, accepted: accepted,
++            before_fix_head: before_fix_head
++          )
+           after_fix_sha = Hive::ProtectedFiles.snapshot(task.folder, protected_set)
+           after_fix_head = git_head(worktree_path)
+ 
+@@ -594,6 +597,24 @@ module Hive
+                      status: :review_error }
+           end
+ 
++          # Belt-and-suspenders: if the launcher still returned the legacy
++          # stop-hook timeout but on-disk evidence proves the fix turn
++          # finished, promote to success (audit already emitted when the
++          # launcher itself used the shared fallback path).
++          if stop_hook_timeout_result?(fix_result) &&
++             review_fix_completion_evidence?(
++               task, ctx_pass,
++               before_fix_head: before_fix_head,
++               after_fix_head: after_fix_head,
++               fix_result: fix_result
++             )
++            fix_result = promote_stop_hook_timeout_result!(
++              task, ctx_pass, fix_result,
++              before_fix_head: before_fix_head,
++              after_fix_head: after_fix_head
++            )
++          end
++
+           if agent_failed?(fix_result)
+             limited = mark_review_phase_failure(
+               task, phase: :fix, terminal_reason: "fix_failed",
+@@ -1812,7 +1833,7 @@ module Hive
+         File.write(path, body)
+       end
+ 
+-      def spawn_fix_agent(task, cfg, ctx, accepted:)
++      def spawn_fix_agent(task, cfg, ctx, accepted:, before_fix_head: nil)
+         profile_name = cfg.dig("review", "fix", "agent") || "claude"
+         profile = Hive::AgentProfiles.lookup(profile_name, cfg: cfg)
+         scope = Hive::Stages::Base.stage_permission_scope(
+@@ -1853,6 +1874,25 @@ module Hive
+           status_mode: :exit_code_only
+         }
+         if profile.name == :claude
++          head_before = before_fix_head
++          kwargs[:completion_evidence] = lambda { |_fallback|
++            after_head = git_head(ctx.worktree_path)
++            unless review_fix_completion_evidence?(
++              task, ctx,
++              before_fix_head: head_before,
++              after_fix_head: after_head,
++              fix_result: nil
++            )
++              next false
++            end
++
++            # Thread evidence summary into the launcher audit payload (R6/U4).
++            review_fix_evidence_audit_fields(
++              task, ctx,
++              before_fix_head: head_before,
++              after_fix_head: after_head
++            )
++          }
+           Hive::Stages::Base.spawn_claude!(
+             task,
+             cfg,
+@@ -1864,6 +1904,159 @@ module Hive
+         end
+       end
+ 
++      STOP_HOOK_TIMEOUT_MESSAGE = "claude stop hook did not signal completion".freeze
++
++      def stop_hook_timeout_result?(result)
++        return false unless result.is_a?(Hash)
++        return false unless result[:status] == :timeout
++
++        result[:error_message].to_s == STOP_HOOK_TIMEOUT_MESSAGE
++      end
++
++      # Strict review-fix completion predicate used both as the launcher
++      # `completion_evidence` gate and as a post-spawn reclassification
++      # check. Requires readable worktree, pass escalations artifact, and
++      # either a new commit, dirty tree (auto-commit pending), or explicit
++      # no-change evidence — never agent_end alone.
++      def review_fix_completion_evidence?(task, ctx, before_fix_head:, after_fix_head: nil, fix_result: nil)
++        return false if fix_result_hard_failure?(fix_result)
++
++        worktree = ctx.worktree_path.to_s
++        return false if worktree.empty?
++        return false unless File.directory?(worktree)
++
++        status = worktree_status(worktree)
++        return false if status.is_a?(Array)
++
++        pass_suffix = format("%02d", ctx.pass)
++        escalations = File.join(ctx.task_folder, "reviews", "escalations-#{pass_suffix}.md")
++        return false unless File.file?(escalations) && File.size(escalations).positive?
++
++        # Unresolved user escalations still waiting — do not accept fallback.
++        return false if open_escalation_checkboxes?(escalations)
++
++        after = after_fix_head
++        after = git_head(worktree) if after.nil?
++        return true if after.to_s != before_fix_head.to_s
++        return true if status == :dirty
++
++        review_fix_no_change_evidence?(task, ctx, fix_result: fix_result)
++      end
++
++      def fix_result_hard_failure?(fix_result)
++        return false if fix_result.nil?
++        return true if fix_result[:limit_text].to_s.strip != ""
++
++        msg = fix_result[:error_message].to_s
++        return true if msg.include?("tmux_pane_unreadable")
++        return true if msg.include?("limits reached")
++
++        status = fix_result[:status]
++        return false if status.nil? || status == :ok
++        # Stop-hook timeout alone is soft (may promote via evidence); every
++        # other non-ok status — including residual :failed envelopes — is hard.
++        return true unless stop_hook_timeout_result?(fix_result)
++
++        false
++      end
++
++      def open_escalation_checkboxes?(path)
++        File.foreach(path) do |line|
++          # Align with publish_escalations / TUI: allow `- []` and odd
++          # interior whitespace, not only the canonical `- [ ]` form.
++          return true if line.match?(/^\s*-\s+\[\s*\]\s+/)
++        end
++        false
++      rescue SystemCallError
++        true
++      end
++
++      # No-change / already-resolved path: agent left a clean worktree and
++      # unchanged HEAD. Accept only when partial hook artifacts or a
++      # substantial final_message prove a completed turn — never session
++      # death alone (that would green-light an early crash).
++      # Non-ok `result.json` status is failure evidence, not success proof.
++      def review_fix_no_change_evidence?(task, _ctx, fix_result: nil)
++        result_path = File.join(task.folder, "result.json")
++        if File.file?(result_path) && File.size(result_path).positive?
++          status = Hive::ClaudeLauncher.read_result_json_status(task)
++          # Explicit non-ok status must never count as no-change success.
++          return false if status && status != :ok
++
++          # missing / empty_stdin (no status) or ok-shaped → positive proof
++          return true
++        end
++
++        msg = fix_result && fix_result[:final_message].to_s.strip
++        return true if msg && msg.length >= 20
++
++        false
++      end
++
++      def review_fix_evidence_audit_fields(task, ctx, before_fix_head:, after_fix_head:)
++        pass_suffix = format("%02d", ctx.pass)
++        escalations_rel = "reviews/escalations-#{pass_suffix}.md"
++        escalations = File.join(ctx.task_folder, escalations_rel)
++        status = worktree_status(ctx.worktree_path)
++        dirty = status == :dirty
++        {
++          pass: ctx.pass,
++          head_before: before_fix_head.to_s,
++          head_after: after_fix_head.to_s,
++          dirty: dirty,
++          artifacts: {
++            escalations: File.file?(escalations) && File.size(escalations).positive?,
++            result_json: File.file?(File.join(task.folder, "result.json")),
++            done: File.file?(File.join(task.folder, ".done"))
++          }
++        }
++      end
++
++      def promote_stop_hook_timeout_result!(task, ctx, fix_result, before_fix_head:, after_fix_head:)
++        log_label = fix_result[:log_label] || "review-fix-pass#{format('%02d', ctx.pass)}"
++        evidence = review_fix_evidence_audit_fields(
++          task, ctx,
++          before_fix_head: before_fix_head,
++          after_fix_head: after_fix_head
++        )
++        fallback = {
++          reason: :review_evidence,
++          missing_signal: "stop_hook_done",
++          expected_sentinel: File.join(task.folder, ".done"),
++          session_name: nil,
++          elapsed_sec: nil
++        }.merge(evidence)
++
++        # Prefer the shared launcher payload builder so promote and in-path
++        # fallback stay field-aligned for operators grepping events.jsonl.
++        payload = Hive::ClaudeLauncher.build_completion_fallback_payload(
++          task, log_label, fallback
++        )
++        message = payload.map { |k, v| "#{k}=#{v}" }.join(" ")
++        warn "[hive] claude_completion_fallback #{message}"
++        begin
++          Hive::Events.emit(
++            task_folder: task.folder,
++            slug: task.slug,
++            stage: "6-review",
++            agent: "claude",
++            event_type: :claude_completion_fallback,
++            message: message
++          )
++        rescue StandardError => e
++          warn "[hive] failed to emit claude_completion_fallback: #{e.class}: #{e.message}"
++        end
++
++        {
++          status: :ok,
++          log_label: log_label,
++          completion_via: :fallback,
++          fallback: fallback,
++          final_message: fix_result[:final_message],
++          final_message_source: fix_result[:final_message_source]
++        }
++      end
++
+       # The triage bias configured for this run, surfaced into commit
+       # trailers so `hive metrics rollback-rate` can compare bias presets.
+       # Defaults to "courageous" — same default as Triage.run! itself.
+@@ -2225,7 +2418,11 @@ module Hive
+       def agent_failed?(result)
+         return true if result.nil?
+ 
+-        %i[error timeout].include?(result[:status])
++        # Any non-ok envelope is a hard failure. Historical callers only
++        # checked :error/:timeout; raw non-ok result.json statuses (e.g.
++        # :failed) must not false-green auto-commit / fix-success.
++        status = result[:status]
++        status.nil? || status != :ok
+       end
+     end
+   end
+diff --git a/lib/hive/stop_hook_installer.rb b/lib/hive/stop_hook_installer.rb
+index 237887af..3870b14d 100644
+--- a/lib/hive/stop_hook_installer.rb
++++ b/lib/hive/stop_hook_installer.rb
+@@ -29,6 +29,10 @@ module Hive
+     end
+ 
+     def install_at(target_dir, stage_dir)
++      # Stage dir must exist before the hook runs: stop_hook.sh writes
++      # result.json / .done there. Creating it at install time closes the
++      # race where Claude stops before the orchestrator mkdir'd the folder.
++      FileUtils.mkdir_p(stage_dir)
+       claude_dir = File.join(target_dir, ".claude")
+       FileUtils.mkdir_p(claude_dir)
+       settings_path = File.join(claude_dir, "settings.json")
+diff --git a/lib/hive/tmux_runner.rb b/lib/hive/tmux_runner.rb
+index 0133c160..c1b6cc3b 100644
+--- a/lib/hive/tmux_runner.rb
++++ b/lib/hive/tmux_runner.rb
+@@ -58,11 +58,13 @@ module Hive
+       true
+     end
+ 
++    # True when `tmux has-session` reports the named session.
++    # Transport failures (timeout, missing binary, server blip) raise
++    # typed `Hive::TmuxError` subclasses — callers must not treat those
++    # as "session cleanly gone" (that would false-green fallback waits).
+     def session_exists?
+       _out, _err, status = capture_tmux("has-session", "-t", @name)
+       status.success?
+-    rescue Hive::TmuxError
+-      false
+     end
+ 
+     def send_prompt(text)
+diff --git a/test/integration/run_review_test.rb b/test/integration/run_review_test.rb
+index 80ef0996..c50c33f8 100644
+--- a/test/integration/run_review_test.rb
++++ b/test/integration/run_review_test.rb
+@@ -1310,7 +1310,7 @@ class RunReviewTest < Minitest::Test
+               status: :ok, escalations_path: esc, error_message: nil, tampered_files: [], limit_text: nil
+             )
+           }) do
+-            with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:|
++            with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:, **_:|
+               flunk "ad-hoc review should not run fix by default with accepted=#{accepted.inspect}"
+             }) do
+               capture_io { Hive::Commands::Run.new(folder).call }
+@@ -1341,7 +1341,7 @@ class RunReviewTest < Minitest::Test
+         Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
+ 
+         accepted_seen = nil
+-        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:|
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:, **_:|
+           accepted_seen = accepted
+           { status: :ok }
+         }) do
+@@ -2325,7 +2325,7 @@ class RunReviewTest < Minitest::Test
+         Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
+ 
+         accepted_seen = nil
+-        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:|
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:, **_:|
+           accepted_seen = accepted
+           { status: :error, error_message: "fix failed" }
+         }) do
+@@ -2352,7 +2352,7 @@ class RunReviewTest < Minitest::Test
+         Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
+ 
+         accepted_seen = nil
+-        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:|
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |_task, _cfg, _ctx, accepted:, **_:|
+           accepted_seen = accepted
+           {
+             status: :error,
+diff --git a/test/unit/claude_launcher_test.rb b/test/unit/claude_launcher_test.rb
+index 1d6b2589..5e791a3a 100644
+--- a/test/unit/claude_launcher_test.rb
++++ b/test/unit/claude_launcher_test.rb
+@@ -3,6 +3,8 @@ require "time"
+ require "hive/claude_launcher"
+ require "hive/agent_limit"
+ require "hive/stages/base"
++require "hive/stages/review"
++require "hive/stages/execute"
+ require "hive/task"
+ 
+ class ClaudeLauncherTest < Minitest::Test
+@@ -1148,7 +1150,7 @@ class ClaudeLauncherTest < Minitest::Test
+     end
+   end
+ 
+-  def test_wait_for_expected_output_treats_tmux_liveness_error_as_dead_session
++  def test_wait_for_expected_output_treats_tmux_liveness_error_as_unreadable
+     with_tmp_task do |task|
+       output = File.join(task.folder, "missing.md")
+       runner = Struct.new(:name) do
+@@ -1160,7 +1162,10 @@ class ClaudeLauncherTest < Minitest::Test
+       result = Hive::ClaudeLauncher.wait_for_expected_output(task, runner, 10, output, "review")
+ 
+       assert_equal :error, result.fetch(:status)
+-      assert_match(/tmux_session_terminated/, result.fetch(:error_message))
++      # Transport errors must not masquerade as clean session death.
++      assert_match(/tmux_pane_unreadable/, result.fetch(:error_message))
++      assert_match(/server unavailable/, result.fetch(:error_message))
++      refute_match(/tmux_session_terminated/, result.fetch(:error_message))
+     end
+   end
+ 
+@@ -1216,7 +1221,9 @@ class ClaudeLauncherTest < Minitest::Test
+       File.write(Hive::ClaudeLauncher.result_path(task), JSON.generate("status" => "failed"))
+ 
+       failed = Hive::ClaudeLauncher.wait_for_done_signal(task, nil, 1, "ci")
+-      assert_equal :failed, failed.fetch(:status)
++      # Non-ok result.json is normalized to :error (headless parity) so
++      # review/execute agent_failed? predicates still hard-fail.
++      assert_equal :error, failed.fetch(:status)
+       assert_match(/failed/, failed.fetch(:error_message))
+     end
+ 
+@@ -1249,6 +1256,401 @@ class ClaudeLauncherTest < Minitest::Test
+     end
+   end
+ 
++  def test_wait_for_done_signal_fallback_when_session_dead_without_done
++    with_tmp_task do |task|
++      runner = Struct.new(:name) do
++        def session_exists? = false
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-ci-slug")
++      emitted = []
++      original_emit = Hive::Events.method(:emit)
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        with_replaced_singleton_method(
++          Hive::Events, :emit,
++          lambda { |**kwargs|
++            emitted << kwargs
++            original_emit.call(**kwargs)
++          }
++        ) do
++          _out, err = capture_io do
++            result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 5, "ci")
++
++            assert_equal :ok, result.fetch(:status)
++            assert_equal :fallback, result.fetch(:completion_via)
++            assert_equal :session_dead, result.fetch(:fallback).fetch(:reason)
++            refute result.key?(:error_message)
++          end
++          assert_match(/claude_completion_fallback/, err)
++          assert_equal 1, emitted.count { |e| e[:event_type] == :claude_completion_fallback }
++        end
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_limit_wall_beats_session_dead_fallback
++    with_tmp_task do |task|
++      limit_menu = pane_fixture("limit_menu_live.txt")
++      runner = Struct.new(:name, :tail) do
++        def session_exists? = false
++        def capture_pane_tail(bytes:) = tail
++      end.new("hive-ci-slug", limit_menu)
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 10, "ci")
++
++        assert_equal :error, result.fetch(:status)
++        assert result.key?(:limit_text)
++        refute_equal :fallback, result[:completion_via]
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_timeout_when_session_still_running
++    with_tmp_task do |task|
++      runner = Struct.new(:name) do
++        def session_exists? = true
++        def capture_pane_tail(bytes:) = "still streaming tool output…"
++      end.new("hive-ci-slug")
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 0, "ci")
++
++        assert_equal :timeout, result.fetch(:status)
++        assert_equal "claude stop hook did not signal completion", result.fetch(:error_message)
++        refute_equal :fallback, result[:completion_via]
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_respects_completion_evidence_gate
++    with_tmp_task do |task|
++      runner = Struct.new(:name) do
++        def session_exists? = false
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-ci-slug")
++      calls = 0
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        denied = Hive::ClaudeLauncher.wait_for_done_signal(
++          task, runner, 0, "review-fix",
++          completion_evidence: lambda { |_fb|
++            calls += 1
++            false
++          }
++        )
++        assert_equal :timeout, denied.fetch(:status)
++        assert_match(/stop hook did not signal/, denied.fetch(:error_message))
++        assert_operator calls, :>=, 1
++
++        _out, _err = capture_io do
++          allowed = Hive::ClaudeLauncher.wait_for_done_signal(
++            task, runner, 5, "review-fix",
++            completion_evidence: ->(_fb) { true }
++          )
++          assert_equal :ok, allowed.fetch(:status)
++          assert_equal :fallback, allowed.fetch(:completion_via)
++        end
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_ok_without_fallback_flag_when_done_present
++    with_tmp_task do |task|
++      File.write(Hive::ClaudeLauncher.done_path(task), "done")
++      File.write(Hive::ClaudeLauncher.result_path(task), JSON.generate("status" => "ok"))
++
++      result = Hive::ClaudeLauncher.wait_for_done_signal(task, nil, 1, "ci")
++
++      assert_equal({ status: :ok, log_label: "ci" }, result)
++      refute result.key?(:completion_via)
++    end
++  end
++
++  def test_wait_for_done_signal_no_fallback_event_on_normal_done_success
++    with_tmp_task do |task|
++      File.write(Hive::ClaudeLauncher.done_path(task), "done")
++      emitted = []
++      original_emit = Hive::Events.method(:emit)
++      with_replaced_singleton_method(
++        Hive::Events, :emit,
++        lambda { |**kwargs|
++          emitted << kwargs
++          original_emit.call(**kwargs)
++        }
++      ) do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, nil, 1, "ci")
++        assert_equal :ok, result.fetch(:status)
++        assert_empty emitted.select { |e| e[:event_type] == :claude_completion_fallback }
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_non_ok_result_json_without_done_does_not_fallback
++    with_tmp_task do |task|
++      File.write(Hive::ClaudeLauncher.result_path(task), JSON.generate("status" => "failed"))
++      runner = Struct.new(:name) do
++        def session_exists? = false
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-ci-slug")
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 5, "ci")
++
++        assert_equal :error, result.fetch(:status)
++        assert_match(/failed/, result.fetch(:error_message))
++        refute_equal :fallback, result[:completion_via]
++        # Caller-level contract: review/execute treat this as agent_failed?
++        assert Hive::Stages::Review.send(:agent_failed?, result)
++        assert Hive::Stages::Execute.send(:agent_failed?, result)
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_tmux_error_does_not_fallback_success
++    with_tmp_task do |task|
++      runner = Struct.new(:name) do
++        def session_exists?
++          raise Hive::TmuxError, "tmux has-session timed out"
++        end
++
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-ci-slug")
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 5, "ci")
++
++        assert_equal :error, result.fetch(:status)
++        assert_match(/tmux_pane_unreadable/, result.fetch(:error_message))
++        assert_match(/timed out/, result.fetch(:error_message))
++        refute_equal :fallback, result[:completion_via]
++        assert Hive::Stages::Review.send(:agent_failed?, result)
++        assert Hive::Stages::Review.send(:fix_result_hard_failure?, result)
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_fallback_audit_includes_pid_and_evidence_fields
++    with_tmp_task do |task|
++      File.write(File.join(task.folder, ".lock"), { "claude_pid" => 42_424 }.to_yaml)
++      runner = Struct.new(:name) do
++        def session_exists? = false
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-review-fix-slug")
++
++      with_env("HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0") do
++        _out, err = capture_io do
++          result = Hive::ClaudeLauncher.wait_for_done_signal(
++            task, runner, 5, "review-fix-pass01",
++            completion_evidence: lambda { |_fb|
++              {
++                pass: 1,
++                head_before: "aaa",
++                head_after: "bbb",
++                dirty: false,
++                artifacts: { escalations: true, result_json: false, done: false }
++              }
++            }
++          )
++          assert_equal :ok, result.fetch(:status)
++          assert_equal :fallback, result.fetch(:completion_via)
++          assert_equal 1, result.fetch(:fallback).fetch(:pass)
++          assert_equal "aaa", result.fetch(:fallback).fetch(:head_before)
++        end
++        assert_match(/claude_completion_fallback/, err)
++        assert_match(/claude_pid=42424/, err)
++        assert_match(/pass=1/, err)
++        assert_match(/head_before=aaa/, err)
++        assert_match(/head_after=bbb/, err)
++        # Nested artifacts must be compact JSON, not Hash#inspect.
++        assert_match(/artifacts=\{"escalations":true,"result_json":false,"done":false\}/, err)
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_ready_prompt_requires_higher_min_elapsed
++    with_tmp_task do |task|
++      ready_pane = "Claude Code\n❯ "
++      # Ensure ready-prompt detector accepts this fixture.
++      assert Hive::ClaudeLauncher.claude_ready_prompt?(ready_pane),
++             "fixture must look like a ready prompt"
++
++      runner = Struct.new(:name, :tail) do
++        def session_exists? = true
++        def capture_pane_tail(bytes:) = tail
++      end.new("hive-ci-slug", ready_pane)
++
++      # Short session-death min, but ready-prompt min stays high and streak=1
++      # so only elapsed is the gate under test.
++      with_env(
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0",
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_MIN_ELAPSED_SEC" => "999",
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_STREAK" => "1",
++        "HIVE_CLAUDE_TMUX_POLL_INTERVAL_SEC" => "0"
++      ) do
++        result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 0, "ci")
++        assert_equal :timeout, result.fetch(:status)
++        refute_equal :fallback, result[:completion_via]
++      end
++    end
++  end
++
++  def test_wait_for_done_signal_ready_prompt_fallback_when_streak_and_elapsed_met
++    with_tmp_task do |task|
++      ready_pane = "Claude Code\n❯ "
++      assert Hive::ClaudeLauncher.claude_ready_prompt?(ready_pane),
++             "fixture must look like a ready prompt"
++
++      runner = Struct.new(:name, :tail) do
++        def session_exists? = true
++        def capture_pane_tail(bytes:) = tail
++      end.new("hive-ci-slug", ready_pane)
++
++      with_env(
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_MIN_ELAPSED_SEC" => "0",
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_MIN_ELAPSED_SEC" => "0",
++        "HIVE_CLAUDE_TMUX_DONE_FALLBACK_READY_PROMPT_STREAK" => "2",
++        "HIVE_CLAUDE_TMUX_POLL_INTERVAL_SEC" => "0"
++      ) do
++        _out, err = capture_io do
++          result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 5, "ci")
++          assert_equal :ok, result.fetch(:status)
++          assert_equal :fallback, result.fetch(:completion_via)
++          assert_equal :ready_prompt, result.fetch(:fallback).fetch(:reason)
++        end
++        assert_match(/claude_completion_fallback/, err)
++        assert_match(/reason=ready_prompt/, err)
++      end
++    end
++  end
++
++  def test_wait_until_session_exists_wraps_tmux_error
++    runner = Struct.new(:name) do
++      def session_exists?
++        raise Hive::TmuxError, "has-session timed out"
++      end
++    end.new("hive-prep-session")
++
++    err = assert_raises(Hive::AgentError) do
++      Hive::ClaudeLauncher.wait_until_session_exists!(runner)
++    end
++    assert_match(/could not inspect claude tmux session hive-prep-session/, err.message)
++    assert_match(/has-session timed out/, err.message)
++    refute_kind_of Hive::TmuxError, err
++  end
++
++  def test_reestablish_dead_session_wraps_tmux_error
++    runner = Struct.new(:name) do
++      def session_exists?
++        raise Hive::TmuxError, "server not reachable"
++      end
++    end.new("hive-reest-session")
++
++    err = assert_raises(Hive::AgentError) do
++      Hive::ClaudeLauncher.reestablish_dead_session!(runner, -> { flunk "should not reestablish" })
++    end
++    assert_match(/could not inspect claude tmux session hive-reest-session/, err.message)
++    assert_match(/server not reachable/, err.message)
++  end
++
++  def test_preflight_wraps_session_exists_tmux_error
++    runner = Struct.new(:name) do
++      def session_exists?
++        raise Hive::TmuxError, "has-session blip"
++      end
++    end.new("hive-preflight-session")
++    profile = Object.new
++    profile.define_singleton_method(:check_version!) { }
++
++    with_replaced_singleton_method(Hive::ClaudeLauncher, :preflight_tmux!, ->(*) { "3.3" }) do
++      err = assert_raises(Hive::AgentError) do
++        Hive::ClaudeLauncher.preflight!(profile, runner)
++      end
++      assert_match(/could not inspect claude tmux session hive-preflight-session/, err.message)
++      assert_match(/has-session blip/, err.message)
++    end
++  end
++
++  def test_send_prompt_and_wait_returns_error_envelope_on_prepare_tmux_failure
++    with_tmp_task do |task|
++      runner = Object.new
++      runner.define_singleton_method(:name) { "hive-send-wait" }
++      runner.define_singleton_method(:session_exists?) do
++        raise Hive::TmuxError, "pane transport dead"
++      end
++      runner.define_singleton_method(:send_prompt) { |_| flunk "must not send after prep fail" }
++
++      result = Hive::ClaudeLauncher.send_prompt_and_wait!(
++        task: task,
++        runner: runner,
++        prompt: "hi",
++        timeout_sec: 1,
++        status_mode: :exit_code_only,
++        log_label: "review-fix-pass01"
++      )
++
++      assert_equal :error, result.fetch(:status)
++      assert_match(/could not inspect|pane transport dead/, result.fetch(:error_message))
++      assert Hive::Stages::Review.send(:agent_failed?, result)
++    end
++  end
++
++  def test_shared_session_ensure_cleanup_runs_after_fallback_ok
++    with_tmp_task do |task|
++      runner = Object.new
++      runner.define_singleton_method(:start_detached) { |command:| }
++      runner.define_singleton_method(:kill_session) { }
++      runner.define_singleton_method(:name) { "hive-cleanup-test" }
++      cleanup_calls = []
++
++      with_replaced_singleton_method(Hive::ClaudeLauncher, :build_runner, ->(**) { runner }) do
++        with_replaced_singleton_method(Hive::ClaudeLauncher, :preflight!, ->(*) { }) do
++          with_replaced_singleton_method(Hive::ClaudeLauncher, :reset_signal_files, ->(*) { }) do
++            with_replaced_singleton_method(Hive::StopHookInstaller, :install, ->(**) { [] }) do
++              with_replaced_singleton_method(Hive::ClaudeLauncher, :wrapper_command, ->(**) { [ "claude" ] }) do
++                with_replaced_singleton_method(Hive::ClaudeLauncher, :wait_until_session_exists!, ->(*) { }) do
++                  with_replaced_singleton_method(Hive::ClaudeLauncher, :record_claude_pid, ->(*) { }) do
++                    with_replaced_singleton_method(Hive::ClaudeLauncher, :prepare_claude_session!, ->(*) { }) do
++                      with_replaced_singleton_method(Hive::ClaudeLauncher, :shutdown_claude, ->(*) {
++                        cleanup_calls << :shutdown
++                      }) do
++                        with_replaced_singleton_method(Hive::ClaudeLauncher, :sweep_orphan_processes, ->(*) {
++                          cleanup_calls << :sweep
++                        }) do
++                          with_replaced_singleton_method(Hive::ClaudeLauncher, :cleanup_done, ->(*) {
++                            cleanup_calls << :cleanup_done
++                          }) do
++                            result = Hive::ClaudeLauncher.with_shared_session(
++                              task: task,
++                              cfg: { "claude" => { "mode" => "tmux" } },
++                              session_name: "hive-cleanup-test",
++                              cwd: task.folder,
++                              add_dirs: []
++                            ) do |_handle|
++                              # Simulate fallback completion inside the shared session
++                              # (ensure path must still run after the block returns).
++                              { status: :ok, completion_via: :fallback, fallback: { reason: :session_dead } }
++                            end
++                            assert_equal :ok, result.fetch(:status)
++                            assert_equal :fallback, result.fetch(:completion_via)
++                          end
++                        end
++                      end
++                    end
++                  end
++                end
++              end
++            end
++          end
++        end
++      end
++
++      assert_includes cleanup_calls, :shutdown
++      assert_includes cleanup_calls, :cleanup_done
++      assert_includes cleanup_calls, :sweep
++    end
++  end
++
+   def test_waits_ignore_quoted_limit_menu_after_agent_moved_on
+     quoted_pane = pane_fixture("limit_quoted_7456.txt")
+ 
+diff --git a/test/unit/current_main_coverage_gap_test.rb b/test/unit/current_main_coverage_gap_test.rb
+index 1c17f2a6..ccdeff74 100644
+--- a/test/unit/current_main_coverage_gap_test.rb
++++ b/test/unit/current_main_coverage_gap_test.rb
+@@ -362,7 +362,7 @@ class CurrentMainCoverageGapTest < Minitest::Test
+             with_replaced_singleton_method(Hive::Stages::Review, :reviewer_compare_ref, ->(_cfg, _ops) { "main" }) do
+               with_replaced_singleton_method(Hive::Stages::Review, :git_head, ->(_path) { "head-before-fix" }) do
+                 with_replaced_singleton_method(Hive::Stages::Review, :worktree_status, ->(_path) { status_checks.shift }) do
+-                  with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, ->(_task, _cfg, _ctx, accepted:) { { status: :ok } }) do
++                  with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, ->(_task, _cfg, _ctx, accepted:, **_) { { status: :ok } }) do
+                     with_replaced_singleton_method(Hive::Stages::Review, :auto_commit_fix_worktree, ->(_task, _cfg, _ctx, _accepted) {
+                       { success: false, message: "git add -A failed: permission denied" }
+                     }) do
+@@ -405,7 +405,7 @@ class CurrentMainCoverageGapTest < Minitest::Test
+             with_replaced_singleton_method(Hive::Stages::Review, :reviewer_compare_ref, ->(_cfg, _ops) { "main" }) do
+               with_replaced_singleton_method(Hive::Stages::Review, :git_head, ->(_path) { "head-before-fix" }) do
+                 with_replaced_singleton_method(Hive::Stages::Review, :worktree_status, ->(_path) { status_checks.shift }) do
+-                  with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, ->(_task, _cfg, _ctx, accepted:) { { status: :ok } }) do
++                  with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, ->(_task, _cfg, _ctx, accepted:, **_) { { status: :ok } }) do
+                     result = Hive::Stages::Review.run!(task, { "review" => {} })
+ 
+                     assert_equal :review_error, result[:status]
+diff --git a/test/unit/events_test.rb b/test/unit/events_test.rb
+index 9d5471ad..308d6833 100644
+--- a/test/unit/events_test.rb
++++ b/test/unit/events_test.rb
+@@ -48,6 +48,24 @@ class EventsTest < Minitest::Test
+     end
+   end
+ 
++  def test_claude_completion_fallback_event_type_is_accepted
++    with_tmp_dir do |dir|
++      record = Hive::Events.emit(
++        task_folder: dir,
++        slug: "event-test-260522-aaaa",
++        stage: "review-fix-pass01",
++        agent: "claude",
++        event_type: :claude_completion_fallback,
++        message: "reason=session_dead missing_signal=stop_hook_done"
++      )
++
++      assert_equal "claude_completion_fallback", record.fetch("event_type")
++      lines = File.readlines(File.join(dir, "events.jsonl"), chomp: true)
++      assert_equal 1, lines.size
++      assert_equal "claude_completion_fallback", JSON.parse(lines.first).fetch("event_type")
++    end
++  end
++
+   def test_status_md_rerenders_latest_event_and_recent_tail
+     with_tmp_dir do |dir|
+       Hive::Events.emit(task_folder: dir, slug: "event-test-260522-aaaa", stage: "6-review",
+diff --git a/test/unit/stages/review/fix_completion_fallback_test.rb b/test/unit/stages/review/fix_completion_fallback_test.rb
+new file mode 100644
+index 00000000..9fce40cb
+--- /dev/null
++++ b/test/unit/stages/review/fix_completion_fallback_test.rb
+@@ -0,0 +1,300 @@
++# frozen_string_literal: true
++
++require_relative "../../../test_helper"
++require "hive/stages/review"
++require "hive/events"
++
++class ReviewFixCompletionFallbackTest < Minitest::Test
++  include HiveTestHelper
++
++  def test_stop_hook_timeout_result_predicate
++    assert Hive::Stages::Review.send(
++      :stop_hook_timeout_result?,
++      status: :timeout,
++      error_message: "claude stop hook did not signal completion"
++    )
++    refute Hive::Stages::Review.send(
++      :stop_hook_timeout_result?,
++      status: :timeout,
++      error_message: "something else"
++    )
++    refute Hive::Stages::Review.send(
++      :stop_hook_timeout_result?,
++      status: :error,
++      error_message: "claude stop hook did not signal completion"
++    )
++  end
++
++  def test_review_fix_evidence_requires_escalations_and_commit_or_dirty
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++
++      # No escalations → false
++      refute Hive::Stages::Review.send(
++        :review_fix_completion_evidence?,
++        task, ctx, before_fix_head: "aaa", after_fix_head: "bbb"
++      )
++
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "# esc\n- [x] done\n")
++
++      # Head changed + escalations → true (stub worktree_status :clean)
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        assert Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx, before_fix_head: "aaa", after_fix_head: "bbb"
++        )
++      end
++    end
++  end
++
++  def test_review_fix_evidence_rejects_hard_failures
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [x] ok\n")
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx,
++          before_fix_head: "aaa", after_fix_head: "bbb",
++          fix_result: { status: :error, limit_text: "quota wall" }
++        )
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx,
++          before_fix_head: "aaa", after_fix_head: "bbb",
++          fix_result: { status: :error, error_message: "tmux_pane_unreadable: gone" }
++        )
++      end
++    end
++  end
++
++  def test_review_fix_evidence_rejects_open_escalation_checkboxes
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [ ] still open\n")
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx, before_fix_head: "aaa", after_fix_head: "bbb"
++        )
++      end
++    end
++  end
++
++  def test_review_fix_no_change_requires_result_or_final_message
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [x] done\n")
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx, before_fix_head: "aaa", after_fix_head: "aaa"
++        )
++
++        File.write(File.join(task_folder, "result.json"), %({"status":"ok"}))
++        assert Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx, before_fix_head: "aaa", after_fix_head: "aaa"
++        )
++      end
++    end
++  end
++
++  def test_review_fix_no_change_rejects_failed_result_json_status
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [x] done\n")
++      File.write(File.join(task_folder, "result.json"), %({"status":"failed"}))
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx, before_fix_head: "aaa", after_fix_head: "aaa"
++        )
++        refute Hive::Stages::Review.send(
++          :review_fix_no_change_evidence?,
++          task, ctx
++        )
++      end
++    end
++  end
++
++  def test_open_escalation_checkboxes_accepts_compact_empty_brackets
++    with_tmp_dir do |root|
++      path = File.join(root, "esc.md")
++      File.write(path, "- [] still open\n")
++      assert Hive::Stages::Review.send(:open_escalation_checkboxes?, path)
++
++      File.write(path, "- [x] closed\n")
++      refute Hive::Stages::Review.send(:open_escalation_checkboxes?, path)
++    end
++  end
++
++  def test_promote_stop_hook_timeout_emits_fallback_event
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      File.write(File.join(task_folder, "reviews", "escalations-02.md"), "- [x] ok\n")
++      File.write(File.join(task_folder, ".lock"), { "claude_pid" => 99 }.to_yaml)
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, root, 2)
++      fix_result = {
++        status: :timeout,
++        error_message: "claude stop hook did not signal completion",
++        log_label: "review-fix-pass02"
++      }
++
++      _out, err = capture_io do
++        with_replaced_singleton_method(
++          Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++        ) do
++          promoted = Hive::Stages::Review.send(
++            :promote_stop_hook_timeout_result!,
++            task, ctx, fix_result,
++            before_fix_head: "aaa", after_fix_head: "bbb"
++          )
++          assert_equal :ok, promoted.fetch(:status)
++          assert_equal :fallback, promoted.fetch(:completion_via)
++          assert_equal 2, promoted.fetch(:fallback).fetch(:pass)
++          assert promoted.fetch(:fallback).fetch(:artifacts).fetch(:escalations)
++        end
++      end
++      assert_match(/claude_completion_fallback/, err)
++      assert_match(/pass=2/, err)
++      assert_match(/head_before=aaa/, err)
++      assert_match(/head_after=bbb/, err)
++      assert_match(/claude_pid=99/, err)
++      assert_match(/artifacts=/, err)
++      lines = File.readlines(File.join(task_folder, "events.jsonl"), chomp: true)
++      assert_equal 1, lines.size
++      assert_equal "claude_completion_fallback", JSON.parse(lines.first).fetch("event_type")
++    end
++  end
++
++  # End-to-end wiring: stop-hook timeout + commit/escalations promotes
++  # without stamping REVIEW_ERROR (mirrors Phase 4 post-spawn path).
++  def test_stop_hook_timeout_with_commit_evidence_does_not_agent_fail
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [x] done\n")
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++      fix_result = {
++        status: :timeout,
++        error_message: "claude stop hook did not signal completion",
++        log_label: "review-fix-pass01"
++      }
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        assert Hive::Stages::Review.send(
++          :stop_hook_timeout_result?, fix_result
++        )
++        assert Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx,
++          before_fix_head: "aaa", after_fix_head: "bbb",
++          fix_result: fix_result
++        )
++        _out, _err = capture_io do
++          promoted = Hive::Stages::Review.send(
++            :promote_stop_hook_timeout_result!,
++            task, ctx, fix_result,
++            before_fix_head: "aaa", after_fix_head: "bbb"
++          )
++          refute Hive::Stages::Review.send(:agent_failed?, promoted)
++          assert_equal :ok, promoted.fetch(:status)
++        end
++      end
++    end
++  end
++
++  # R4 residual: non-ok result.json envelopes (and residual :failed) must
++  # agent_fail so Phase 4 does not auto-commit / write fix-success.
++  def test_non_ok_result_envelope_is_agent_failed_and_hard_failure
++    error_envelope = {
++      status: :error,
++      error_message: "claude reported :failed via result.json",
++      log_label: "review-fix-pass01"
++    }
++    residual_failed = {
++      status: :failed,
++      error_message: "claude reported :failed via result.json"
++    }
++
++    assert Hive::Stages::Review.send(:agent_failed?, error_envelope)
++    assert Hive::Stages::Review.send(:fix_result_hard_failure?, error_envelope)
++    assert Hive::Stages::Review.send(:agent_failed?, residual_failed)
++    assert Hive::Stages::Review.send(:fix_result_hard_failure?, residual_failed)
++    refute Hive::Stages::Review.send(:agent_failed?, { status: :ok })
++  end
++
++  def test_non_ok_envelope_rejects_completion_evidence_even_with_commit
++    with_tmp_dir do |root|
++      task_folder = File.join(root, "task")
++      worktree = File.join(root, "wt")
++      FileUtils.mkdir_p(File.join(task_folder, "reviews"))
++      FileUtils.mkdir_p(worktree)
++      File.write(File.join(task_folder, "reviews", "escalations-01.md"), "- [x] done\n")
++      task = Struct.new(:folder, :slug).new(task_folder, "slug-test")
++      ctx = Struct.new(:task_folder, :worktree_path, :pass).new(task_folder, worktree, 1)
++      fix_result = {
++        status: :error,
++        error_message: "claude reported :failed via result.json"
++      }
++
++      with_replaced_singleton_method(
++        Hive::Stages::Review, :worktree_status, ->(_path) { :clean }
++      ) do
++        refute Hive::Stages::Review.send(
++          :review_fix_completion_evidence?,
++          task, ctx,
++          before_fix_head: "aaa", after_fix_head: "bbb",
++          fix_result: fix_result
++        )
++      end
++    end
++  end
++end
+diff --git a/test/unit/stop_hook_installer_test.rb b/test/unit/stop_hook_installer_test.rb
+index 71b2a57a..a6a34fa2 100644
+--- a/test/unit/stop_hook_installer_test.rb
++++ b/test/unit/stop_hook_installer_test.rb
+@@ -137,6 +137,32 @@ class StopHookInstallerTest < Minitest::Test
+     end
+   end
+ 
++  def test_stop_hook_empty_stdin_writes_sentinel_json_and_done
++    with_tmp_dir do |dir|
++      out, err, status = Open3.capture3({ "HIVE_TASK_STAGE_DIR" => dir }, HOOK, stdin_data: "")
++
++      assert status.success?, "stdout=#{out.inspect} stderr=#{err.inspect}"
++      assert_equal "{\"hive_stop_hook\":\"empty_stdin\"}\n",
++                   File.read(File.join(dir, "result.json"))
++      assert File.exist?(File.join(dir, ".done"))
++    end
++  end
++
++  def test_stop_hook_creates_missing_stage_dir
++    with_tmp_dir do |dir|
++      stage = File.join(dir, "nested", "stage")
++      refute Dir.exist?(stage)
++
++      out, err, status = Open3.capture3(
++        { "HIVE_TASK_STAGE_DIR" => stage }, HOOK, stdin_data: "{}"
++      )
++
++      assert status.success?, "stdout=#{out.inspect} stderr=#{err.inspect}"
++      assert File.exist?(File.join(stage, "result.json"))
++      assert File.exist?(File.join(stage, ".done"))
++    end
++  end
++
+   def test_stop_hook_requires_stage_dir_env
+     # Scrub HIVE_TASK_STAGE_DIR from the child env so the test is hermetic even
+     # when the surrounding shell exports it (e.g. under the review harness);
+@@ -151,4 +177,31 @@ class StopHookInstallerTest < Minitest::Test
+   def test_stop_hook_syntax
+     assert system("sh", "-n", HOOK)
+   end
++
++  # Contract: installer command embeds the same absolute stage dir that
++  # ClaudeLauncher polls for `.done` / `result.json` (task folder, never
++  # the worktree cwd alone).
++  def test_installer_paths_match_claude_launcher_sentinels
++    require "hive/claude_launcher"
++
++    with_tmp_dir do |stage_dir|
++      Dir.mktmpdir do |worktree|
++        task = Struct.new(:folder).new(stage_dir)
++        paths = Hive::StopHookInstaller.install(
++          stage_dir: stage_dir, extra_dirs: [ worktree ]
++        )
++
++        assert_equal 2, paths.size
++        paths.each do |settings_path|
++          data = JSON.parse(File.read(settings_path))
++          command = data.fetch("hooks").fetch("Stop").first.fetch("hooks").first.fetch("command")
++          assert_includes command, "HIVE_TASK_STAGE_DIR=#{Shellwords.escape(stage_dir)}"
++          assert_includes command, Shellwords.escape(Hive::StopHookInstaller::HOOK_PATH)
++        end
++
++        assert_equal File.join(stage_dir, ".done"), Hive::ClaudeLauncher.done_path(task)
++        assert_equal File.join(stage_dir, "result.json"), Hive::ClaudeLauncher.result_path(task)
++      end
++    end
++  end
+ end
+diff --git a/test/unit/tmux_runner_test.rb b/test/unit/tmux_runner_test.rb
+index 005bccda..19edf1d3 100644
+--- a/test/unit/tmux_runner_test.rb
++++ b/test/unit/tmux_runner_test.rb
+@@ -282,11 +282,12 @@ class TmuxRunnerTest < Minitest::Test
+     end
+   end
+ 
+-  def test_session_exists_returns_false_when_tmux_missing
++  def test_session_exists_raises_when_tmux_missing
+     with_tmp_dir do |dir|
+       runner = Hive::TmuxRunner.new(name: unique_name("missing-exists"), cwd: dir, tmux_bin: "missing-tmux-for-hive")
+ 
+-      refute runner.session_exists?
++      # Transport / missing-binary must not look like a clean has-session miss.
++      assert_raises(Hive::TmuxRunner::ExecutableMissing) { runner.session_exists? }
+     end
+   end
+ 
+diff --git a/wiki/log.d/20260710T082132Z-claude-stop-hook-completion-fallback.md b/wiki/log.d/20260710T082132Z-claude-stop-hook-completion-fallback.md
+new file mode 100644
+index 00000000..6a5ed610
+--- /dev/null
++++ b/wiki/log.d/20260710T082132Z-claude-stop-hook-completion-fallback.md
+@@ -0,0 +1,10 @@
++---
++timestamp: 2026-07-10T08:21:32Z
++title: Tmux exit_code_only treats clean completion without Stop-hook .done as success
++---
++
++- Root cause: tmux `:exit_code_only` required Stop-hook `.done` while headless treats process exit as completion; missing/late hooks caused `claude stop hook did not signal completion` → review `fix_failed`.
++- Hardened `stop_hook.sh` / `StopHookInstaller` (`mkdir -p` stage dir); path contract matches `ClaudeLauncher.done_path` / `result_path`.
++- Shared `wait_for_done_signal` fallback on session death / ready-prompt (min elapsed); emits WARN `claude_completion_fallback` via [[events]].
++- Review-fix `completion_evidence` + post-spawn promote; limits/crash/unreadable-tmux still hard-fail.
++- Healer exact-message retry remains; `claude.mode: headless` stays documented workaround. See `docs/notes/claude-tmux-launch-mode.md`.
+diff --git a/wiki/log.d/20260710T083500Z-done-signal-fallback-hardening.md b/wiki/log.d/20260710T083500Z-done-signal-fallback-hardening.md
+new file mode 100644
+index 00000000..e98e2323
+--- /dev/null
++++ b/wiki/log.d/20260710T083500Z-done-signal-fallback-hardening.md
+@@ -0,0 +1,10 @@
++---
++timestamp: 2026-07-10T08:35:00Z
++title: Harden done-signal fallback against false-green paths
++---
++
++- Consult non-ok `result.json` status before session-death / ready-prompt fallback success; review no-change evidence rejects failed status payloads.
++- `TmuxRunner#session_exists?` propagates transport `TmuxError`; fallback and expected-output waits attribute as `tmux_pane_unreadable` (not clean session death).
++- Ready-prompt fallback uses higher min elapsed (default 15s) + consecutive ready streak (default 3); session-death keeps shorter min (2s).
++- `claude_completion_fallback` audit payload includes pass, claude_pid, artifacts, head_before/after, dirty when available.
++- Open-escalation checkbox regex aligned to shared `\[\s*\]` form.
+diff --git a/wiki/log.d/20260710T083703Z-review-fix-r4-residual-pass02.md b/wiki/log.d/20260710T083703Z-review-fix-r4-residual-pass02.md
+new file mode 100644
+index 00000000..53314f99
+--- /dev/null
++++ b/wiki/log.d/20260710T083703Z-review-fix-r4-residual-pass02.md
+@@ -0,0 +1,10 @@
++---
++timestamp: 2026-07-10T08:37:03Z
++title: Review-fix R4 residual pass-02 (false-green + prep TmuxError)
++---
++
++- Non-ok `result.json` status from done-signal wait normalized to `{status: :error}` (`.done` branch + `non_ok_result_json_status`) so review/execute `agent_failed?` hard-fails like headless exit_code_only.
++- `agent_failed?` (review + execute) and `fix_result_hard_failure?` treat any non-`:ok` envelope as failure (residual `:failed` too).
++- Prep/reestablish boundaries (`preflight!`, `wait_until_session_exists!`, `reestablish_dead_session!`) rescue `TmuxError` → attributed `AgentError`; `send_prompt_and_wait!` returns error envelope on prep `AgentError` so Phase 4 stamps `REVIEW_ERROR` instead of re-raising past outer rescue.
++- Fallback audit `artifacts=` uses compact JSON, not `Hash#inspect`.
++- Tests: caller-level `agent_failed?` / hard-failure assertions; ready-prompt positive streak+elapsed fallback; prep TmuxError wraps.
+diff --git a/wiki/modules/agent.md b/wiki/modules/agent.md
+index 2538ebb3..574cd901 100644
+--- a/wiki/modules/agent.md
++++ b/wiki/modules/agent.md
+@@ -38,7 +38,11 @@ Hive::Agent.new(
+ 
+ `Hive::AgentLimit` is the shared classifier for provider account, rate, quota, billing, and usage-credit exhaustion. It normalizes ANSI/control-heavy terminal text before matching Claude's limit menu and common API error strings such as quota exhaustion, 429 too-many-requests responses, resource exhaustion, usage credits, and billing/limit language. The broad "limit reached/exceeded/reset" family is intentionally usage-qualified (`usage`, `rate`, `token`, `credit`, `quota`, account/subscription/time-window terms, etc.) so healthy agent output about UI limits such as scroll, window, viewport, page, buffer, or line limits does not trip a false `limits_reached` wall. `error_message(text, agent:)` prefixes the first useful normalized line with `limits reached` or `limits reached for <agent>`. `AgentLimit` also owns the limit-retry cooldown: `RETRY_COOLDOWN_SEC` (default 3600s = 1h, overridable per-process via `HIVE_LIMITS_RETRY_COOLDOWN_SEC`, validated to a positive integer) and `retry_after(now:)`, which returns `(now.utc + cooldown).iso8601`. Every `limits_reached` marker writer stamps that `retry_after` so the daemon healer can self-heal the parked task once the usage window has plausibly reset — see [[daemon]] and [[state-model]].
+ 
+-Headless `Hive::Agent#spawn_and_wait` scans each raw stream line for limit text while still preserving the structured final message and bounded plain tail. That raw-stream path catches CLIs that emit usage walls as JSON error events which `MessageExtractor` does not surface as a final assistant message; `handle_exit` then prefers `result[:limit_text]` and falls back to scanning `final_message`. The classifier still only controls failure/timeout handling: a clean `exit_code == 0` result is not reclassified. For `:state_file_marker` spawns it stamps `ERROR reason=limits_reached`; for `:exit_code_only` and `:output_file_exists` spawns it returns the limit message without overwriting the orchestrator-owned marker. `Hive::ClaudeLauncher` uses the same classifier while waiting for tmux readiness, terminal markers, and expected-output files, so a visible provider-limit pane wins over readiness timeout, tmux-session-death, and missing-output fallbacks.
++Headless `Hive::Agent#spawn_and_wait` scans each raw stream line for limit text while still preserving the structured final message and bounded plain tail. That raw-stream path catches CLIs that emit usage walls as JSON error events which `MessageExtractor` does not surface as a final assistant message; `handle_exit` then prefers `result[:limit_text]` and falls back to scanning `final_message`. The classifier still only controls failure/timeout handling: a clean `exit_code == 0` result is not reclassified. For `:state_file_marker` spawns it stamps `ERROR reason=limits_reached`; for `:exit_code_only` and `:output_file_exists` spawns it returns the limit message without overwriting the orchestrator-owned marker. `Hive::ClaudeLauncher` uses the same classifier while waiting for tmux readiness, terminal markers, expected-output files, and the exit-code-only Stop-hook wait, so a visible provider-limit pane wins over readiness timeout, tmux-session-death, missing-output fallbacks, and the shared stop-hook completion fallback.
++
++### Tmux `:exit_code_only` Stop-hook wait
++
++`ClaudeLauncher.wait_for_done_signal` polls `task.folder/.done` (Stop hook). When the hook never fires, clean session death (short min elapsed) or idle ready-prompt (longer min elapsed + consecutive ready streak) may return `{ status: :ok, completion_via: :fallback }` and emit WARN `claude_completion_fallback` (see [[events]]). Non-ok `result.json` status, live limit walls, and `Hive::TmuxError` on has-session (`tmux_pane_unreadable`) never fallback-succeed. Optional `completion_evidence:` (review-fix) further gates fallback and may merge audit fields (`pass`, heads, `artifacts`, `dirty`). Genuine missing completion still surfaces `claude stop hook did not signal completion` — the exact string matched by [[daemon]] `StaleAgentHealer`. RCA and recovery: `docs/notes/claude-tmux-launch-mode.md`.
+ 
+ ## `run!` (the main entry)
+ 
+diff --git a/wiki/modules/events.md b/wiki/modules/events.md
+index 841b623e..e02b726d 100644
+--- a/wiki/modules/events.md
++++ b/wiki/modules/events.md
+@@ -20,6 +20,8 @@ tags: [module, events, observability, status, append-only]
+ | `error` | `Stages::Base.with_stage_events` rescue path; `emit_marker_event` for error markers | Stage raised, or marker landed on `:error` / `:review_error` / `:review_ci_stale` / `:review_stale` |
+ | `round_waiting` | `Stages::Base.emit_marker_event` | Brainstorm or plan stage closed with `:waiting` marker |
+ | `round_complete` | same | Brainstorm or plan stage closed with `:complete` marker |
++| `clean_exit_auto_committed` | Clean-exit / pre-fix auto-commit paths | Orchestrator auto-committed dirty worktree residue |
++| `claude_completion_fallback` | `Hive::ClaudeLauncher.wait_for_done_signal` (and review-fix promote path) | Tmux `:exit_code_only` completed cleanly without Stop-hook `.done`; WARN-level, non-terminal — stage may still SUCCESS |
+ 
+ `ROUND_EVENT_STAGES = %w[brainstorm plan]` is the registry that gates round events — adding a new stage that publishes `:waiting` / `:complete` round markers requires extending this list so `emit_marker_event` stays in sync with the producers.
+ 

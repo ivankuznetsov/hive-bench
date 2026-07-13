@@ -1,0 +1,1951 @@
+diff --git a/docs/notes/claude-tmux-launch-mode.md b/docs/notes/claude-tmux-launch-mode.md
+index 7fd1d5fd..9c1e8573 100644
+--- a/docs/notes/claude-tmux-launch-mode.md
++++ b/docs/notes/claude-tmux-launch-mode.md
+@@ -114,8 +114,9 @@ the runtime can override them in the calling shell:
+   shared `READY_WAIT_TIMEOUT_SEC`) — budget for tmux session creation
+   after `new-session -d`.
+ - `HIVE_CLAUDE_TMUX_PID_READY_WAIT_TIMEOUT_SEC` (defaults to the
+-  shared `READY_WAIT_TIMEOUT_SEC`) — budget for the claude PID to appear
+-  in the pane after the wrapper execs.
++  shared `READY_WAIT_TIMEOUT_SEC`) — budget for the wrapper's
++  `claude-child.pid` artifact to appear before Hive falls back to the
++  tmux pane PID.
+ - `HIVE_CLAUDE_TMUX_CLAUDE_READY_WAIT_TIMEOUT_SEC` (defaults to the
+   shared `READY_WAIT_TIMEOUT_SEC` when set, otherwise `120`) — budget
+   for the Claude interactive prompt to become ready after the tmux
+diff --git a/lib/hive/claude_launcher.rb b/lib/hive/claude_launcher.rb
+index b6820a41..356fe208 100644
+--- a/lib/hive/claude_launcher.rb
++++ b/lib/hive/claude_launcher.rb
+@@ -309,7 +309,10 @@ module Hive
+       # Headless launches drop a `<log_label>-<ts>.log` under
+       # `task.log_dir`; tmux launches need the same shared log path so
+       # downstream Claude-driven stages can find per-invocation output.
+-      capture_pane_log(task, runner, log_label)
++      pane_log_path = capture_pane_log(task, runner, log_label)
++      if result.is_a?(Hash) && result[:completion_evidence].is_a?(Hash) && pane_log_path
++        result[:completion_evidence]["pane_log_path"] = pane_log_path
++      end
+       augment_result_with_final_message!(result, runner)
+       result
+     end
+@@ -356,9 +359,11 @@ module Hive
+       pane = runner.capture_pane_tail(bytes: PANE_LOG_CAPTURE_BYTES)
+       FileUtils.mkdir_p(task.log_dir)
+       ts = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
+-      File.open(File.join(task.log_dir, "#{log_label}-#{ts}.log"), "a") do |f|
++      path = File.join(task.log_dir, "#{log_label}-#{ts}.log")
++      File.open(path, "a") do |f|
+         f.puts pane
+       end
++      path
+     rescue StandardError => e
+       warn "[hive] could not write tmux pane log for #{log_label}: #{e.class}: #{e.message}"
+       nil
+@@ -524,13 +529,16 @@ module Hive
+ 
+     def record_claude_pid(task, runner)
+       pid = nil
++      fallback_pid = nil
+       deadline = Time.now + pid_ready_wait_timeout
+       while pid.nil? && Time.now < deadline
+-        pid = runner.pane_pid
++        pid = read_child_pid(task)
+         break if pid
+ 
++        fallback_pid ||= runner.pane_pid
+         sleep 0.05
+       end
++      pid ||= read_child_pid(task) || fallback_pid
+       return unless pid
+ 
+       Hive::Lock.update_task_lock(task.folder, "claude_pid" => pid)
+@@ -863,6 +871,18 @@ module Hive
+           }
+         end
+ 
++        exit_status = read_exit_status(task)
++        if exit_status && exit_status.fetch("exit_code") != 0
++          return {
++            status: :error,
++            log_label: log_label,
++            exit_code: exit_status.fetch("exit_code"),
++            completion_evidence: completion_evidence(task, runner, log_label, exit_status,
++                                                     missing_signal_reason: nil),
++            error_message: "claude exited with status #{exit_status.fetch('exit_code')}"
++          }
++        end
++
+         if File.exist?(done_path(task))
+           # The stop-hook touches `.done` even on `empty_stdin` /
+           # other non-success completions; the real status lives in
+@@ -882,6 +902,18 @@ module Hive
+           return { status: :ok, log_label: log_label }
+         end
+ 
++        if exit_status && exit_status.fetch("exit_code") == 0
++          return {
++            status: :completion_signal_missing,
++            log_label: log_label,
++            completion_evidence: completion_evidence(
++              task, runner, log_label, exit_status,
++              missing_signal_reason: "done_sentinel_missing_after_clean_exit"
++            ),
++            error_message: "claude stop hook did not signal completion"
++          }
++        end
++
+         if Time.now >= deadline
+           return { status: :timeout, error_message: "claude stop hook did not signal completion" }
+         end
+@@ -890,6 +922,22 @@ module Hive
+       end
+     end
+ 
++    def completion_evidence(task, runner, log_label, exit_status, missing_signal_reason:)
++      {
++        "status_mode" => "exit_code_only",
++        "log_label" => log_label,
++        "session_name" => runner.respond_to?(:name) ? runner.name : nil,
++        "pid" => exit_status["pid"] || read_child_pid(task),
++        "exit_code" => exit_status.fetch("exit_code"),
++        "completed_at" => exit_status["completed_at"],
++        "done_path" => done_path(task),
++        "result_path" => result_path(task),
++        "exit_status_path" => exit_status_path(task),
++        "missing_signal_reason" => missing_signal_reason,
++        "task_slug" => task_slug(task)
++      }.compact
++    end
++
+     # Read `result.json` (if present) and translate `status` into the
+     # caller's symbol vocabulary. Unknown / unparseable shapes return
+     # nil so the caller can fall through to its default success path.
+@@ -943,8 +991,9 @@ module Hive
+ 
+     def reset_signal_files(task)
+       cleanup_done(task)
+-      result = result_path(task)
+-      File.delete(result) if File.exist?(result)
++      [ result_path(task), exit_status_path(task), child_pid_path(task) ].each do |path|
++        File.delete(path) if File.exist?(path)
++      end
+     rescue Errno::ENOENT
+       # TOCTOU: another process can unlink the file between the
+       # `File.exist?` check above and the `File.delete`. Treat that as
+@@ -1101,6 +1150,43 @@ module Hive
+       File.join(task.folder, "result.json")
+     end
+ 
++    def exit_status_path(task)
++      File.join(task.folder, "claude-exit-status.json")
++    end
++
++    def child_pid_path(task)
++      File.join(task.folder, "claude-child.pid")
++    end
++
++    def read_child_pid(task)
++      path = child_pid_path(task)
++      return nil unless File.exist?(path)
++
++      Integer(File.read(path).strip, exception: false)
++    rescue SystemCallError, IOError
++      nil
++    end
++
++    def read_exit_status(task)
++      path = exit_status_path(task)
++      return nil unless File.exist?(path) && File.size(path).positive?
++
++      data = JSON.parse(File.read(path))
++      return nil unless data.is_a?(Hash)
++
++      exit_code = Integer(data["exit_code"], exception: false)
++      return nil unless exit_code
++
++      {
++        "pid" => Integer(data["pid"], exception: false),
++        "exit_code" => exit_code,
++        "completed_at" => data["completed_at"].to_s.empty? ? nil : data["completed_at"].to_s,
++        "path" => path
++      }.compact
++    rescue JSON::ParserError, SystemCallError, IOError
++      nil
++    end
++
+     # Like the (removed) bare `safe` helper, but logs the swallowed
+     # sees cleanup failures (orphan tmux sessions, stale settings.json)
+     # instead of discovering them on the next preflight collision.
+diff --git a/lib/hive/daemon/stale_agent_healer.rb b/lib/hive/daemon/stale_agent_healer.rb
+index 02042f78..b9cd2dcc 100644
+--- a/lib/hive/daemon/stale_agent_healer.rb
++++ b/lib/hive/daemon/stale_agent_healer.rb
+@@ -4,6 +4,7 @@ require "time"
+ require "yaml"
+ require "hive/lock"
+ require "hive/markers"
++require "hive/stages/review"
+ require "hive/workflows"
+ require "hive/daemon/dispatch_request_queue"
+ 
+@@ -427,7 +428,13 @@ module Hive
+ 
+       def heal_review_error_if_auto_recoverable(row, now:)
+         return if row.live_task_lock == true
+-        return unless auto_recoverable_review_error?(row, now: now)
++        stop_hook_proof = nil
++        if fix_claude_stop_hook_failure?(marker_attrs_for(row))
++          stop_hook_proof = fix_claude_stop_hook_completion_proof(row)
++          return unless stop_hook_proof[:success]
++        else
++          return unless auto_recoverable_review_error?(row, now: now)
++        end
+ 
+         reason = marker_reason(row)
+         marker_attrs = review_marker_attrs(row)
+@@ -462,6 +469,15 @@ module Hive
+ 
+         attempts += 1
+         @review_error_auto_recoveries[recovery_key] = attempts
++        if stop_hook_proof
++          Hive::Stages::Review.write_fix_success(stop_hook_proof.fetch(:ctx))
++          Hive::Stages::Review.emit_claude_completion_fallback(
++            stop_hook_proof.fetch(:task),
++            stop_hook_proof.fetch(:ctx),
++            stop_hook_proof.fetch(:fallback)
++          )
++          requeue_review_rerun(row, trigger: "claude_completion_fallback")
++        end
+         @logger.event(:marker_healed,
+                       project: row.project,
+                       slug: row.slug,
+@@ -618,7 +634,7 @@ module Hive
+         # signal completion and Review stamped a generic fix_failed marker.
+         # Keep ordinary fix_failed manual; this bounded retry only covers the
+         # exact known stop-hook signature and still re-runs the normal fix path.
+-        return true if fix_claude_stop_hook_failure?(attrs)
++        return false if fix_claude_stop_hook_failure?(attrs)
+ 
+         return false unless attrs["phase"].to_s == "reviewers"
+         return false unless attrs["reason"].to_s == "reviewer_partial_failure"
+@@ -643,6 +659,118 @@ module Hive
+           attrs["message"].to_s == FIX_CLAUDE_STOP_HOOK_MESSAGE
+       end
+ 
++      def fix_claude_stop_hook_completion_proof(row)
++        attrs = marker_attrs_for(row)
++        pass = Integer(attrs["pass"], exception: false)
++        return { success: false, message: "missing pass" } unless pass
++
++        task = Struct.new(:folder, :state_file, :slug).new(row.folder.to_s, row.state_file.to_s, row.slug.to_s)
++        exit_status = Hive::ClaudeLauncher.read_exit_status(task)
++        return { success: false, message: "missing exit-status evidence" } unless exit_status
++
++        worktree_path = review_worktree_path(row)
++        return { success: false, message: "missing worktree pointer" } if worktree_path.to_s.empty?
++
++        status = review_worktree_status(worktree_path)
++        return { success: false, message: "worktree status unreadable" } if status.is_a?(Array)
++
++        ctx = Hive::Stages::Review::Context.new(
++          worktree_path: worktree_path,
++          task_folder: row.folder.to_s,
++          default_branch: "master",
++          pass: pass
++        )
++        accepted = Hive::Stages::Review.collect_accepted_findings_with_count(ctx)
++        fallback = Hive::Stages::Review.verify_fix_completion_fallback(
++          task, ctx,
++          {
++            status: :completion_signal_missing,
++            error_message: FIX_CLAUDE_STOP_HOOK_MESSAGE,
++            completion_evidence: {
++              "status_mode" => "exit_code_only",
++              "log_label" => "review-fix-pass#{format('%02d', pass)}",
++              "session_name" => nil,
++              "pid" => exit_status["pid"],
++              "exit_code" => exit_status["exit_code"],
++              "completed_at" => exit_status["completed_at"],
++              "done_path" => Hive::ClaudeLauncher.done_path(task),
++              "result_path" => Hive::ClaudeLauncher.result_path(task),
++              "exit_status_path" => Hive::ClaudeLauncher.exit_status_path(task),
++              "missing_signal_reason" => "done_sentinel_missing_after_clean_exit",
++              "task_slug" => row.slug.to_s
++            }
++          },
++          accepted_findings: accepted,
++          before_fix_head: nil,
++          after_fix_head: nil,
++          post_fix_status: status,
++          commit_evidence_override: review_fix_commit_evidence(worktree_path, row.slug, pass)
++        )
++        return fallback unless fallback[:success]
++
++        { success: true, task: task, ctx: ctx, fallback: fallback }
++      rescue StandardError => e
++        { success: false, message: "#{e.class}: #{e.message}" }
++      end
++
++      def review_worktree_path(row)
++        pointer_path = File.join(row.folder.to_s, "worktree.yml")
++        data = YAML.safe_load(File.read(pointer_path))
++        data["path"].to_s if data.is_a?(Hash)
++      rescue SystemCallError, Psych::SyntaxError
++        nil
++      end
++
++      def review_worktree_status(worktree_path)
++        out, err, status = Open3.capture3("git", "-C", worktree_path.to_s, "status", "--porcelain")
++        return [ :error, err.to_s.strip.empty? ? out.to_s.strip : err.to_s.strip ] unless status.success?
++
++        out.strip.empty? ? :clean : :dirty
++      end
++
++      def review_fix_commit_evidence(worktree_path, slug, pass)
++        out, _err, status = Open3.capture3(
++          "git", "-C", worktree_path.to_s,
++          "log", "-20", "--format=%H%x1f%B%x1e"
++        )
++        return nil unless status.success?
++
++        pass_s = format("%02d", pass)
++        out.split("\x1e").each do |entry|
++          sha, body = entry.split("\x1f", 2)
++          next if sha.to_s.empty? || body.to_s.empty?
++          next unless body.include?("Hive-Task-Slug: #{slug}")
++          next unless body.include?("Hive-Fix-Pass: #{pass_s}")
++          next unless body.include?("Hive-Fix-Phase: fix")
++
++          return "commit_trailers:#{sha[0, 12]}"
++        end
++        nil
++      end
++
++      def requeue_review_rerun(row, trigger:)
++        request_id = @request_queue.write_request!(
++          project: row.project,
++          slug: row.slug,
++          argv: [ "hive", "run", row.slug, "--project", row.project ],
++          requestor: "healer",
++          trigger: trigger
++        )
++        @logger.event(:heal_requeued,
++                      project: row.project,
++                      slug: row.slug,
++                      stage: row.stage,
++                      request_id: request_id,
++                      trigger: trigger)
++      rescue StandardError => e
++        @logger.event(:heal_requeue_failed,
++                      project: row.project,
++                      slug: row.slug,
++                      stage: row.stage,
++                      error: "#{e.class}: #{e.message}",
++                      remediation: "hive run #{row.slug} --project #{row.project}")
++      end
++
+       def reviewer_errors_path(row)
+         attrs = marker_attrs_for(row)
+         pass = Integer(attrs["pass"], exception: false)
+diff --git a/lib/hive/events.rb b/lib/hive/events.rb
+index 31ecc07a..bcb1c1f3 100644
+--- a/lib/hive/events.rb
++++ b/lib/hive/events.rb
+@@ -14,6 +14,7 @@ module Hive
+       round_waiting
+       round_complete
+       clean_exit_auto_committed
++      claude_completion_fallback
+     ].freeze
+ 
+     STATUS_TAIL_LINES = 20
+@@ -30,7 +31,7 @@ module Hive
+     # Upper bound on per-emit message size before the record is encoded.
+     # Keeps the full JSON line well below the single-write append budget
+     # so concurrent emitters cannot interleave bytes within a record.
+-    MAX_MESSAGE_BYTES = 1024
++    MAX_MESSAGE_BYTES = 4096
+     MESSAGE_TRUNCATION_SUFFIX = "…[truncated]".freeze
+ 
+     EM_DASH = "—".freeze
+diff --git a/lib/hive/scripts/interactive_claude_wrapper.sh b/lib/hive/scripts/interactive_claude_wrapper.sh
+index 4ddd43fb..fbca92f1 100755
+--- a/lib/hive/scripts/interactive_claude_wrapper.sh
++++ b/lib/hive/scripts/interactive_claude_wrapper.sh
+@@ -102,4 +102,38 @@ unset CLAUDE_API_KEY
+ # delete this `unset` thinking the explicit pass-through makes it a no-op.
+ unset HIVE_SCREENOTE_BASE_URL
+ 
+-exec "$bin" "$@"
++"$bin" "$@" &
++child_pid=$!
++
++if [ -n "${HIVE_TASK_STAGE_DIR:-}" ]; then
++  mkdir -p "$HIVE_TASK_STAGE_DIR"
++  printf '%s\n' "$child_pid" > "${HIVE_TASK_STAGE_DIR}/claude-child.pid"
++fi
++
++forward_signal() {
++  signal=$1
++  if kill -0 "$child_pid" 2>/dev/null; then
++    kill "-$signal" "$child_pid" 2>/dev/null || true
++  fi
++}
++
++trap 'forward_signal TERM' TERM
++trap 'forward_signal INT' INT
++trap 'forward_signal HUP' HUP
++
++set +e
++wait "$child_pid"
++status=$?
++set -e
++trap - TERM INT HUP
++
++if [ -n "${HIVE_TASK_STAGE_DIR:-}" ]; then
++  status_path="${HIVE_TASK_STAGE_DIR}/claude-exit-status.json"
++  tmp_status_path="${status_path}.$$"
++  completed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
++  printf '{"pid":%s,"exit_code":%s,"completed_at":"%s"}\n' \
++    "$child_pid" "$status" "$completed_at" > "$tmp_status_path"
++  mv "$tmp_status_path" "$status_path"
++fi
++
++exit "$status"
+diff --git a/lib/hive/stages/execute.rb b/lib/hive/stages/execute.rb
+index c3081b89..00aaf694 100644
+--- a/lib/hive/stages/execute.rb
++++ b/lib/hive/stages/execute.rb
+@@ -200,7 +200,7 @@ module Hive
+       def agent_failed?(result)
+         return true if result.nil?
+ 
+-        %i[error timeout].include?(result[:status])
++        %i[error timeout completion_signal_missing].include?(result[:status])
+       end
+ 
+       def mark_implementer_failure(task, cfg, impl_result)
+diff --git a/lib/hive/stages/review.rb b/lib/hive/stages/review.rb
+index 7ca0fb20..3f2543c4 100644
+--- a/lib/hive/stages/review.rb
++++ b/lib/hive/stages/review.rb
+@@ -105,6 +105,12 @@ module Hive
+       # real cause is surfaced without bloating task.md with a full agent
+       # transcript. Longer messages are truncated with an ellipsis.
+       REVIEW_PHASE_ERROR_SUMMARY_MAX = 300
++      FIX_NO_CHANGE_EVIDENCE_LINE_RE = /\AHIVE_FIX_NO_CHANGE\s*:\s*(\S.*)\z/i.freeze
++      MISSING_OUTPUT_ERROR_RE = /
++        expected\ output\ file\ missing|
++        missing\ output|
++        tmux_session_terminated\ before\ writing\ expected\ output\ file
++      /ix.freeze
+ 
+       # `reviewer_file?` is defined in `review/orchestrator_owned.rb` so
+       # this module and `Review::Triage` share one definition. Re-export
+@@ -571,6 +577,7 @@ module Hive
+             # fix agent rewriting or deleting it would erase the failure
+             # provenance the user relies on for triage.
+             "reviews/errors-#{format('%02d', pass)}.md",
++            "reviews/fix-no-change-#{format('%02d', pass)}.md",
+             # reviews/suppressed.md is the orchestrator-owned no-fix
+             # suppression list. A fix agent clearing or rewriting it (e.g.
+             # to un-suppress findings or forge new ones) would defeat the
+@@ -594,7 +601,8 @@ module Hive
+                      status: :review_error }
+           end
+ 
+-          if agent_failed?(fix_result)
++          fallback_pending = completion_signal_missing?(fix_result)
++          if agent_failed?(fix_result) && !fallback_pending
+             limited = mark_review_phase_failure(
+               task, phase: :fix, terminal_reason: "fix_failed",
+               pass: pass, error_message: fix_result && fix_result[:error_message],
+@@ -657,6 +665,25 @@ module Hive
+                      status: :review_waiting }
+           end
+ 
++          if fallback_pending
++            fallback = verify_fix_completion_fallback(
++              task, ctx_pass, fix_result,
++              accepted_findings: accepted_findings,
++              before_fix_head: before_fix_head,
++              after_fix_head: after_fix_head,
++              post_fix_status: post_fix_status
++            )
++            unless fallback[:success]
++              Hive::Markers.set(task.state_file, :review_error,
++                                phase: :fix, reason: "fix_failed",
++                                message: truncate_marker_message(fallback[:message]),
++                                pass: pass)
++              return { commit: "fix_completion_fallback_rejected_pass_#{format('%02d', pass)}",
++                       status: :review_error }
++            end
++            emit_claude_completion_fallback(task, ctx_pass, fallback)
++          end
++
+           # Phase 4 fix succeeded AND guardrail passed: pass N is
+           # complete. Drop the sentinel so a subsequent re-entry (e.g.
+           # wall-clock fired between this point and the next pass's
+@@ -1864,6 +1891,176 @@ module Hive
+         end
+       end
+ 
++      def completion_signal_missing?(result)
++        result.is_a?(Hash) && result[:status] == :completion_signal_missing
++      end
++
++      def verify_fix_completion_fallback(task, ctx, fix_result,
++                                         accepted_findings:,
++                                         before_fix_head:,
++                                         after_fix_head:,
++                                         post_fix_status:,
++                                         commit_evidence_override: nil)
++        evidence = fix_result.fetch(:completion_evidence, {})
++        return fallback_rejected("missing completion evidence") unless evidence.is_a?(Hash)
++        unless completion_evidence_exit_zero?(evidence)
++          return fallback_rejected("claude exit evidence was not status 0")
++        end
++        return fallback_rejected("worktree status was unreadable") if post_fix_status.is_a?(Array)
++
++        artifacts = verify_fix_completion_artifacts(ctx, accepted_findings)
++        return artifacts unless artifacts[:success]
++
++        unresolved = count_escalations(ctx)
++        return fallback_rejected("unresolved escalation evidence remains", artifacts_checked: artifacts[:artifacts_checked]) if unresolved.positive?
++
++        if missing_output_marker_present?(ctx)
++          return fallback_rejected("missing-output marker remains", artifacts_checked: artifacts[:artifacts_checked])
++        end
++
++        commit_evidence = commit_evidence_override || fix_commit_evidence(before_fix_head, after_fix_head)
++        no_change_evidence = fix_no_change_evidence(ctx, fix_result)
++        unless commit_evidence || no_change_evidence
++          return fallback_rejected("no commit or explicit no-change evidence",
++                                   artifacts_checked: artifacts[:artifacts_checked])
++        end
++
++        {
++          success: true,
++          completion_evidence: evidence,
++          artifacts_checked: artifacts[:artifacts_checked],
++          commit_evidence: commit_evidence,
++          no_change_evidence: no_change_evidence,
++          task_slug: task.slug
++        }
++      end
++
++      def verify_fix_completion_artifacts(ctx, _accepted_findings)
++        reviewer_files = Dir[File.join(ctx.task_folder, "reviews", "*-#{format('%02d', ctx.pass)}.md")]
++                         .sort
++                         .select { |path| reviewer_file?(File.basename(path)) }
++        return fallback_rejected("missing reviewer artifacts") if reviewer_files.empty?
++
++        artifacts_checked = []
++        reviewer_files.each do |path|
++          File.readlines(path)
++          artifacts_checked << File.join("reviews", File.basename(path))
++        rescue SystemCallError, IOError => e
++          return fallback_rejected("unreadable reviewer artifact #{File.basename(path)}: #{e.class}")
++        end
++
++        escalations = Hive::Stages::Review::Triage.escalations_path(ctx)
++        unless File.exist?(escalations)
++          return fallback_rejected("missing escalation artifact",
++                                   artifacts_checked: artifacts_checked)
++        end
++
++        begin
++          File.readlines(escalations)
++          parse_escalation_questions(escalations)
++        rescue SystemCallError, IOError => e
++          return fallback_rejected("unreadable escalation artifact: #{e.class}",
++                                   artifacts_checked: artifacts_checked)
++        end
++        artifacts_checked << File.join("reviews", File.basename(escalations))
++
++        current_accepted_findings = collect_accepted_findings_with_count(ctx)
++        if current_accepted_findings.count.to_i <= 0 || current_accepted_findings.text.to_s.strip.empty?
++          return fallback_rejected("missing accepted finding evidence",
++                                   artifacts_checked: artifacts_checked)
++        end
++
++        { success: true, artifacts_checked: artifacts_checked }
++      end
++
++      def fallback_rejected(message, **attrs)
++        { success: false, message: message }.merge(attrs)
++      end
++
++      def missing_output_marker_present?(ctx)
++        path = File.join(ctx.task_folder, "reviews", "errors-#{format('%02d', ctx.pass)}.md")
++        return false unless File.exist?(path)
++
++        File.read(path).match?(MISSING_OUTPUT_ERROR_RE)
++      rescue SystemCallError, IOError
++        true
++      end
++
++      def completion_evidence_exit_zero?(evidence)
++        Integer(evidence["exit_code"], exception: false) == 0
++      end
++
++      def fix_commit_evidence(before_fix_head, after_fix_head)
++        return nil if before_fix_head.to_s.empty? || after_fix_head.to_s.empty?
++        return nil if before_fix_head == after_fix_head
++
++        "head_changed:#{before_fix_head[0, 12]}..#{after_fix_head[0, 12]}"
++      end
++
++      def fix_no_change_evidence(ctx, fix_result)
++        message = fix_result[:final_message].to_s
++        message.each_line do |line|
++          # Tmux pane-tail fallback can include the rendered prompt. Only a
++          # standalone final-response line is explicit no-change proof.
++          if (match = FIX_NO_CHANGE_EVIDENCE_LINE_RE.match(line.strip))
++            return "final_message:#{match[1].strip}"
++          end
++        end
++
++        path = File.join(ctx.task_folder, "reviews", "fix-no-change-#{format('%02d', ctx.pass)}.md")
++        return nil unless File.exist?(path) && File.size(path).positive?
++
++        File.join("reviews", File.basename(path))
++      rescue SystemCallError, IOError
++        nil
++      end
++
++      def emit_claude_completion_fallback(task, ctx, fallback)
++        evidence = fallback[:completion_evidence] || {}
++        message = fallback_event_message(
++          phase: "fix",
++          pass: format("%02d", ctx.pass),
++          task_slug: fallback[:task_slug] || task.slug,
++          session: evidence["session_name"],
++          pid: evidence["pid"],
++          done_path: evidence["done_path"],
++          result_path: evidence["result_path"],
++          exit_status_path: evidence["exit_status_path"],
++          missing_signal_reason: evidence["missing_signal_reason"],
++          artifacts_checked: fallback[:artifacts_checked],
++          commit_evidence: fallback[:commit_evidence],
++          no_change_evidence: fallback[:no_change_evidence]
++        )
++        Hive::Events.emit(
++          task_folder: task.folder,
++          slug: task.slug,
++          stage: "6-review", # coding-scoped: review fallback audit event is emitted outside the stage descriptor boundary
++          event_type: :claude_completion_fallback,
++          message: message
++        )
++      end
++
++      def fallback_event_message(**fields)
++        fields = { level: "WARN" }.merge(fields)
++        fields.filter_map do |key, value|
++          next if value.nil? || value == ""
++
++          encoded = if value.is_a?(Array)
++                      value.join(",")
++          else
++                      value.to_s
++          end
++          "#{key}=#{fallback_event_value(encoded)}"
++        end.join(" ")
++      end
++
++      def fallback_event_value(value)
++        value = value.to_s
++        return value if value.match?(/\A[^\s"]+\z/)
++
++        value.inspect
++      end
++
+       # The triage bias configured for this run, surfaced into commit
+       # trailers so `hive metrics rollback-rate` can compare bias presets.
+       # Defaults to "courageous" — same default as Triage.run! itself.
+@@ -2225,7 +2422,7 @@ module Hive
+       def agent_failed?(result)
+         return true if result.nil?
+ 
+-        %i[error timeout].include?(result[:status])
++        %i[error timeout completion_signal_missing].include?(result[:status])
+       end
+     end
+   end
+diff --git a/lib/hive/stages/review/orchestrator_owned.rb b/lib/hive/stages/review/orchestrator_owned.rb
+index 50cceca9..0d4c26d6 100644
+--- a/lib/hive/stages/review/orchestrator_owned.rb
++++ b/lib/hive/stages/review/orchestrator_owned.rb
+@@ -22,6 +22,7 @@ module Hive
+         ci-blocked
+         browser-
+         fix-guardrail-
++        fix-no-change-
+         fix-success-
+         errors-
+         suppressed.
+diff --git a/lib/hive/tmux_runner.rb b/lib/hive/tmux_runner.rb
+index 0133c160..85659b3b 100644
+--- a/lib/hive/tmux_runner.rb
++++ b/lib/hive/tmux_runner.rb
+@@ -121,10 +121,10 @@ module Hive
+       tail.scrub
+     end
+ 
+-    # Active pane's process PID. The wrapper script execs into claude
+-    # (`exec "$@"` in interactive_claude_wrapper.sh), preserving the PID
+-    # across the exec, so this is the claude PID we record into the task
+-    # lock for `hive status` / signal-routing parity with the headless path.
++    # Active pane's process PID. The interactive wrapper stays resident so it
++    # can write Claude's exit-status artifact; ClaudeLauncher prefers the
++    # wrapper-written `claude-child.pid` for lock metadata and falls back to
++    # this pane PID only when the child-pid artifact is not yet available.
+     def pane_pid
+       out = run_tmux("display-message", "-t", target_pane, "-p", '#{pane_pid}').strip
+       Integer(out)
+diff --git a/templates/fix_prompt.md.erb b/templates/fix_prompt.md.erb
+index 8090582e..a725dd99 100644
+--- a/templates/fix_prompt.md.erb
++++ b/templates/fix_prompt.md.erb
+@@ -20,6 +20,7 @@ These are the auto-fix lines collected from `<%= task_folder %>/reviews/*-<%= "%
+ 3. **Fix the whole class, not just the cited line.** When a finding's root cause is an instance of a recurring pattern — e.g. "this path silently swallows a session expiry/error and seals a partial result as complete," or "this call doesn't verify the returned id matches the requested one" — grep the worktree for the *other* sites that exhibit the **same** defect and apply the identical remedy to all of them in this pass. Name the extra sites you fixed in your final message. This is the one deliberate exception to the scoped-edits rule above, and it exists for a concrete reason: otherwise the next reviewer pass just re-finds the identical bug at the next site, burning a full extra pass per site. It is NOT license to rename, restructure, or "improve" unrelated code — only to eliminate every instance of the specific defect a finding identifies.
+ 4. Run any relevant test or assertion locally to confirm your fix doesn't regress neighboring behavior.
+ 5. Commit your changes with one or more conventional messages (`fix(scope): …` or `refactor(scope): …`). Multiple findings can land in one commit if they share a scope; otherwise prefer separate commits.
++6. If every accepted finding is already fixed and no worktree change is needed, do not create an empty commit. In your final response include a standalone line exactly shaped as `HIVE_FIX_NO_CHANGE: <brief reason>`.
+ 
+ ## Required commit trailers
+ 
+diff --git a/test/integration/run_review_test.rb b/test/integration/run_review_test.rb
+index 80ef0996..20c663c5 100644
+--- a/test/integration/run_review_test.rb
++++ b/test/integration/run_review_test.rb
+@@ -106,6 +106,28 @@ class RunReviewTest < Minitest::Test
+     MD
+   end
+ 
++  def completion_signal_missing_result(task, ctx, final_message: nil)
++    {
++      status: :completion_signal_missing,
++      error_message: "claude stop hook did not signal completion",
++      completion_evidence: {
++        "status_mode" => "exit_code_only",
++        "log_label" => "review-fix-pass#{format('%02d', ctx.pass)}",
++        "session_name" => "hive-6-review-fix-pass#{ctx.pass}-#{task.slug}",
++        "pid" => 12_345,
++        "exit_code" => 0,
++        "completed_at" => Time.now.utc.iso8601,
++        "done_path" => File.join(task.folder, ".done"),
++        "result_path" => File.join(task.folder, "result.json"),
++        "exit_status_path" => File.join(task.folder, "claude-exit-status.json"),
++        "missing_signal_reason" => "done_sentinel_missing_after_clean_exit",
++        "task_slug" => task.slug
++      },
++      final_message: final_message,
++      final_message_source: final_message ? :plain : nil
++    }
++  end
++
+   def suppression_reviewer_cfg
+     {
+       "review" => {
+@@ -708,6 +730,130 @@ class RunReviewTest < Minitest::Test
+     end
+   end
+ 
++  def test_review_fix_completion_fallback_accepts_clean_exit_with_commit_and_artifacts
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        folder = setup_review_task(dir)
++        worktree = YAML.safe_load(File.read(File.join(folder, "worktree.yml")))["path"]
++        FileUtils.mkdir_p(File.join(folder, "reviews"))
++        File.write(File.join(folder, "reviews", "local-reviewer-01.md"),
++                   "## High\n- [x] apply a fallback fix\n")
++        File.write(File.join(folder, "reviews", "escalations-01.md"),
++                   "# Escalations for pass 01\n\n_All clean._\n")
++        Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
++        result_builder = lambda { |task, ctx| completion_signal_missing_result(task, ctx) }
++
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |task, _cfg, ctx, accepted:|
++          raise "accepted findings missing fallback text" unless accepted.include?("apply a fallback fix")
++          fixed = File.join(ctx.worktree_path, "fallback.txt")
++          File.write(fixed, "fixed\n")
++          message = "fix(review): fallback\n\n" \
++                    "Hive-Task-Slug: #{task.slug}\n" \
++                    "Hive-Fix-Pass: 01\n" \
++                    "Hive-Fix-Findings: 1\n" \
++                    "Hive-Triage-Bias: courageous\n" \
++                    "Hive-Reviewer-Sources: local-reviewer\n" \
++                    "Hive-Fix-Phase: fix"
++          raise "git add failed" unless system("git", "-C", ctx.worktree_path, "add", "fallback.txt")
++          raise "git commit failed" unless system("git", "-C", ctx.worktree_path, "commit", "-m", message, "--quiet")
++          result_builder.call(task, ctx)
++        }) do
++          _out, _err, status = with_captured_exit { Hive::Commands::Run.new(folder).call }
++          marker = Hive::Markers.current(File.join(folder, "task.md"))
++          assert_equal 0, status, "stdout=#{_out}\nstderr=#{_err}\nmarker=#{marker.name} attrs=#{marker.attrs.inspect}"
++        end
++
++        marker = Hive::Markers.current(File.join(folder, "task.md"))
++        assert_equal :review_complete, marker.name
++        assert File.exist?(File.join(folder, "reviews", "fix-success-01.md"))
++        assert_equal "fixed\n", File.read(File.join(worktree, "fallback.txt"))
++        events = File.readlines(File.join(folder, "events.jsonl"), chomp: true).map { |line| JSON.parse(line) }
++        fallback_events = events.select { |event| event.fetch("event_type") == "claude_completion_fallback" }
++        assert_equal 1, fallback_events.size
++        message = fallback_events.first.fetch("message")
++        assert_includes message, "level=WARN"
++        assert_includes message, "phase=fix"
++        assert_includes message, "pass=01"
++        assert_includes message, "task_slug=feat-x-260424-aaaa"
++        assert_includes message, "missing_signal_reason=done_sentinel_missing_after_clean_exit"
++        assert_includes message, "artifacts_checked=reviews/local-reviewer-01.md,reviews/escalations-01.md"
++        assert_includes message, "commit_evidence=head_changed:"
++      end
++    end
++  end
++
++  def test_review_fix_completion_fallback_accepts_dirty_worktree_after_auto_commit
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        folder = setup_review_task(dir)
++        worktree = YAML.safe_load(File.read(File.join(folder, "worktree.yml")))["path"]
++        FileUtils.mkdir_p(File.join(folder, "reviews"))
++        File.write(File.join(folder, "reviews", "local-reviewer-01.md"),
++                   "## High\n- [x] apply a dirty fallback fix\n")
++        File.write(File.join(folder, "reviews", "escalations-01.md"),
++                   "# Escalations for pass 01\n\n_All clean._\n")
++        Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
++        result_builder = lambda { |task, ctx| completion_signal_missing_result(task, ctx) }
++
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |task, _cfg, ctx, accepted:|
++          raise "accepted findings missing dirty fallback text" unless accepted.include?("dirty fallback fix")
++          path = File.join(ctx.worktree_path, "test", "dirty-fallback.txt")
++          FileUtils.mkdir_p(File.dirname(path))
++          File.write(path, "auto-commit me\n")
++          result_builder.call(task, ctx)
++        }) do
++          _out, _err, status = with_captured_exit { Hive::Commands::Run.new(folder).call }
++          marker = Hive::Markers.current(File.join(folder, "task.md"))
++          assert_equal 0, status, "stdout=#{_out}\nstderr=#{_err}\nmarker=#{marker.name} attrs=#{marker.attrs.inspect}"
++        end
++
++        marker = Hive::Markers.current(File.join(folder, "task.md"))
++        assert_equal :review_complete, marker.name
++        assert File.exist?(File.join(folder, "reviews", "fix-success-01.md"))
++        assert_equal "", `git -C #{worktree} status --porcelain`
++        commit = `git -C #{worktree} log -1 --pretty=%B`
++        assert_includes commit, "fix(review): apply pass 01 findings"
++        assert_includes commit, "Hive-Fix-Findings: 1"
++      end
++    end
++  end
++
++  def test_review_fix_completion_fallback_rejects_clean_exit_without_commit_or_no_change_evidence
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        folder = setup_review_task(dir)
++        FileUtils.mkdir_p(File.join(folder, "reviews"))
++        File.write(File.join(folder, "reviews", "local-reviewer-01.md"),
++                   "## High\n- [x] apply a fix\n")
++        File.write(File.join(folder, "reviews", "escalations-01.md"),
++                   "# Escalations for pass 01\n\n_All clean._\n")
++        Hive::Markers.set(File.join(folder, "task.md"), :review_waiting, pass: 1, escalations: 1)
++        result_builder = lambda { |task, ctx| completion_signal_missing_result(task, ctx) }
++
++        with_replaced_singleton_method(Hive::Stages::Review, :spawn_fix_agent, lambda { |task, _cfg, ctx, accepted:|
++          raise "accepted findings missing fix text" unless accepted.include?("apply a fix")
++          result_builder.call(task, ctx)
++        }) do
++          _out, _err, status = with_captured_exit { Hive::Commands::Run.new(folder).call }
++          marker = Hive::Markers.current(File.join(folder, "task.md"))
++          assert_equal Hive::ExitCodes::TASK_IN_ERROR, status,
++                       "stdout=#{_out}\nstderr=#{_err}\nmarker=#{marker.name} attrs=#{marker.attrs.inspect}"
++        end
++
++        marker = Hive::Markers.current(File.join(folder, "task.md"))
++        assert_equal :review_error, marker.name
++        assert_equal "fix", marker.attrs["phase"]
++        assert_equal "fix_failed", marker.attrs["reason"]
++        assert_equal "1", marker.attrs["pass"]
++        assert_includes marker.attrs["message"], "no commit or explicit no-change evidence"
++        refute File.exist?(File.join(folder, "reviews", "fix-success-01.md"))
++        events_path = File.join(folder, "events.jsonl")
++        events = File.exist?(events_path) ? File.readlines(events_path, chomp: true).map { |line| JSON.parse(line) } : []
++        refute events.any? { |event| event.fetch("event_type") == "claude_completion_fallback" }
++      end
++    end
++  end
++
+   def test_review_fix_agent_auto_commit_rejects_out_of_scope_path
+     with_tmp_global_config do
+       with_tmp_git_repo do |dir|
+@@ -1836,6 +1982,39 @@ class RunReviewTest < Minitest::Test
+     end
+   end
+ 
++  def test_fix_agent_creating_fix_no_change_evidence_yields_review_error
++    with_tmp_global_config do
++      with_tmp_git_repo do |dir|
++        folder = setup_review_task(dir)
++        FileUtils.mkdir_p(File.join(folder, "reviews"))
++        File.write(File.join(folder, "reviews", "stub-reviewer-01.md"),
++                   "## High\n- [x] apply a fix\n")
++        Hive::Markers.set(File.join(folder, "task.md"), :review_waiting,
++                          pass: 1, escalations: 1)
++
++        no_change_path = File.join(folder, "reviews", "fix-no-change-01.md")
++        File.write(@driver_bin, <<~SH)
++          #!/usr/bin/env bash
++          if [[ "${1:-}" == "--version" ]]; then
++            echo "2.1.118 (Claude Code)"
++            exit 0
++          fi
++          printf 'forged no-change proof\\n' > "#{no_change_path}"
++          exit 0
++        SH
++        File.chmod(0o755, @driver_bin)
++
++        _out, _err, status = with_captured_exit { Hive::Commands::Run.new(folder).call }
++        assert_equal Hive::ExitCodes::TASK_IN_ERROR, status
++        marker = Hive::Markers.current(File.join(folder, "task.md"))
++        assert_equal :review_error, marker.name
++        assert_equal "fix", marker.attrs["phase"]
++        assert_equal "fix_tampered", marker.attrs["reason"]
++        assert_includes marker.attrs["files"], "reviews/fix-no-change-01.md"
++      end
++    end
++  end
++
+   def test_fix_agent_rewriting_suppressed_doc_yields_review_error
+     with_tmp_global_config do
+       with_tmp_git_repo do |dir|
+diff --git a/test/unit/claude_launcher_test.rb b/test/unit/claude_launcher_test.rb
+index 1d6b2589..722da82b 100644
+--- a/test/unit/claude_launcher_test.rb
++++ b/test/unit/claude_launcher_test.rb
+@@ -1227,6 +1227,69 @@ class ClaudeLauncherTest < Minitest::Test
+     end
+   end
+ 
++  def test_wait_for_done_signal_returns_completion_signal_missing_on_clean_exit_without_done
++    with_tmp_task do |task|
++      File.write(
++        Hive::ClaudeLauncher.exit_status_path(task),
++        JSON.generate("pid" => 987, "exit_code" => 0, "completed_at" => "2026-07-11T00:00:00Z")
++      )
++      runner = Struct.new(:name) do
++        def capture_pane_tail(bytes:) = ""
++      end.new("hive-review-fix")
++
++      result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 10, "review-fix-pass01")
++
++      assert_equal :completion_signal_missing, result.fetch(:status)
++      assert_equal "claude stop hook did not signal completion", result.fetch(:error_message)
++      evidence = result.fetch(:completion_evidence)
++      assert_equal "exit_code_only", evidence.fetch("status_mode")
++      assert_equal "review-fix-pass01", evidence.fetch("log_label")
++      assert_equal "hive-review-fix", evidence.fetch("session_name")
++      assert_equal 987, evidence.fetch("pid")
++      assert_equal 0, evidence.fetch("exit_code")
++      assert_equal "2026-07-11T00:00:00Z", evidence.fetch("completed_at")
++      assert_equal Hive::ClaudeLauncher.done_path(task), evidence.fetch("done_path")
++      assert_equal Hive::ClaudeLauncher.result_path(task), evidence.fetch("result_path")
++      assert_equal Hive::ClaudeLauncher.exit_status_path(task), evidence.fetch("exit_status_path")
++      assert_equal "done_sentinel_missing_after_clean_exit", evidence.fetch("missing_signal_reason")
++      assert_equal task.slug, evidence.fetch("task_slug")
++    end
++  end
++
++  def test_wait_for_done_signal_returns_error_on_nonzero_exit_status
++    with_tmp_task do |task|
++      File.write(
++        Hive::ClaudeLauncher.exit_status_path(task),
++        JSON.generate("pid" => 654, "exit_code" => 12, "completed_at" => "2026-07-11T00:00:00Z")
++      )
++      runner = Struct.new(:name).new("hive-review-fix")
++
++      result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 10, "review-fix-pass01")
++
++      assert_equal :error, result.fetch(:status)
++      assert_equal 12, result.fetch(:exit_code)
++      assert_match(/exited with status 12/, result.fetch(:error_message))
++      assert_equal 12, result.fetch(:completion_evidence).fetch("exit_code")
++    end
++  end
++
++  def test_wait_for_done_signal_prefers_nonzero_exit_status_even_when_done_exists
++    with_tmp_task do |task|
++      File.write(Hive::ClaudeLauncher.done_path(task), "done")
++      File.write(Hive::ClaudeLauncher.result_path(task), JSON.generate("status" => "ok"))
++      File.write(
++        Hive::ClaudeLauncher.exit_status_path(task),
++        JSON.generate("pid" => 654, "exit_code" => 3, "completed_at" => "2026-07-11T00:00:00Z")
++      )
++      runner = Struct.new(:name).new("hive-review-fix")
++
++      result = Hive::ClaudeLauncher.wait_for_done_signal(task, runner, 10, "review-fix-pass01")
++
++      assert_equal :error, result.fetch(:status)
++      assert_equal 3, result.fetch(:exit_code)
++    end
++  end
++
+   # A quota wall stalls the default claude/tmux execute spawn without ever
+   # touching `.done`; the exit_code_only wait must surface it as an :error
+   # carrying the limit message (not drain to the generic stop-hook timeout)
+@@ -1391,6 +1454,8 @@ class ClaudeLauncherTest < Minitest::Test
+   def test_signal_cleanup_helpers_ignore_unlink_races
+     with_tmp_task do |task|
+       File.write(Hive::ClaudeLauncher.result_path(task), "{}")
++      File.write(Hive::ClaudeLauncher.exit_status_path(task), "{}")
++      File.write(Hive::ClaudeLauncher.child_pid_path(task), "123")
+       result_path = Hive::ClaudeLauncher.result_path(task)
+       with_replaced_singleton_method(File, :delete, lambda { |path|
+         raise Errno::ENOENT if path == result_path
+@@ -1409,6 +1474,84 @@ class ClaudeLauncherTest < Minitest::Test
+     end
+   end
+ 
++  def test_reset_signal_files_removes_done_result_exit_status_and_child_pid
++    with_tmp_task do |task|
++      File.write(Hive::ClaudeLauncher.done_path(task), "done")
++      File.write(Hive::ClaudeLauncher.result_path(task), "{}")
++      File.write(Hive::ClaudeLauncher.exit_status_path(task), JSON.generate("exit_code" => 0))
++      File.write(Hive::ClaudeLauncher.child_pid_path(task), "123\n")
++
++      Hive::ClaudeLauncher.reset_signal_files(task)
++
++      refute_path_exists Hive::ClaudeLauncher.done_path(task)
++      refute_path_exists Hive::ClaudeLauncher.result_path(task)
++      refute_path_exists Hive::ClaudeLauncher.exit_status_path(task)
++      refute_path_exists Hive::ClaudeLauncher.child_pid_path(task)
++    end
++  end
++
++  def test_exit_status_and_child_pid_readers_parse_expected_artifacts
++    with_tmp_task do |task|
++      assert_nil Hive::ClaudeLauncher.read_child_pid(task)
++      assert_nil Hive::ClaudeLauncher.read_exit_status(task)
++
++      File.write(Hive::ClaudeLauncher.child_pid_path(task), "456\n")
++      File.write(
++        Hive::ClaudeLauncher.exit_status_path(task),
++        JSON.generate("pid" => 456, "exit_code" => 0, "completed_at" => "2026-07-11T00:00:00Z")
++      )
++
++      assert_equal 456, Hive::ClaudeLauncher.read_child_pid(task)
++      status = Hive::ClaudeLauncher.read_exit_status(task)
++      assert_equal 456, status.fetch("pid")
++      assert_equal 0, status.fetch("exit_code")
++      assert_equal "2026-07-11T00:00:00Z", status.fetch("completed_at")
++      assert_equal Hive::ClaudeLauncher.exit_status_path(task), status.fetch("path")
++
++      File.write(Hive::ClaudeLauncher.exit_status_path(task), "{")
++      assert_nil Hive::ClaudeLauncher.read_exit_status(task)
++    end
++  end
++
++  def test_record_claude_pid_prefers_wrapper_child_pid_artifact
++    with_tmp_task do |task|
++      Hive::Lock.acquire_task_lock(task.folder)
++      File.write(Hive::ClaudeLauncher.child_pid_path(task), "456\n")
++      runner = Object.new
++      runner.define_singleton_method(:pane_pid) { 111 }
++
++      Hive::ClaudeLauncher.record_claude_pid(task, runner)
++
++      lock = YAML.safe_load(File.read(File.join(task.folder, ".lock")))
++      assert_equal 456, lock.fetch("claude_pid")
++    ensure
++      Hive::Lock.release_task_lock(task.folder) if task
++    end
++  end
++
++  def test_record_claude_pid_waits_for_child_pid_after_pane_pid_is_available
++    with_tmp_task do |task|
++      Hive::Lock.acquire_task_lock(task.folder)
++      runner = Object.new
++      runner.define_singleton_method(:pane_pid) { 111 }
++      sleeps = 0
++
++      with_replaced_singleton_method(Hive::ClaudeLauncher, :pid_ready_wait_timeout, -> { 0.2 }) do
++        with_replaced_singleton_method(Hive::ClaudeLauncher, :sleep, lambda { |_seconds|
++          sleeps += 1
++          File.write(Hive::ClaudeLauncher.child_pid_path(task), "456\n") if sleeps == 1
++        }) do
++          Hive::ClaudeLauncher.record_claude_pid(task, runner)
++        end
++      end
++
++      lock = YAML.safe_load(File.read(File.join(task.folder, ".lock")))
++      assert_equal 456, lock.fetch("claude_pid")
++    ensure
++      Hive::Lock.release_task_lock(task.folder) if task
++    end
++  end
++
+   def test_cleanup_scratch_ignores_directory_races
+     with_tmp_task do |task|
+       scratch = File.join(task.folder, ".claude", "settings.json")
+diff --git a/test/unit/config_test.rb b/test/unit/config_test.rb
+index f9b9a92d..8fa8946c 100644
+--- a/test/unit/config_test.rb
++++ b/test/unit/config_test.rb
+@@ -1575,7 +1575,7 @@ class ConfigTest < Minitest::Test
+   # `discover_reviewer_files`, and (for `output_basename: "errors"`
+   # specifically) overwritten by the U2 errors sink.
+   def test_load_raises_when_output_basename_collides_with_reserved_prefix
+-    %w[errors escalations fix-guardrail fix-success browser ci-blocked].each do |reserved|
++    %w[errors escalations fix-guardrail fix-no-change fix-success browser ci-blocked].each do |reserved|
+       with_tmp_dir do |dir|
+         FileUtils.mkdir_p(File.join(dir, ".hive-state"))
+         File.write(File.join(dir, ".hive-state", "config.yml"), <<~YAML)
+diff --git a/test/unit/daemon/stale_agent_healer_test.rb b/test/unit/daemon/stale_agent_healer_test.rb
+index 158a6cf0..74bb2454 100644
+--- a/test/unit/daemon/stale_agent_healer_test.rb
++++ b/test/unit/daemon/stale_agent_healer_test.rb
+@@ -2345,7 +2345,7 @@ class HiveDaemonStaleAgentHealerTest < Minitest::Test
+   end
+ 
+   def test_auto_recovers_review_error_fix_failed_when_claude_stop_hook_did_not_signal
+-    with_marker_file do |state_file|
++    with_stop_hook_proof_task do |state_file, worktree|
+       message = "claude stop hook did not signal completion"
+       File.write(
+         state_file,
+@@ -2365,6 +2365,41 @@ class HiveDaemonStaleAgentHealerTest < Minitest::Test
+       assert_equal "fix_claude_stop_hook", heal_event[1][:reason]
+       assert_equal 1, heal_event[1][:attempts]
+       refute_match(/REVIEW_ERROR/, File.read(state_file))
++      sentinel = File.join(File.dirname(state_file), "reviews", "fix-success-01.md")
++      assert File.exist?(sentinel), "proof-positive stop-hook recovery must mark pass 01 complete"
++      assert_equal :complete, Hive::Stages::Review.pass_completion_status(File.dirname(state_file), 1)
++      assert_equal [ [ "hive", "run", "s", "--project", "p" ] ],
++                   @request_queue.requests.map { |request| request.fetch(:argv) }
++      assert_equal "fixed\n", File.read(File.join(worktree, "fixed.txt"))
++
++      events = File.readlines(File.join(File.dirname(state_file), "events.jsonl"), chomp: true).map { |line| JSON.parse(line) }
++      fallback = events.find { |event| event.fetch("event_type") == "claude_completion_fallback" }
++      assert fallback, "expected fallback audit event, got #{events.inspect}"
++      assert_includes fallback.fetch("message"), "level=WARN"
++      assert_includes fallback.fetch("message"), "commit_evidence=commit_trailers:"
++    end
++  end
++
++  def test_does_not_auto_recover_stop_hook_fix_failed_without_completion_proof
++    with_marker_file do |state_file|
++      message = "claude stop hook did not signal completion"
++      File.write(
++        state_file,
++        "# task\n\n<!-- REVIEW_ERROR phase=fix reason=fix_failed pass=1 message=\"#{message}\" -->\n"
++      )
++      row = make_review_error_row(
++        state_file,
++        reason: "fix_failed",
++        phase: "fix",
++        attrs: { "message" => message }
++      )
++
++      heal([ row ])
++
++      refute @logger.events.any? { |name, _| name == :marker_healed },
++             "stop-hook fix_failed must stay red when proof is missing"
++      assert_match(/REVIEW_ERROR/, File.read(state_file))
++      assert_empty @request_queue.requests
+     end
+   end
+ 
+@@ -2389,6 +2424,43 @@ class HiveDaemonStaleAgentHealerTest < Minitest::Test
+     end
+   end
+ 
++  def with_stop_hook_proof_task
++    Dir.mktmpdir do |dir|
++      state_file = File.join(dir, "task.md")
++      reviews = File.join(dir, "reviews")
++      worktree = File.join(dir, "worktree")
++      FileUtils.mkdir_p([ reviews, worktree ])
++
++      run!("git", "-C", worktree, "init", "-b", "main", "--quiet")
++      run!("git", "-C", worktree, "config", "user.email", "test@example.com")
++      run!("git", "-C", worktree, "config", "user.name", "Test")
++      File.write(File.join(worktree, "README.md"), "init\n")
++      run!("git", "-C", worktree, "add", "README.md")
++      run!("git", "-C", worktree, "commit", "-m", "init", "--quiet")
++      File.write(File.join(worktree, "fixed.txt"), "fixed\n")
++      run!("git", "-C", worktree, "add", "fixed.txt")
++      run!(
++        "git", "-C", worktree, "commit", "-m",
++        "fix(review): prove stop hook completion\n\n" \
++        "Hive-Task-Slug: s\n" \
++        "Hive-Fix-Pass: 01\n" \
++        "Hive-Fix-Findings: 1\n" \
++        "Hive-Triage-Bias: courageous\n" \
++        "Hive-Reviewer-Sources: local-reviewer\n" \
++        "Hive-Fix-Phase: fix",
++        "--quiet"
++      )
++
++      File.write(File.join(dir, "worktree.yml"), { "path" => worktree, "branch" => "s" }.to_yaml)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      File.write(File.join(dir, "claude-exit-status.json"),
++                 JSON.generate("pid" => 1234, "exit_code" => 0, "completed_at" => NOW.iso8601))
++
++      yield state_file, worktree
++    end
++  end
++
+   # --- ensure_clean_on_exit_failed terminal ERROR auto-retry ---
+ 
+   def test_auto_recovers_error_ensure_clean_on_exit_failed
+diff --git a/test/unit/events_test.rb b/test/unit/events_test.rb
+index 9d5471ad..674a2e73 100644
+--- a/test/unit/events_test.rb
++++ b/test/unit/events_test.rb
+@@ -48,6 +48,21 @@ class EventsTest < Minitest::Test
+     end
+   end
+ 
++  def test_claude_completion_fallback_event_type_is_allowed
++    with_tmp_dir do |dir|
++      record = Hive::Events.emit(
++        task_folder: dir,
++        slug: "event-test-260522-aaaa",
++        stage: "6-review",
++        event_type: :claude_completion_fallback,
++        message: "level=WARN phase=fix pass=01"
++      )
++
++      assert_equal "claude_completion_fallback", record.fetch("event_type")
++      assert_includes record.fetch("message"), "level=WARN"
++    end
++  end
++
+   def test_status_md_rerenders_latest_event_and_recent_tail
+     with_tmp_dir do |dir|
+       Hive::Events.emit(task_folder: dir, slug: "event-test-260522-aaaa", stage: "6-review",
+diff --git a/test/unit/interactive_wrapper_script_test.rb b/test/unit/interactive_wrapper_script_test.rb
+index 6b9771b9..292fddde 100644
+--- a/test/unit/interactive_wrapper_script_test.rb
++++ b/test/unit/interactive_wrapper_script_test.rb
+@@ -9,7 +9,7 @@ class InteractiveWrapperScriptTest < Minitest::Test
+ 
+   def teardown
+     %w[HIVE_FAKE_CLAUDE_LOG_DIR ANTHROPIC_API_KEY CLAUDE_API_KEY
+-       HIVE_SCREENOTE_BASE_URL].each { |key| ENV.delete(key) }
++       HIVE_SCREENOTE_BASE_URL HIVE_TASK_STAGE_DIR HIVE_FAKE_CLAUDE_EXIT].each { |key| ENV.delete(key) }
+   end
+ 
+   def test_script_syntax
+@@ -177,6 +177,55 @@ class InteractiveWrapperScriptTest < Minitest::Test
+     end
+   end
+ 
++  def test_records_child_pid_and_zero_exit_status_in_stage_dir
++    with_tmp_dir do |dir|
++      log_dir = File.join(dir, "logs")
++      stage_dir = File.join(dir, "stage")
++      FileUtils.mkdir_p([ log_dir, stage_dir ])
++
++      _out, err, status = Open3.capture3(
++        {
++          "HIVE_FAKE_CLAUDE_LOG_DIR" => log_dir,
++          "HIVE_TASK_STAGE_DIR" => stage_dir
++        },
++        SCRIPT,
++        "--cwd", dir,
++        "--bin", FAKE_BIN
++      )
++
++      assert status.success?, err
++      child_pid = Integer(File.read(File.join(stage_dir, "claude-child.pid")).strip)
++      data = JSON.parse(File.read(File.join(stage_dir, "claude-exit-status.json")))
++      assert_equal child_pid, data.fetch("pid")
++      assert_equal 0, data.fetch("exit_code")
++      assert_match(/\A\d{4}-\d{2}-\d{2}T/, data.fetch("completed_at"))
++    end
++  end
++
++  def test_records_nonzero_exit_status_and_exits_with_child_status
++    with_tmp_dir do |dir|
++      log_dir = File.join(dir, "logs")
++      stage_dir = File.join(dir, "stage")
++      FileUtils.mkdir_p([ log_dir, stage_dir ])
++
++      _out, _err, status = Open3.capture3(
++        {
++          "HIVE_FAKE_CLAUDE_LOG_DIR" => log_dir,
++          "HIVE_FAKE_CLAUDE_EXIT" => "7",
++          "HIVE_TASK_STAGE_DIR" => stage_dir
++        },
++        SCRIPT,
++        "--cwd", dir,
++        "--bin", FAKE_BIN
++      )
++
++      refute status.success?
++      assert_equal 7, status.exitstatus
++      data = JSON.parse(File.read(File.join(stage_dir, "claude-exit-status.json")))
++      assert_equal 7, data.fetch("exit_code")
++    end
++  end
++
+   private
+ 
+   def argv_args(log)
+diff --git a/test/unit/stages/brainstorm_tmux_sentinel_test.rb b/test/unit/stages/brainstorm_tmux_sentinel_test.rb
+index 428839fd..6bbfca30 100644
+--- a/test/unit/stages/brainstorm_tmux_sentinel_test.rb
++++ b/test/unit/stages/brainstorm_tmux_sentinel_test.rb
+@@ -306,8 +306,15 @@ class BrainstormTmuxSentinelTest < Minitest::Test
+   def test_record_claude_pid_updates_task_lock
+     with_tmp_task_folder do |task|
+       Hive::Lock.acquire_task_lock(task.folder, "stage" => "2-brainstorm")
++      now = Time.utc(2026, 7, 11, 0, 0, 0)
+ 
+-      Hive::ClaudeLauncher.record_claude_pid(task, FakePidRunner.new(12_345))
++      with_replaced_singleton_method(Time, :now, -> { now }) do
++        with_replaced_singleton_method(Hive::ClaudeLauncher, :pid_ready_wait_timeout, -> { 0.05 }) do
++          with_replaced_singleton_method(Hive::ClaudeLauncher, :sleep, ->(seconds) { now += seconds }) do
++            Hive::ClaudeLauncher.record_claude_pid(task, FakePidRunner.new(12_345))
++          end
++        end
++      end
+ 
+       lock = YAML.safe_load(File.read(File.join(task.folder, ".lock")))
+       assert_equal 12_345, lock.fetch("claude_pid")
+@@ -321,14 +328,22 @@ class BrainstormTmuxSentinelTest < Minitest::Test
+       Hive::Lock.acquire_task_lock(task.folder, "stage" => "2-brainstorm")
+       sleeps = []
+       runner = FakeSequencePidRunner.new([ nil, 12_346 ])
++      now = Time.utc(2026, 7, 11, 0, 0, 0)
+ 
+-      with_replaced_singleton_method(Hive::ClaudeLauncher, :sleep, ->(seconds) { sleeps << seconds }) do
+-        Hive::ClaudeLauncher.record_claude_pid(task, runner)
++      with_replaced_singleton_method(Time, :now, -> { now }) do
++        with_replaced_singleton_method(Hive::ClaudeLauncher, :pid_ready_wait_timeout, -> { 0.1 }) do
++          with_replaced_singleton_method(Hive::ClaudeLauncher, :sleep, lambda { |seconds|
++            sleeps << seconds
++            now += seconds
++          }) do
++            Hive::ClaudeLauncher.record_claude_pid(task, runner)
++          end
++        end
+       end
+ 
+       lock = YAML.safe_load(File.read(File.join(task.folder, ".lock")))
+       assert_equal 12_346, lock.fetch("claude_pid")
+-      assert_equal [ 0.05 ], sleeps
++      assert_equal [ 0.05, 0.05 ], sleeps
+     ensure
+       Hive::Lock.release_task_lock(task.folder)
+     end
+diff --git a/test/unit/stages/execute_test.rb b/test/unit/stages/execute_test.rb
+index af52b588..fa824b33 100644
+--- a/test/unit/stages/execute_test.rb
++++ b/test/unit/stages/execute_test.rb
+@@ -193,6 +193,27 @@ class HiveStagesExecuteTest < Minitest::Test
+     end
+   end
+ 
++  def test_run_pass_treats_completion_signal_missing_as_failed_by_default
++    with_tmp_dir do |dir|
++      task = build_task(dir)
++      write_plan(task)
++      write_pointer(task, "path" => File.join(dir, "worktree"), "branch" => task.slug, "execute_base_head" => "base")
++      git = FakeGit.new(head: "base", branch: task.slug, dirty: false, ancestor_result: true)
++      result = { status: :completion_signal_missing, error_message: "claude stop hook did not signal completion" }
++
++      run_result = with_fake_git_and_spawn(git, result: result) do
++        Hive::Stages::Execute.run_pass(task, execute_cfg("codex"), File.join(dir, "worktree"))
++      end
++
++      marker = Hive::Markers.current(task.state_file)
++      assert_equal({ commit: "implementer_failed", status: :error }, run_result)
++      assert_equal :error, marker.name
++      assert_equal "implementer_failed", marker.attrs["reason"]
++      assert_equal "completion_signal_missing", marker.attrs["status"]
++      assert_equal "claude stop hook did not signal completion", marker.attrs["message"]
++    end
++  end
++
+   # When the execute agent name can't be resolved (unregistered profile),
+   # `execute_agent_name` rescues to nil rather than letting the exception
+   # escape; the limits_reached marker is still written, just with provider
+diff --git a/test/unit/stages/review/run_reviewers_test.rb b/test/unit/stages/review/run_reviewers_test.rb
+index 45380432..b0d7ae9c 100644
+--- a/test/unit/stages/review/run_reviewers_test.rb
++++ b/test/unit/stages/review/run_reviewers_test.rb
+@@ -1481,6 +1481,8 @@ class RunReviewersTest < Minitest::Test
+     refute Hive::Stages::Review.reviewer_file?("errors-01.md"),
+            "errors-NN.md must be classified as orchestrator-owned"
+     refute Hive::Stages::Review.reviewer_file?("errors-99.md")
++    refute Hive::Stages::Review.reviewer_file?("fix-no-change-01.md"),
++           "fix-no-change-NN.md must be classified as orchestrator-owned"
+     refute Hive::Stages::Review.reviewer_file?("suppressed.md"),
+            "suppressed.md must be classified as orchestrator-owned"
+     # The `suppressed.` prefix is dot-terminated, so a reviewer file that
+@@ -2252,4 +2254,210 @@ class RunReviewersTest < Minitest::Test
+       assert_equal "default", scope.fetch(:permission_mode)
+     end
+   end
++
++  def test_completion_signal_missing_is_failed_until_review_verifier_accepts_it
++    assert Hive::Stages::Review.agent_failed?(
++      status: :completion_signal_missing,
++      error_message: "claude stop hook did not signal completion"
++    )
++  end
++
++  def test_fix_completion_fallback_rejects_missing_or_malformed_exit_evidence
++    [ nil, "status zero" ].each do |exit_code|
++      with_tmp_dir do |dir|
++        reviews = File.join(dir, "reviews")
++        FileUtils.mkdir_p(reviews)
++        File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++        File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++        ctx = make_ctx(dir)
++        accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++        task = Task.new(dir, File.join(dir, "task.md"))
++        task.define_singleton_method(:slug) { "fallback-test" }
++        evidence = completion_missing_result.fetch(:completion_evidence).dup
++        if exit_code.nil?
++          evidence.delete("exit_code")
++        else
++          evidence["exit_code"] = exit_code
++        end
++        malformed_result = completion_missing_result.merge(completion_evidence: evidence)
++
++        result = Hive::Stages::Review.verify_fix_completion_fallback(
++          task, ctx, malformed_result,
++          accepted_findings: accepted,
++          before_fix_head: "a" * 40,
++          after_fix_head: "b" * 40,
++          post_fix_status: :clean
++        )
++
++        refute result.fetch(:success), "exit_code=#{exit_code.inspect} must not verify"
++        assert_match(/exit evidence was not status 0/, result.fetch(:message))
++      end
++    end
++  end
++
++  def test_fix_completion_fallback_rejects_unresolved_escalation
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n- [ ] still needs user input\n")
++      ctx = make_ctx(dir)
++      accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, completion_missing_result,
++        accepted_findings: accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "b" * 40,
++        post_fix_status: :clean
++      )
++
++      refute result.fetch(:success)
++      assert_match(/unresolved escalation/, result.fetch(:message))
++    end
++  end
++
++  def test_fix_completion_fallback_rejects_stale_accepted_findings_when_current_artifact_lacks_ticks
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      ctx = make_ctx(dir)
++      stale_accepted = Hive::Stages::Review::AcceptedFindings.new(text: "stale accepted finding", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, completion_missing_result,
++        accepted_findings: stale_accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "b" * 40,
++        post_fix_status: :clean
++      )
++
++      refute result.fetch(:success)
++      assert_match(/missing accepted finding evidence/, result.fetch(:message))
++    end
++  end
++
++  def test_fix_completion_fallback_rejects_missing_output_marker
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      File.write(File.join(reviews, "errors-01.md"), "- [claude] expected output file missing or empty\n")
++      ctx = make_ctx(dir)
++      accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, completion_missing_result,
++        accepted_findings: accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "b" * 40,
++        post_fix_status: :clean
++      )
++
++      refute result.fetch(:success)
++      assert_match(/missing-output marker/, result.fetch(:message))
++    end
++  end
++
++  def test_fix_completion_fallback_rejects_tmux_session_terminated_missing_output_marker
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      File.write(
++        File.join(reviews, "errors-01.md"),
++        "- [claude] tmux_session_terminated before writing expected output file: reviews/claude.md\n"
++      )
++      ctx = make_ctx(dir)
++      accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, completion_missing_result,
++        accepted_findings: accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "b" * 40,
++        post_fix_status: :clean
++      )
++
++      refute result.fetch(:success)
++      assert_match(/missing-output marker/, result.fetch(:message))
++    end
++  end
++
++  def test_fix_completion_fallback_accepts_explicit_no_change_final_message
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      ctx = make_ctx(dir)
++      accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++      result_with_no_change = completion_missing_result.merge(
++        final_message: "HIVE_FIX_NO_CHANGE: finding already fixed by prior commit"
++      )
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, result_with_no_change,
++        accepted_findings: accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "a" * 40,
++        post_fix_status: :clean
++      )
++
++      assert result.fetch(:success)
++      assert_match(/finding already fixed/, result.fetch(:no_change_evidence))
++    end
++  end
++
++  def test_fix_completion_fallback_rejects_inline_no_change_prompt_token
++    with_tmp_dir do |dir|
++      reviews = File.join(dir, "reviews")
++      FileUtils.mkdir_p(reviews)
++      File.write(File.join(reviews, "local-reviewer-01.md"), "## High\n- [x] fix it\n")
++      File.write(File.join(reviews, "escalations-01.md"), "# Escalations\n\n_All clean._\n")
++      ctx = make_ctx(dir)
++      accepted = Hive::Stages::Review::AcceptedFindings.new(text: "fix it", count: 1)
++      task = Task.new(dir, File.join(dir, "task.md"))
++      task.define_singleton_method(:slug) { "fallback-test" }
++      result_with_prompt_tail = completion_missing_result.merge(
++        final_message: "If every accepted finding is already fixed, include `HIVE_FIX_NO_CHANGE: <brief reason>`."
++      )
++
++      result = Hive::Stages::Review.verify_fix_completion_fallback(
++        task, ctx, result_with_prompt_tail,
++        accepted_findings: accepted,
++        before_fix_head: "a" * 40,
++        after_fix_head: "a" * 40,
++        post_fix_status: :clean
++      )
++
++      refute result.fetch(:success)
++      assert_match(/no commit or explicit no-change evidence/, result.fetch(:message))
++    end
++  end
++
++  def completion_missing_result
++    {
++      status: :completion_signal_missing,
++      completion_evidence: {
++        "exit_code" => 0,
++        "missing_signal_reason" => "done_sentinel_missing_after_clean_exit"
++      },
++      error_message: "claude stop hook did not signal completion"
++    }
++  end
+ end
+diff --git a/test/unit/stop_hook_installer_test.rb b/test/unit/stop_hook_installer_test.rb
+index 71b2a57a..12fe8818 100644
+--- a/test/unit/stop_hook_installer_test.rb
++++ b/test/unit/stop_hook_installer_test.rb
+@@ -137,6 +137,28 @@ class StopHookInstallerTest < Minitest::Test
+     end
+   end
+ 
++  def test_stop_hook_writes_explicit_json_for_empty_stdin
++    with_tmp_dir do |dir|
++      out, err, status = Open3.capture3({ "HIVE_TASK_STAGE_DIR" => dir }, HOOK, stdin_data: "")
++
++      assert status.success?, "stdout=#{out.inspect} stderr=#{err.inspect}"
++      assert_equal({ "hive_stop_hook" => "empty_stdin" },
++                   JSON.parse(File.read(File.join(dir, "result.json"))))
++      assert File.exist?(File.join(dir, ".done"))
++    end
++  end
++
++  def test_stop_hook_writes_result_before_done_in_script_order
++    script = File.read(HOOK)
++
++    result_write_index = script.index('> "$result_path"')
++    done_touch_index = script.index('touch "${HIVE_TASK_STAGE_DIR}/.done"')
++
++    refute_nil result_write_index
++    refute_nil done_touch_index
++    assert_operator result_write_index, :<, done_touch_index
++  end
++
+   def test_stop_hook_requires_stage_dir_env
+     # Scrub HIVE_TASK_STAGE_DIR from the child env so the test is hermetic even
+     # when the surrounding shell exports it (e.g. under the review harness);
+diff --git a/wiki/commands/markers.md b/wiki/commands/markers.md
+index ec76e1e4..24d6ec87 100644
+--- a/wiki/commands/markers.md
++++ b/wiki/commands/markers.md
+@@ -3,7 +3,7 @@ title: hive markers
+ type: command
+ source: lib/hive/commands/markers.rb
+ created: 2026-04-26
+-updated: 2026-05-27
++updated: 2026-07-11
+ tags: [command, markers, recovery, json]
+ ---
+ 
+@@ -18,6 +18,7 @@ hive markers clear <slug>          --name REVIEW_ERROR --project myproj
+ hive markers clear <slug>          --name REVIEW_STALE --json
+ hive markers clear <folder>        --name ERROR --match-attr marker_id=abc123
+ hive markers clear <folder>        --name ERROR --match-attr reason=exit_code,exit_code=143
++hive markers clear <folder>        --name REVIEW_ERROR --match-attr phase=fix,reason=fix_failed,pass=<N>
+ ```
+ 
+ ## Allowlist
+@@ -97,6 +98,23 @@ The old recovery prose was "remove the marker, then re-run `hive run`". That wor
+ - **No audit trail.** Hand-edits don't land on the `hive/state` branch; future `hive metrics` walks miss the recovery action entirely.
+ - **No JSON envelope.** `hive markers clear --json` is part of the same agent-callable surface as `hive approve --json` and `hive run --json`.
+ 
++## Review stop-hook guard
++
++The historical review-fix stop-hook failure shape is:
++
++```text
++REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"
++```
++
++Do not clear this marker blindly. The daemon healer first re-evaluates `claude-exit-status.json`, review artifacts, worktree status, and commit/no-change evidence; if proof is sufficient it emits `claude_completion_fallback` and reruns review. If manual recovery is needed, guard the clear with the observed pass:
++
++```bash
++hive markers clear <task-folder> --name REVIEW_ERROR --match-attr phase=fix,reason=fix_failed,pass=<N>
++hive run <task-folder>
++```
++
++Use that template for already-parked tasks 58 / PR #622, 287 / PR #623, and 288 / PR #624 only after substituting the concrete folder/pass and confirming the marker attrs still match.
++
+ ## Backlinks
+ 
+ - [[cli]]
+diff --git a/wiki/commands/run.md b/wiki/commands/run.md
+index c4caffc6..bd1bf349 100644
+--- a/wiki/commands/run.md
++++ b/wiki/commands/run.md
+@@ -3,7 +3,7 @@ title: hive run
+ type: command
+ source: lib/hive/commands/run.rb
+ created: 2026-04-25
+-updated: 2026-05-22T13:30:00Z
++updated: 2026-07-11
+ tags: [command, dispatcher, stages, json, rebase]
+ ---
+ 
+@@ -122,6 +122,7 @@ Protected-file basename guard (originally present pre-merge) was **removed** dur
+ | `:review_waiting` (escalations-only, no `reason` attr) | `next: edit reviews/escalations-NN.md or reviewer files, then `hive run <folder>` again`. JSON envelope: `target = task.folder`. |
+ | `:review_waiting reason=fix_guardrail` | `next: review every finding in reviews/fix-guardrail-NN.md; tick every `[ ]` to `[x]` to approve the guarded commits (partial ticks keep the pause), then re-run`. Approval is rejected if the file's checkbox count differs from `marker.matches` or the worktree HEAD differs from `marker.head`. JSON envelope: `target = <folder>/reviews/fix-guardrail-NN.md`, `instructions` cites the count and HEAD rejection rules. |
+ | `:review_error phase=reviewers reason=reviewer_partial_failure` | `next: recover review by clearing `REVIEW_ERROR` and rerunning`. JSON/status diagnostics include `<folder>/reviews/errors-NN.md`. |
++| `:review_error phase=fix reason=fix_failed message="claude stop hook did not signal completion"` | Legacy tmux Claude Stop hook row. Daemon recovery first tries the review-fix completion verifier; proof emits `claude_completion_fallback` and queues a review rerun. Without proof, use the guarded manual command from [[commands/markers]] only after inspecting artifacts. |
+ | `:review_ci_stale` | `next: fix CI, edit reviews/ci-blocked.md, remove REVIEW_CI_STALE marker, re-run` |
+ | `:review_stale` | `next: if highest-pass reviewer files lack escalations-NN.md, remove REVIEW_STALE and re-run to retry that pass; otherwise edit/rename highest-pass review files, remove REVIEW_STALE, re-run` |
+ | `:manual_steering` | `next: manual steering active; automated run skipped`. JSON uses `next_action.kind="no_op"` and `reason="manual_steering"`. |
+diff --git a/wiki/log.d/20260711-review-fix-claude-completion-fallback.md b/wiki/log.d/20260711-review-fix-claude-completion-fallback.md
+new file mode 100644
+index 00000000..3f3659dd
+--- /dev/null
++++ b/wiki/log.d/20260711-review-fix-claude-completion-fallback.md
+@@ -0,0 +1,7 @@
++---
++created: 2026-07-11
++tags: [review, claude, tmux, recovery]
++---
++
++- Added tmux-mode Claude exit evidence (`claude-exit-status.json`) and a strict review-fix fallback for missing Stop hook `.done` sentinels.
++- Documented the `claude_completion_fallback` WARN event, proof-gated daemon recovery, guarded manual `REVIEW_ERROR` clear commands, and the continuing `claude.mode: headless` workaround for affected Claude Code versions.
+diff --git a/wiki/log.d/20260711T094429Z-review-fallback-proof-hardening.md b/wiki/log.d/20260711T094429Z-review-fallback-proof-hardening.md
+new file mode 100644
+index 00000000..8a20f08c
+--- /dev/null
++++ b/wiki/log.d/20260711T094429Z-review-fallback-proof-hardening.md
+@@ -0,0 +1,32 @@
++---
++date: 2026-07-11
++slug: review-fallback-proof-hardening
++pages: [stages/review, modules/daemon]
++---
++
++Hardened the 6-review Claude stop-hook completion fallback after review found
++three proof gaps and one healer pass-advance gap.
++
++`lib/hive/stages/review.rb` now treats `completion_evidence["exit_code"]` as
++strict evidence: missing or non-numeric values no longer coerce to zero. The
++missing-output blocker also recognizes the existing
++`tmux_session_terminated before writing expected output file` reviewer error
++shape, not only the older `expected output file missing` / `missing output`
++phrases. No-change proof from the final message now requires a standalone
++`HIVE_FIX_NO_CHANGE: ...` line, so the inline prompt example in
++`templates/fix_prompt.md.erb` cannot satisfy the fallback verifier.
++
++`lib/hive/daemon/stale_agent_healer.rb` now writes the normal
++`reviews/fix-success-NN.md` sentinel after proof-positive stop-hook recovery
++and before requeueing `hive run`, so `next_pass_for` advances past the
++completed fix pass instead of classifying it as `:fix_incomplete`.
++
++Focused validation passed without Bundler because the locked gems are not
++installed locally: `ruby -Itest test/unit/stages/review/run_reviewers_test.rb`,
++`ruby -Itest test/unit/daemon/stale_agent_healer_test.rb`, and
++`ruby -Itest test/integration/run_review_test.rb`. The equivalent
++`bundle exec ruby ...` invocations failed before test startup with
++`Bundler::GemNotFound`.
++
++Updated [[stages/review]] and [[modules/daemon]]. Page count unchanged, so
++[[index]] did not need a catalog update. Did not edit compiled [[log]].
+diff --git a/wiki/log.d/20260711T100041Z-review-fallback-proof-pass2.md b/wiki/log.d/20260711T100041Z-review-fallback-proof-pass2.md
+new file mode 100644
+index 00000000..fecbe293
+--- /dev/null
++++ b/wiki/log.d/20260711T100041Z-review-fallback-proof-pass2.md
+@@ -0,0 +1,26 @@
++---
++date: 2026-07-11
++slug: review-fallback-proof-pass2
++pages: [stages/review, modules/protected_files, state-model]
++---
++
++Hardened the second pass of 6-review Claude stop-hook fallback proof.
++
++`reviews/fix-no-change-NN.md` is now treated as orchestrator-owned fallback
++evidence: it is excluded from reviewer-file classification and included in
++the fix-agent protected snapshot, so a fix agent cannot create a no-change
++proof file to satisfy fallback completion after a missing Stop-hook sentinel.
++
++The fallback verifier now re-parses the current reviewer/escalation artifacts
++after the fix spawn and requires accepted finding evidence to still be present,
++instead of trusting the pre-spawn accepted-findings payload. Truncated or
++corrupted current artifacts therefore reject fallback completion instead of
++allowing a stale payload to write `reviews/fix-success-NN.md`.
++
++`Hive::ClaudeLauncher.record_claude_pid` now keeps polling for the wrapper's
++`claude-child.pid` artifact until the configured PID wait deadline, retaining
++the tmux pane PID only as a fallback if the child artifact never appears.
++
++Updated [[stages/review]], [[modules/protected_files]], and [[state-model]].
++Page count unchanged, so [[index]] did not need a catalog update. Did not edit
++compiled [[log]].
+diff --git a/wiki/modules/daemon.md b/wiki/modules/daemon.md
+index fe8dd9cc..66937dc0 100644
+--- a/wiki/modules/daemon.md
++++ b/wiki/modules/daemon.md
+@@ -26,7 +26,7 @@ the safety-relevant decisions are unit-testable without forking.
+ | `Hive::Daemon::Dispatcher` | `lib/hive/daemon/dispatcher.rb` | The poll-classify-dispatch loop. Glues all of the above. Public `tick(now:)` for tests, `run_forever` for production with TERM/INT/HUP signal traps. |
+ | `Hive::Daemon::Logger` | `lib/hive/daemon/logger.rb` | One-JSON-line-per-event structured logger. Closed event enum (unknown name raises). Size-rotated. |
+ | `Hive::Daemon::PlanApproval` | `lib/hive/daemon/plan_approval.rb` | Safely turns daemon-enabled `3-plan` approval pauses into `hive develop ... --from 3-plan` dispatches by validating command shape and flipping `WAITING` to `COMPLETE`. |
+-| `Hive::Daemon::StaleAgentHealer` | `lib/hive/daemon/stale_agent_healer.rb` | Rewrites stale `AGENT_WORKING` markers to `ERROR reason=agent_died` or `ERROR reason=agent_orphaned`, while skipping live controller slots and half-migrated projects. It also repairs wedged `REVIEW_WORKING` rows when the recorded Claude child is dead, the review lock holder is still alive, and child-process inspection proves that holder has no remaining children: it logs `reason=review_agent_died` with the original phase/pass, clears the stale marker, terminates the stuck holder, and removes `.lock` so the daemon can retry review normally. Retryable terminal markers such as `8-finalize` `ERROR reason=unpushed_commits` plus non-review terminal agent-loss `ERROR reason=tmux_session_terminated` / `reason=agent_orphaned` are cleared with a bounded per-process retry budget so interrupted sessions can rerun. A narrower timeout path clears `ERROR reason=timeout` exactly once, only on `5-open-pr` and `7-artifacts`, because those re-entries are side-effect-safe (`open_pr_already_open` / idempotent `artifact.md` recollection). `limits_reached` markers (review `REVIEW_ERROR` from reviewers/triage/fix, or single-agent `ERROR` in any stage) self-heal on a cooldown: the writer stamps `retry_after = now + Hive::AgentLimit::RETRY_COOLDOWN_SEC` (default 1h, env `HIVE_LIMITS_RETRY_COOLDOWN_SEC`) and the healer clears them only once `now >= retry_after`, bounded by the same retry budget; cooldown-wait ticks do not burn budget, and a missing/unparseable stamp stays manual. Non-limit operational failures also auto-retry under the same bounded budget so the daemon advances them instead of parking for a human: `ERROR reason=ensure_clean_on_exit_failed` (any worktree-owning stage — the rerun re-applies the scope-checked auto-commit rather than bypassing it, so genuinely out-of-scope residue still re-fails and parks), `REVIEW_ERROR phase=reviewers reason=all_failed` (every reviewer crashed for a non-limit reason; a total usage-limit instead sets `reason=limits_reached` and takes the cooldown path), `REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"` for the legacy Claude stop-hook completion bug, and `REVIEW_ERROR phase=fix` auto-commit failures (`fix_auto_commit_scope_failed` / `fix_auto_commit_sign_policy_failed` / `fix_auto_commit_signing_failed`). The integrity/operator reasons `fix_status_check_failed`, `fix_tampered`, generic `fix_failed`, and `dirty_worktree` stay manual. The operator-facing bot/TUI still routes `ensure_clean_on_exit_failed` through `ERROR_MANUAL_ONLY_REASONS` as the post-exhaustion "inspect manually" backstop — the daemon retries first, a human sees it only after the budget is spent. `3-plan` is the special terminal-error case: after any successful terminal `ERROR` clear there, including terminal agent-loss or elapsed `limits_reached`, it queues `hive plan <slug> --from 3-plan` through `DispatchRequestQueue` and logs `heal_requeued`, because an empty markerless `plan.md` otherwise classifies straight back to `:error`. |
++| `Hive::Daemon::StaleAgentHealer` | `lib/hive/daemon/stale_agent_healer.rb` | Rewrites stale `AGENT_WORKING` markers to `ERROR reason=agent_died` or `ERROR reason=agent_orphaned`, while skipping live controller slots and half-migrated projects. It also repairs wedged `REVIEW_WORKING` rows when the recorded Claude child is dead, the review lock holder is still alive, and child-process inspection proves that holder has no remaining children: it logs `reason=review_agent_died` with the original phase/pass, clears the stale marker, terminates the stuck holder, and removes `.lock` so the daemon can retry review normally. Retryable terminal markers such as `8-finalize` `ERROR reason=unpushed_commits` plus non-review terminal agent-loss `ERROR reason=tmux_session_terminated` / `reason=agent_orphaned` are cleared with a bounded per-process retry budget so interrupted sessions can rerun. A narrower timeout path clears `ERROR reason=timeout` exactly once, only on `5-open-pr` and `7-artifacts`, because those re-entries are side-effect-safe (`open_pr_already_open` / idempotent `artifact.md` recollection). `limits_reached` markers (review `REVIEW_ERROR` from reviewers/triage/fix, or single-agent `ERROR` in any stage) self-heal on a cooldown: the writer stamps `retry_after = now + Hive::AgentLimit::RETRY_COOLDOWN_SEC` (default 1h, env `HIVE_LIMITS_RETRY_COOLDOWN_SEC`) and the healer clears them only once `now >= retry_after`, bounded by the same retry budget; cooldown-wait ticks do not burn budget, and a missing/unparseable stamp stays manual. Non-limit operational failures also auto-retry under the same bounded budget so the daemon advances them instead of parking for a human: `ERROR reason=ensure_clean_on_exit_failed` (any worktree-owning stage — the rerun re-applies the scope-checked auto-commit rather than bypassing it, so genuinely out-of-scope residue still re-fails and parks), `REVIEW_ERROR phase=reviewers reason=all_failed` (every reviewer crashed for a non-limit reason; a total usage-limit instead sets `reason=limits_reached` and takes the cooldown path), `REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"` for the legacy Claude stop-hook completion bug, and `REVIEW_ERROR phase=fix` auto-commit failures (`fix_auto_commit_scope_failed` / `fix_auto_commit_sign_policy_failed` / `fix_auto_commit_signing_failed`). The stop-hook path must prove completion through the review fallback verifier, then writes `reviews/fix-success-NN.md` before requeueing so the rerun advances past the completed fix pass. The integrity/operator reasons `fix_status_check_failed`, `fix_tampered`, generic `fix_failed`, and `dirty_worktree` stay manual. The operator-facing bot/TUI still routes `ensure_clean_on_exit_failed` through `ERROR_MANUAL_ONLY_REASONS` as the post-exhaustion "inspect manually" backstop — the daemon retries first, a human sees it only after the budget is spent. `3-plan` is the special terminal-error case: after any successful terminal `ERROR` clear there, including terminal agent-loss or elapsed `limits_reached`, it queues `hive plan <slug> --from 3-plan` through `DispatchRequestQueue` and logs `heal_requeued`, because an empty markerless `plan.md` otherwise classifies straight back to `:error`. |
+ | `Hive::Daemon::DisplayNameBackfiller` | `lib/hive/daemon/display_name_backfiller.rb` | Tick-time self-heal for tasks whose one-shot name generation at `hive new` never landed (agent/codex outage). Re-spawns fire-and-forget `hive generate-name <folder>` for any row whose `Hive::TaskMeta` `display_name` is nil/blank, mirroring `Hive::Commands::New#spawn_name_generator` (detached, pgroup, logged to `<state_home>/logs/display-name.log`, fully rescued). Anti-churn: an `@inflight` map stores `{pid, at}` per folder, uses `kill(0)` liveness plus `MAX_INFLIGHT_AGE_SEC = 120` to avoid both double-spawns and reused-pid/EPERM pinning, `max_per_tick` (default 2) bounds spawns, and a set name is a natural fixed point. Unexpected row/reap/spawn errors degrade through `:fatal` logging while preserving the no-raise tick contract. Purely additive — never touches markers or dispatch. Logs `display_name_backfill`. |
+ | `Hive::Daemon::TaskIdBackfiller` | `lib/hive/daemon/task_id_backfiller.rb` | Tick-time self-heal for tasks created outside `hive new` (hand-made folder, one `mv`-ed in) whose `meta.yml` has no `id` — `hive new` allocates ids from `Hive::TaskCounter`, so a task that skipped it shows a blank id everywhere (TUI, status, digest, dependency refs). For any row whose `Hive::TaskMeta` `id` is nil it allocates `TaskCounter.next!`, writes it via `TaskMeta.update_id` (every other meta field preserved), and commits the meta on `hive/state` under the per-project commit lock (`Hive::Lock.with_commit_lock`, as every durable committer does) with the per-task `hive_commit(stage_name:, slug:, action: "id-assigned")` call. The `task_id_backfill` event carries `committed:` so a swallowed commit (lock timeout / git error) is visible rather than masquerading as fully durable. Synchronous (no spawn/inflight — assignment is instant), `max_per_tick` (default 5) bounds the per-tick commits, and an assigned id is a natural fixed point. Guards `File.directory?(folder)` first so a row that outlived its folder (e.g. `hive drop` between snapshot and tick) is NOT resurrected by `TaskMeta.write`'s `mkdir_p`. Row/commit errors degrade through `:fatal` / `task_id_backfill_commit_skipped` logging while preserving the no-raise tick contract. Purely additive — never touches markers or dispatch. Logs `task_id_backfill`. |
+ | `Hive::Daemon::PrMergeWatcher` | `lib/hive/daemon/pr_merge_watcher.rb` | Polls `gh pr view --json state` for tasks at 8-finalize/`:complete` and for a narrow set of finalize `ERROR` rows whose PR can still be retired after merge (`git_status_failed`, `claude_launch_failed`). On `MERGED` returns an archive dispatch entry the dispatcher fires. Backs off + drops on persistent gh failures. |
+diff --git a/wiki/modules/events.md b/wiki/modules/events.md
+index 841b623e..0b5dd726 100644
+--- a/wiki/modules/events.md
++++ b/wiki/modules/events.md
+@@ -3,7 +3,7 @@ title: Hive::Events
+ type: module
+ source: lib/hive/events.rb
+ created: 2026-05-23
+-updated: 2026-05-23
++updated: 2026-07-11
+ tags: [module, events, observability, status, append-only]
+ ---
+ 
+@@ -18,6 +18,7 @@ tags: [module, events, observability, status, append-only]
+ | `agent_start` | `Hive::Agent#run!`; also `Stages::Review#mark_working` for phase brackets | Just before `spawn_and_wait` / before each `review_working` mark |
+ | `agent_end` | same, in `ensure` | Always emitted, even on exception (`status=exception` carries the error class) |
+ | `error` | `Stages::Base.with_stage_events` rescue path; `emit_marker_event` for error markers | Stage raised, or marker landed on `:error` / `:review_error` / `:review_ci_stale` / `:review_stale` |
++| `claude_completion_fallback` | `Stages::Review` Phase 4 and `StaleAgentHealer` proof recovery | WARN audit record when a tmux-mode Claude fix pass exited 0 but the Stop hook `.done` sentinel was missing, and the review-fix verifier accepted artifacts plus commit/no-change evidence |
+ | `round_waiting` | `Stages::Base.emit_marker_event` | Brainstorm or plan stage closed with `:waiting` marker |
+ | `round_complete` | same | Brainstorm or plan stage closed with `:complete` marker |
+ 
+@@ -33,12 +34,12 @@ tags: [module, events, observability, status, append-only]
+ - `slug` / `stage` — task slug and `<index>-<name>` stage label.
+ - `agent` — `"<profile> <log_label>"` for agent spawns (e.g. `"claude review-stub-reviewer-pass01"`); `"phase=<name> pass=<NN>"` for review phase brackets; `null` for stage / round / error events.
+ - `event_type` — one of the table above.
+-- `message` — short human-readable detail. `agent_start` carries `cwd=<full @cwd path> timeout_sec=N max_budget_usd=N` (full path, not basename — basename collapsed the worktree-vs-task-folder distinction); `agent_end` carries `status=… exit_code=… pid=…` (or `status=exception` with the error class); `stage_exit` carries `status=<marker> phase=… reason=… pass=…` when those marker attrs are present.
++- `message` — short human-readable detail. `agent_start` carries `cwd=<full @cwd path> timeout_sec=N max_budget_usd=N` (full path, not basename — basename collapsed the worktree-vs-task-folder distinction); `agent_end` carries `status=… exit_code=… pid=…` (or `status=exception` with the error class); `stage_exit` carries `status=<marker> phase=… reason=… pass=…` when those marker attrs are present. `claude_completion_fallback` uses compact key/value text with `level=WARN`, phase/pass, task slug, session or pid, expected `.done`/`result.json`/`claude-exit-status.json` paths, missing-signal reason, artifacts checked, and commit/no-change evidence.
+ 
+ ## Storage and atomicity
+ 
+ - **Path**: `<task_folder>/events.jsonl` (one file per task slug, lives next to `task.md`).
+-- **Append**: single `File.write` of `JSON.generate(record) + "\n"` opened `O_WRONLY | O_APPEND | O_CREAT`. Records stay well under `PIPE_BUF` (~4 KiB), so POSIX append-atomicity holds across concurrent emitters; the single-write contract is load-bearing and must not be split into "write JSON then write newline."
++- **Append**: single `File.write` of `JSON.generate(record) + "\n"` opened `O_WRONLY | O_APPEND | O_CREAT`. Most records are tiny; audit-heavy records such as `claude_completion_fallback` can approach the 4 KiB message cap. The single-write append contract is load-bearing and must not be split into "write JSON then write newline."
+ - **Failure mode**: `SystemCallError` during emit is caught and warned to stderr (`[hive.events] failed to emit ...`). The producing stage / agent control flow is not interrupted — observability must never mask the underlying run result.
+ 
+ ## Derived `status.md`
+diff --git a/wiki/modules/protected_files.md b/wiki/modules/protected_files.md
+index cca3b694..f75ea37a 100644
+--- a/wiki/modules/protected_files.md
++++ b/wiki/modules/protected_files.md
+@@ -26,7 +26,7 @@ Missing files are recorded as `nil` so a deletion is detected as a difference (o
+ ## Used by
+ 
+ - **`Stages::Execute.run!`** — wraps the implementation spawn (ADR-013). Tampering yields `EXECUTE_ERROR phase=implementation reason=tampered`.
+-- **`Stages::Review.run!#spawn_fix_agent`** — wraps Phase 4. Includes the per-pass `escalations-NN.md`, reviewer infra/error sentinels, fix-success/guardrail sentinels, and `reviews/suppressed.md` so a fix agent rewriting them (e.g., flipping `[ ]` → `[x]` to short-circuit human review, or clearing no-fix suppressions) trips `REVIEW_ERROR phase=fix reason=fix_tampered`.
++- **`Stages::Review.run!#spawn_fix_agent`** — wraps Phase 4. Includes the per-pass `escalations-NN.md`, reviewer infra/error sentinels, fix-success/guardrail/no-change sentinels, and `reviews/suppressed.md` so a fix agent rewriting them (e.g., flipping `[ ]` → `[x]` to short-circuit human review, forging no-change proof, or clearing no-fix suppressions) trips `REVIEW_ERROR phase=fix reason=fix_tampered`.
+ - **`Stages::Review::Triage.run!`** — wraps the triage spawn (`TRIAGE_PROTECTED_FILES = ORCHESTRATOR_OWNED + ["reviews/suppressed.md"]`). Triage may edit reviewer files in place but must NOT touch plan.md / worktree.yml / task.md / the suppression list (clearing no-fix suppressions there would defeat convergence — U3/A4). The triage-local addition leaves the shared `ORCHESTRATOR_OWNED` constant untouched; timing is safe because `strip_suppressed!` writes the list before the snapshot and `seed_from_triage!` after it. Tampering yields `REVIEW_ERROR phase=triage reason=triage_tampered`.
+ - **`Stages::Review::CiFix.run!`** — wraps each CI-fix attempt. Tampering yields `Result.new(status: :error, error_message: "ci fix agent modified protected files: …")` which the runner translates to `REVIEW_ERROR phase=ci`.
+ 
+diff --git a/wiki/operating.md b/wiki/operating.md
+index 2b24d46a..ee33b8d1 100644
+--- a/wiki/operating.md
++++ b/wiki/operating.md
+@@ -3,7 +3,7 @@ title: Operating Hive
+ type: operating
+ source: README.md, bin/hv, install.sh, lib/hive/commands/daemon.rb, lib/hive/commands/babysit.rb, lib/hive/commands/bot.rb, examples/systemd/, examples/launchd/, openclaw/skills/hive/SKILL.md, openclaw/README.md
+ created: 2026-05-07
+-updated: 2026-06-25
++updated: 2026-07-11
+ tags: [operating, daemon, bot, systemd, launchd, install]
+ ---
+ 
+@@ -219,6 +219,26 @@ gracefully skips assertions the released binary doesn't support — so
+ the script keeps providing value during the gap between when a feature
+ lands on main and when the next release tag is cut.
+ 
++## Claude tmux stop-hook recovery
++
++For affected Claude Code versions, keep `claude.mode: headless` as the safe workaround when operators see review-fix rows stuck on `REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"`. Hive does not auto-revert that config. Tmux mode is accepted only when Hive can prove the fix agent exited 0 from `claude-exit-status.json`, parse the review artifacts, verify the worktree, and find commit or explicit no-change evidence.
++
++Accepted proof emits `claude_completion_fallback` at WARN level in `<task>/events.jsonl` and updates `<task>/status.md`. Inspect it with:
++
++```bash
++grep claude_completion_fallback <task-folder>/events.jsonl
++tail -40 <task-folder>/status.md
++```
++
++If a parked task cannot be auto-proven, use guarded manual recovery only after inspecting the marker and artifacts:
++
++```bash
++hive markers clear <task-folder> --name REVIEW_ERROR --match-attr phase=fix,reason=fix_failed,pass=<N>
++hive run <task-folder>
++```
++
++For the known stuck rows 58 / PR #622, 287 / PR #623, and 288 / PR #624, substitute each concrete folder and pass. Do not clear if the marker attrs have changed or if the expected proof/audit trail is absent.
++
+ ## Prerequisites
+ 
+ Once per workstation:
+diff --git a/wiki/stages/review.md b/wiki/stages/review.md
+index 856e7b30..f08f0e8f 100644
+--- a/wiki/stages/review.md
++++ b/wiki/stages/review.md
+@@ -3,7 +3,7 @@ title: 6-review stage
+ type: stage
+ source: lib/hive/stages/review.rb, lib/hive/stages/auto_commit.rb, lib/hive/stages/review/{ci_fix,triage,browser_test,fix_guardrail,suppression}.rb, lib/hive/commands/adhoc_review.rb, templates/{fix,ci_fix,browser_test,triage_*}*.erb
+ created: 2026-04-26
+-updated: 2026-06-27
++updated: 2026-07-11
+ tags: [stage, review, autonomous-loop, ci, triage, fix-guardrail]
+ ---
+ 
+@@ -113,7 +113,13 @@ Spawns the fix agent (`cfg.review.fix.agent`, default `claude`) with the concate
+ 
+ The fix prompt (`templates/fix_prompt.md.erb`) tells the agent to **fix the whole defect class, not just the cited line**: when a finding's root cause is an instance of a recurring pattern (e.g. "this path silently swallows a session expiry and seals a partial result as complete"), the agent greps the worktree for the other sites with the *same* defect and applies the identical remedy to all of them in the one pass. This is the single sanctioned exception to the otherwise-strict scoped-edits rule, and it exists to collapse convergence: without it, each reviewer pass re-finds the identical bug at the next site, costing a full extra pass per site (observed on a real xhigh-effort review that found the same silent-truncation class across `walk_timeline`, `get_tweet`, capture, and resync over five passes). It is explicitly not license for unrelated refactors — only to eliminate every instance of the specific defect a finding names.
+ 
+-Plan / worktree.yml / task.md are SHA-256 protected around the fix spawn; tampering → `REVIEW_ERROR phase=fix reason=fix_tampered`. The fix protected set also includes the current pass's escalations/errors/fix-success/fix-guardrail files plus `reviews/suppressed.md`, so a fix agent cannot clear or flip the no-fix suppression list. If the fix agent exits with raw provider-limit `limit_text`, or a legacy AgentLimit wire-format error message, the runner writes `REVIEW_ERROR phase=fix reason=limits_reached retry_after=<iso8601>` through the same `mark_review_phase_failure` helper used by triage; ordinary fix-agent errors still write `reason=fix_failed`.
++Plan / worktree.yml / task.md are SHA-256 protected around the fix spawn; tampering → `REVIEW_ERROR phase=fix reason=fix_tampered`. The fix protected set also includes the current pass's escalations/errors/fix-success/fix-guardrail/fix-no-change files plus `reviews/suppressed.md`, so a fix agent cannot clear or flip no-fix suppression state or forge completion/no-change proof. If the fix agent exits with raw provider-limit `limit_text`, or a legacy AgentLimit wire-format error message, the runner writes `REVIEW_ERROR phase=fix reason=limits_reached retry_after=<iso8601>` through the same `mark_review_phase_failure` helper used by triage; ordinary fix-agent errors still write `reason=fix_failed`.
++
++Tmux-mode fix agents have a second completion proof path for the legacy Claude Stop hook race where Claude exits cleanly but `.done` never appears. The primary contract is still `result.json` followed by `.done` under the task stage directory (`HIVE_TASK_STAGE_DIR`). The tmux wrapper also records `claude-child.pid` and `claude-exit-status.json` in that same directory; `ClaudeLauncher` only returns `status: :completion_signal_missing` when the exit-status file proves exit code 0 and the missing piece is the Stop hook sentinel. `Review.run!` treats that as pending proof, not success: it continues through protected-file checks, worktree status, auto-commit, guardrails, and then requires readable reviewer/escalation artifacts, no unresolved escalation, no missing-output marker, and commit evidence or explicit no-change evidence before writing `reviews/fix-success-NN.md`.
++
++The fallback verifier is strict about that evidence. Missing or non-numeric `completion_evidence["exit_code"]` is not coerced to 0; only a parseable integer zero passes. Reviewer and escalation artifacts must still be readable and must currently contain accepted finding evidence; the verifier re-parses the artifacts after the fix spawn instead of trusting the pre-spawn prompt payload. Missing-output guardrails include both `expected output file missing` / `missing output` and the tmux reviewer marker shape `tmux_session_terminated before writing expected output file`. A no-change final response counts only when `HIVE_FIX_NO_CHANGE: <reason>` appears as its own standalone line, so the inline example in `templates/fix_prompt.md.erb` or other prompt text cannot satisfy the proof. The `reviews/fix-no-change-NN.md` file is orchestrator-owned/protected and only counts when present after an untampered fix spawn. Accepted fallbacks append a WARN audit event named `claude_completion_fallback` to `events.jsonl`; rejected fallbacks remain `REVIEW_ERROR phase=fix reason=fix_failed message="..."`.
++
++`claude.mode: headless` remains the operational workaround for Hive/Claude versions affected by the tmux Stop hook race. This fallback makes tmux mode safe only when the strict proof exists; it does not auto-revert operator config and it does not turn missing artifacts, non-zero exits, unreadable worktrees, unresolved escalations, or corrupt review files into success.
+ 
+ After the fix agent returns, `Hive::Stages::Review::FixGuardrail.run!` (ADR-020 / U13) takes `git diff base..head` of the new commits and walks it once, dispatching each line to the configured pattern set:
+ 
+@@ -176,6 +182,15 @@ Recovery flow:
+ 
+ For `REVIEW_CI_STALE` (Phase 1 CI never went green) the equivalent flow is: edit `reviews/ci-blocked.md`, fix the CI failures locally, run `hive markers clear FOLDER --name REVIEW_CI_STALE`, then `hive run`. For `REVIEW_ERROR` (any phase failure recorded with `phase=…` and `reason=…`) the same pattern: investigate, run `hive markers clear FOLDER --name REVIEW_ERROR`, then `hive run`. The runner's pre-flight `warn` text emits the exact command per stuck-state.
+ 
++For the specific legacy stop-hook marker `REVIEW_ERROR phase=fix reason=fix_failed message="claude stop hook did not signal completion"`, the daemon healer now re-runs the same Phase 4 fallback verifier before clearing anything. If it can prove completion from `claude-exit-status.json`, review artifacts, worktree status, and commit/no-change evidence, it clears the marker through the normal marker path, writes `reviews/fix-success-NN.md`, emits `claude_completion_fallback`, and enqueues a review rerun so `next_pass_for` advances instead of re-running the completed fix pass. If proof is missing, the marker stays red. Manual recovery for already-stuck tasks must be guarded by the exact marker attrs:
++
++```bash
++hive markers clear <task-folder> --name REVIEW_ERROR --match-attr phase=fix,reason=fix_failed,pass=<N>
++hive run <task-folder>
++```
++
++For the known parked incidents 58 / PR #622, 287 / PR #623, and 288 / PR #624, substitute each concrete task folder and pass number. Do not clear if the marker attrs differ from the observed stuck state, the task lacks `claude_completion_fallback` audit proof, or the verifier evidence is incomplete.
++
+ No frontmatter edits required: pass count is filename-derived, not stored.
+ 
+ ## Tests
+diff --git a/wiki/state-model.md b/wiki/state-model.md
+index 4547c01b..2ae9557e 100644
+--- a/wiki/state-model.md
++++ b/wiki/state-model.md
+@@ -113,7 +113,7 @@ Markers are HTML comments at end-of-file in the state file. Exactly one is "curr
+ | `<!-- REVIEW_CI_STALE attempts=N -->` | CI hard-block — `cfg.review.ci.max_attempts` reached without green; reviewers don't run on red CI | `Stages::Review` CI phase |
+ | `<!-- REVIEW_STALE pass=NN -->` | hit `cfg.review.max_passes` (default 2) | `Stages::Review` orchestrator |
+ | `<!-- REVIEW_COMPLETE pass=NN browser=passed\|warned\|skipped -->` | review loop done — ready to run `hive artifacts` into 7-artifacts (`browser=warned` = soft-warn surfaced in PR body) | `Stages::Review` orchestrator |
+-| `<!-- REVIEW_ERROR phase=... reason=... message="..." -->` | agent-level error or protected-file tampering (mirrors ADR-013's `:error` shape for `EXECUTE_*`). Most review errors remain human-recoverable, but the daemon auto-clears no-live-lock `reason=review_agent_died`, `phase=reviewers reason=reviewer_partial_failure` when `reviews/errors-NN.md` contains only Claude/tmux `tmux_session_terminated before writing expected output file` failures, `phase=fix reason=fix_failed message="claude stop hook did not signal completion"` for the legacy Claude stop-hook completion bug, and `reason=limits_reached` once its `retry_after` cooldown elapses. Review limit markers can come from all reviewers failing on limits, CI-fix agent failures carrying `limit_text`, or triage/fix spawn failures carrying `limit_text` / the `Hive::AgentLimit` wire message. Non-limit triage/fix phase-agent failures carry a whitespace-collapsed, 300-char-capped `message=` attr from the captured error so `status.md`, `hive status --json`, and the web diagnostic card show the real cause instead of only `reason=triage_failed` / `fix_failed`; non-limit CI errors still write `reason=ci_unrunnable`. Auto-clear is bounded per daemon process by failure signature (default 3); repeated identical failures stay red after the budget is exhausted. | `Stages::Review` orchestrator |
++| `<!-- REVIEW_ERROR phase=... reason=... message="..." -->` | agent-level error or protected-file tampering (mirrors ADR-013's `:error` shape for `EXECUTE_*`). Most review errors remain human-recoverable, but the daemon auto-clears no-live-lock `reason=review_agent_died`, `phase=reviewers reason=reviewer_partial_failure` when `reviews/errors-NN.md` contains only Claude/tmux `tmux_session_terminated before writing expected output file` failures, and `reason=limits_reached` once its `retry_after` cooldown elapses. The legacy fix marker `phase=fix reason=fix_failed message="claude stop hook did not signal completion"` is proof-gated: the healer must re-run the review-fix fallback verifier against `claude-exit-status.json`, review artifacts, worktree status, and commit/no-change evidence before clearing and rerunning; accepted proof emits `claude_completion_fallback`. Review limit markers can come from all reviewers failing on limits, CI-fix agent failures carrying `limit_text`, or triage/fix spawn failures carrying `limit_text` / the `Hive::AgentLimit` wire message. Non-limit triage/fix phase-agent failures carry a whitespace-collapsed, 300-char-capped `message=` attr from the captured error so `status.md`, `hive status --json`, and the web diagnostic card show the real cause instead of only `reason=triage_failed` / `fix_failed`; non-limit CI errors still write `reason=ci_unrunnable`. Auto-clear is bounded per daemon process by failure signature (default 3); repeated identical failures stay red after the budget is exhausted. | `Stages::Review` orchestrator |
+ 
+ `5-open-pr`, `7-artifacts`, and `8-finalize` reuse the generic `COMPLETE` / `ERROR` marker names with stage-specific attrs such as `pr_url=...`, `is_draft=true|false`, `idempotent=true`, and `reason=...`. Most `ERROR` markers remain manual recovery states, but the daemon auto-clears a narrow no-live-lock subset with marker-id guards and bounded per-process budgets: `8-finalize` `reason=unpushed_commits`, plus non-review terminal agent-loss `reason=tmux_session_terminated` / `reason=agent_orphaned` in `2-brainstorm`, `3-plan`, `4-execute`, `7-artifacts`, and `8-finalize`. `reason=limits_reached` (any stage, including review `REVIEW_ERROR` markers from reviewers, CI-fix, triage, or fix) also self-heals, gated on its `retry_after` cooldown stamp rather than on stage. `hive status`, `hive status --json`, and the TUI render those quota holds through `Hive::AgentLimit`: human/TUI text says `held: agent quota (...) — retry after ... UTC; top up or switch execute agent`, while JSON adds `"held": {"reason":"quota","provider":...,"retry_after":...}` without overloading dependency `blocked_by`. The `3-plan` terminal-error path writes a `DispatchRequestQueue` request for `hive plan <slug> --project <project> --from 3-plan` after any successful terminal `ERROR` clear there, including terminal agent-loss and elapsed `limits_reached`, because clearing the marker can leave an empty markerless `plan.md` that otherwise classifies straight back to `:error`. See [[daemon]]. Separately, an `8-finalize` `ERROR reason=git_status_failed` or `reason=claude_launch_failed` stays red while the PR is open, but `PrMergeWatcher` can retire it after the PR is merged by dispatching the internal archive recovery path; `StageAction` re-confirms the marker reason and GitHub `MERGED` state before moving the folder to `9-done`.
+ 
+@@ -238,7 +238,7 @@ Pass derivation is filesystem-native: `Stages::Review` reads the max `-NN` suffi
+ 
+ The runner writes the `fix-success-NN.md` sentinel at every "pass N is done, advance" decision (post-guardrail-not-tripped, and the Phase 2 zero-findings short-circuit to Phase 5). The current pass's sentinel path is protected during the fix-agent spawn so only the runner can mark a pass complete. For repos created before the sentinel existed, the pass-`N+1` reviewer files act as a back-compat fallback at non-topmost passes (the topmost pass on a legacy repo may re-run its fix once on first encounter — accepted migration cost).
+ 
+-No `pass:` frontmatter or sidecar — recovery is "delete the highest-NN files to drop pass back" for completed stale passes. Accepted findings (`[x]` lines) are concatenated and passed to the Phase 4 fix agent via the per-spawn nonce wrap; orchestrator-owned files are excluded from the `Hive-Reviewer-Sources` trailer derivation by `reviewer_file?` (the single-source `ORCHESTRATOR_OWNED_PREFIXES` list). Note `suppressed.md` is already excluded by the `*-NN.md` glob `reviewer_sources_for` enumerates (it carries no `-NN` pass suffix), so its `suppressed` prefix is belt-and-suspenders for this particular derivation. The other two consumers — `discover_reviewer_files` (`triage.rb`) and `collect_accepted_findings` (`review.rb`) — also glob the narrow `*-NN.md`, so `suppressed.md` is excluded there by glob too; the prefix earns its place in the list purely as defense-in-depth against a future consumer that globs `*.md` more broadly, not because any current consumer does.
++No `pass:` frontmatter or sidecar — recovery is "delete the highest-NN files to drop pass back" for completed stale passes. Accepted findings (`[x]` lines) are concatenated and passed to the Phase 4 fix agent via the per-spawn nonce wrap; orchestrator-owned files are excluded from the `Hive-Reviewer-Sources` trailer derivation by `reviewer_file?` (the single-source `ORCHESTRATOR_OWNED_PREFIXES` list). `fix-no-change-NN.md` is also orchestrator-owned because it is fallback completion proof, not reviewer output. Note `suppressed.md` is already excluded by the `*-NN.md` glob `reviewer_sources_for` enumerates (it carries no `-NN` pass suffix), so its `suppressed` prefix is belt-and-suspenders for this particular derivation. The other two consumers — `discover_reviewer_files` (`triage.rb`) and `collect_accepted_findings` (`review.rb`) — also glob the narrow `*-NN.md`, so `suppressed.md` is excluded there by glob too; the prefix earns its place in the list purely as defense-in-depth against a future consumer that globs `*.md` more broadly, not because any current consumer does.
+ 
+ ## Configs
+ 
