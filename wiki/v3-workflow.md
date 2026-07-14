@@ -1,6 +1,6 @@
 # v3 Workflow
 
-`bench` is the user-facing hive custom workflow for running one benchmark
+`bench` is the user-facing built-in Hive workflow for running one benchmark
 campaign per task folder. It drives the same real-hive harness, candidate
 profiles, scoring records, and judge provenance used by the maintained public
 benchmark. A local campaign can use a smaller matrix, but it does not fall back
@@ -8,40 +8,29 @@ to a toy planner/executor or a different scoring path.
 
 ## Running a campaign
 
-Initialize a fresh hive-bench clone first. The `.hive-state` directory is a
-Hive-managed Git worktree, so canonical workflow files must not be tracked at
-that path in the main checkout:
+Use a Hive release that includes the named `bench` workflow, then initialize a
+benchmark project with that workflow as its project default:
 
 ```bash
-git clone https://github.com/ivankuznetsov/hive-bench.git
-cd hive-bench
-bundle install
-hive init .
+hive init /path/to/benchmark-project --workflow bench
 ```
 
-Then install and commit the workflow descriptor into the newly created state
-worktree:
-
-```bash
-mkdir -p .hive-state/workflows
-cp -R workflows/bench.yml workflows/bench .hive-state/workflows/
-git -C .hive-state add workflows/bench.yml workflows/bench
-git -C .hive-state commit -m "Install bench workflow"
-```
-
-Create a campaign task with `hive new hive-bench --workflow bench "benchmark
-campaign"` (substitute the project name printed by `hive init` if the clone
-directory has another name). Copy and edit `campaign.yml.example` in the task
-folder when the extract stage requests it, then commit that file in
-`.hive-state`; generate refuses to spend until it is tracked and clean. The
-workflow stages are:
+The workflow descriptor, stage instructions, campaign example, and versioned
+harness snapshot ship with Hive. The runtime is committed under
+`.hive-state/bench-runtime`; no hive-bench checkout or Honeycomb deployment is
+required. Create a campaign task with `hive new benchmark-project "benchmark
+campaign"` (substitute the project name printed by `hive init`). Copy and edit
+`.hive-state/bench-runtime/campaign.yml.example` in the task folder when the
+extract stage requests it, then commit that file in `.hive-state`; generate
+refuses to spend until it is tracked and clean. The workflow stages are:
 
 ```text
 1-inbox -> 2-extract -> 3-generate -> 4-judge -> 5-publish -> 6-done
 ```
 
-The task folder is the campaign boundary. Copy `campaign.yml.example` into that
-task folder as `campaign.yml`, edit the campaign id, source clone, tasks,
+The task folder is the campaign boundary. Copy
+`bench-runtime/campaign.yml.example` into that task folder as `campaign.yml`,
+edit the campaign id, source clone, tasks,
 candidates, exact judge backends/models/effort, judge sample count, budget
 declarations, timeout declarations, exclusions, and aggregation prose, then
 commit it in the hive-state checkout before generate. The example defaults to
@@ -75,7 +64,7 @@ contract, not prose for an agent to reimplement.
   against the wrong checkout), checks that every `tasks[]` slug has
   `corpus/<slug>/manifest.yml`, and loads them through `HiveBench::Corpus`. It
   reports missing slugs and parks; it does not guess source PR coordinates for
-  `harness/extract.rb`.
+  `bench-runtime/harness/extract.rb`.
 - `3-generate` validates the committed campaign contract (required keys, strict
   `campaign_id` slug — it becomes the `runs/<campaign_id>` path segment — with
   the unedited `v3-example` id rejected, non-empty single-line `source`,
@@ -158,14 +147,25 @@ parallel, subject to Hive's global and per-project limits. For quota sharing,
 set the Hive per-project cap to two rather than adding shell-level fan-out.
 Never run two tasks against the same `campaign_id`/result root concurrently.
 
-Every stage failure is durable and idempotent: it appends status and ends with
-`<!-- WAITING -->`, while already-bought candidate patches, judge scores, and
-deliberations are reused on the next dispatch. Hive's installed daemon version
-decides whether a particular provider-limit marker is eligible for automatic
-cooldown recovery. If that version does not redispatch a generic custom-stage
-WAITING marker, touching the current state file (for example `touch
-generate.md`) remains the manual edit-resume signal. The benchmark workflow
-does not duplicate Hive's retry policy.
+The follow-up workflow slate includes `sol-plan->terra-exec-sol-review`,
+`fable-plan->grok-exec-sol-review`, and
+`sol-plan->grok-exec-sol-review`. Each uses exactly one Sol xhigh Codex
+`ce-code-review` reviewer. Stage-specific Codex model/effort pins select Sol or
+Terra even when both stages resolve through Hive's `codex` agent profile. A
+cell that touches GPT-5.6 selects `hive-bench-runner:sol`; that image also
+contains Grok, so mixed Sol/Grok cells do not fall back to the older Grok-only
+runner. A single campaign task remains one daemon slot and walks these cells
+one at a time.
+
+Every stage failure is durable and idempotent, while already-bought candidate
+patches, judge scores, and deliberations are reused on the next dispatch.
+Ordinary failures end with `<!-- WAITING -->`. A quota-only generation wall on
+current Hive ends with `<!-- ERROR reason=limits_reached ... -->` carrying a UTC
+ISO-8601 `retry_after`; the daemon keeps it held until that cooldown and then
+redispatches it automatically. Older Hive versions that do not recognize this
+custom-stage marker may still require touching the current state file (for
+example `touch generate.md`) as the manual edit-resume signal. The benchmark
+workflow does not duplicate Hive's retry policy.
 
 When a candidate patch already exists, the generate status directs judge
 backfill at the campaign-root `runs/<campaign_id>/results.json`, never at the
@@ -194,10 +194,10 @@ time.
   Timeouts are the exception: `timeouts.hive_seconds` is enforced because
   generate exports it as `HB_HIVE_TIMEOUT` for every `hive_run.rb` invocation.
 
-Retry policy belongs in Hive. Keep hive-bench's workflow descriptor limited to
-durable WAITING/COMPLETE markers and idempotent benchmark operations; changes
-to cooldown classification or redispatch should be proposed and tested in the
-Hive repository so every workflow benefits.
+Retry policy and the packaged workflow belong in Hive. Keep its stage
+instructions limited to durable WAITING/COMPLETE markers and idempotent
+benchmark operations; changes to cooldown classification or redispatch should
+be proposed and tested in the Hive repository so every workflow benefits.
 
 ## Smoke
 
@@ -207,14 +207,11 @@ Run:
 tmp/bench-workflow-smoke.sh
 ```
 
-The smoke is no-cost. It parses the canonical descriptor through hive's real
-`Hive::Workflows::DescriptorParser` (asserting the broken-descriptor rejection
-is the nested-state-file rule, not an unrelated load error), installs a copy in
-a throwaway Hive project, verifies that copy matches the canonical source, and
+The smoke is no-cost. It loads Hive's built-in `bench` descriptor, verifies its
+packaged instructions, initializes a throwaway project with
+`--workflow bench`, proves no project-local workflow copy was created, and
 advances a throwaway task through all six stages with
-`Hive::Commands::Approve`. It also fails if a workflow copy is tracked under
-the main checkout's `.hive-state`, because that would break `hive init` on a
-fresh clone. Stage scripts are extracted by the
+`Hive::Commands::Approve`. Stage scripts are extracted from Hive by the
 `<!-- bench-stage-script -->` marker. Every run gets a fake `$HOME`, and the
 duplicated campaign-id validation lines are diffed across generate, judge, and
 publish to catch drift.
@@ -236,6 +233,5 @@ never-re-buy guard is asserted by invocation count for terminal,
 `campaign.yml.example` is also passed through the real generate validator at a
 real-root-shaped fixture, and scratch cleanup is checked for every stage.
 
-This remains fixture coverage: it does not run a paid campaign. The parser
-smoke requires `hive` before loading the descriptor parser, matching the real
-gem load path.
+This remains fixture coverage: it does not run a paid campaign. Set
+`HIVE_SRC` to the Hive checkout whose packaged workflow should be tested.

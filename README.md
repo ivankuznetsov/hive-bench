@@ -19,8 +19,9 @@ sibling project: [`agent-reviewer-eval`](https://github.com/ivankuznetsov/agent-
 Each cell is `(corpus task × candidate)`:
 
 1. **A candidate is a model configuration for hive's stages** — `all-opus-4.8`,
-   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or a mixed pair like
-   `opus-plan→codex-exec`, where one model plans and another implements
+   `all-codex`, `all-glm-5.2`, `all-kimi-k2.7-code`, or a mixed workflow like
+   `sol-plan->terra-exec-sol-review` or `fable-plan->grok-exec-sol-review`, where
+   planner, implementer, and sole `ce-code-review` reviewer can be controlled
    (see `harness/profiles/candidates.rb`).
 2. The target repo is **rewound to the task's base commit** and seeded with the
    frozen idea + brainstorm. The candidate never sees the reference solution.
@@ -99,6 +100,27 @@ limit windows, budget caps, or an exclusion I made and named.
     runs/                   artifacts + canonical merged results (gitignored)
 
 ## Running a pass
+
+The maintained campaign path uses Hive's built-in named workflow (use a Hive
+release that includes `bench`):
+
+```bash
+hive init /path/to/benchmark-project --workflow bench
+hive new benchmark-project "benchmark campaign"
+```
+
+Hive snapshots this repository's maintained runtime into
+`.hive-state/bench-runtime`, so a local campaign does not require a separate
+hive-bench checkout. This repository remains the public corpus, evidence,
+methodology, and contribution home.
+
+The descriptor and stage instructions ship with Hive; do not copy them into
+`.hive-state`. No Honeycomb deployment is required. Put a tracked, clean copy
+of `.hive-state/bench-runtime/campaign.yml.example` in the task folder as
+`campaign.yml`; see
+[`wiki/v3-workflow.md`](wiki/v3-workflow.md) for the full campaign contract.
+
+For low-level harness development, a pass can also be launched directly:
 
     HIVE_SRC=~/Dev/hive harness/build_runner.sh     # bake hive into the runner image
 

@@ -75,11 +75,11 @@ fixes; these remain and matter for curation:
    hardened to require each F2P name to appear in the *passed* set, erroring
    otherwise. Until that enforcement lands, a curator must manually confirm the
    F2P test actually executes in the reference run.
-2. **CI trust boundary.** `validate-submission.yml` runs the *submission's*
-   validator/harness/Dockerfile on the runner host. Controls keep blast radius
-   to read-only compute (no secrets, `contents:read`, label gate), but before
-   relying on it, run the validator/harness from a trusted ref and apply only
-   the PR's `corpus/**`.
+2. **CI trust boundary (resolved 2026-07-14).** `validate-submission.yml` runs
+   validator/harness/Dockerfile code from the immutable base SHA and treats only
+   the PR's `corpus/**` as input. Authorization is bound to a fresh
+   `safe-to-validate` labeled event; after any push, a maintainer must remove and
+   reapply the label before the new head can run.
 3. **Leaderboard summary fields.** `_includes/bench/leaderboard.html` reads
    top-level `status`/`gated_total`/`judged_total` that `Score#results` does not
    emit — add them (or compute in Liquid) before the first real `results.json`.

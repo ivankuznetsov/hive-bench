@@ -5,6 +5,8 @@ require "tmpdir"
 require "fileutils"
 require "yaml"
 require "digest"
+require "open3"
+require "rbconfig"
 require_relative "../validator/validate"
 require "gate"
 
@@ -17,6 +19,16 @@ class ValidateTest < Minitest::Test
 
   def teardown
     FileUtils.remove_entry(@root) if @root && File.directory?(@root)
+  end
+
+  def test_cli_boots_without_an_explicit_harness_load_path
+    cli = File.expand_path("../validator/cli.rb", __dir__)
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, cli)
+
+    refute_predicate status, :success?
+    assert_empty stdout
+    assert_includes stderr, "usage: validator/cli.rb"
+    refute_includes stderr, "LoadError"
   end
 
   PATCH = "--- a/app.rb\n+++ b/app.rb\n@@ -1 +1 @@\n-def greet = 'v1'\n+def greet = 'fixed and definitely longer'\n"
@@ -33,7 +45,8 @@ class ValidateTest < Minitest::Test
     manifest = {
       "schema" => "hive-bench-corpus-entry", "schema_version" => 1, "task_id" => "demo",
       "source" => { "repo" => "owner/demo", "base_commit" => "abc123" },
-      "spec" => { "plan" => "spec/plan.md", "brainstorm" => "spec/brainstorm.md" },
+      "spec" => { "plan" => "spec/plan.md", "brainstorm" => "spec/brainstorm.md",
+                  "normalized" => true, "normalization" => { "rewritten_paths" => 0, "flagged_assertions" => 0 } },
       "reference" => { "patch" => "reference.patch", "sha256" => Digest::SHA256.hexdigest(patch), "held_out" => true },
       "provenance" => { "attestation" => "I have the right to publish this." }
     }.merge(overrides[:manifest] || {})
@@ -124,6 +137,38 @@ class ValidateTest < Minitest::Test
 
     refute res.ok
     assert(res.failures.any? { |f| f.include?("manifest.yml missing") })
+  end
+
+  def test_rejects_symlinks_inside_an_entry
+    outside = File.join(@root, "outside.yml")
+    File.write(outside, "--- {}\n")
+    FileUtils.rm_f(File.join(@entry, "manifest.yml"))
+    File.symlink(outside, File.join(@entry, "manifest.yml"))
+
+    res = call
+
+    refute res.ok
+    assert(res.failures.any? { |f| f.include?("symlink not allowed: manifest.yml") })
+  end
+
+  def test_rejects_spec_paths_that_escape_the_entry
+    write_valid_entry(overrides: { manifest: { "spec" => { "plan" => "../../outside.md" } } })
+
+    res = call
+
+    refute res.ok
+    assert(res.failures.any? { |f| f.include?("spec.plan escapes corpus entry") })
+  end
+
+  def test_rejects_a_gate_tests_patch_that_escapes_the_entry
+    write_valid_entry(overrides: { gate: { "needs_curation" => false, "test_cmd" => "rake test",
+                                           "fail_to_pass" => ["GreetTest#test_fixed"],
+                                           "tests_patch" => "../../outside.patch" } })
+
+    res = call
+
+    refute res.ok
+    assert(res.failures.any? { |f| f.include?("gate.tests_patch escapes corpus entry") })
   end
 
   # A bare "owner/repo" slug must become a clonable GitHub URL (git clone treats

@@ -2,6 +2,7 @@
 
 require "yaml"
 require "digest"
+require "find"
 require_relative "secret_scan"
 
 module HiveBench
@@ -30,6 +31,9 @@ module HiveBench
     def call(entry_dir:, work_dir:)
       failures = []
       warnings = []
+      reject_symlinks(entry_dir, failures)
+      return reject(failures) unless failures.empty?
+
       manifest = load_manifest(entry_dir, failures)
       return reject(failures) unless manifest
 
@@ -60,10 +64,44 @@ module HiveBench
       failures << "manifest.schema must be hive-bench-corpus-entry" unless manifest["schema"] == "hive-bench-corpus-entry"
       failures << "manifest.source.base_commit missing" if manifest.dig("source", "base_commit").to_s.empty?
       failures << "manifest.source.repo missing" if manifest.dig("source", "repo").to_s.empty?
+      validate_spec_paths(entry_dir, manifest, failures)
       plan = manifest.dig("spec", "plan")
       failures << "spec.plan missing" if plan.to_s.empty?
-      failures << "spec/plan.md not present" if plan && !File.file?(File.join(entry_dir, plan))
+      failures << "spec/plan.md not present" if confined_path?(entry_dir, plan) && !File.file?(File.join(entry_dir, plan))
       failures << "reference.patch not present" unless File.file?(File.join(entry_dir, "reference.patch"))
+    end
+
+    def reject_symlinks(entry_dir, failures)
+      root = File.expand_path(entry_dir)
+      return failures << "entry directory missing" unless File.directory?(root)
+
+      Find.find(root) do |path|
+        next unless File.symlink?(path)
+
+        failures << "symlink not allowed: #{path.delete_prefix("#{root}/")}"
+      end
+    rescue SystemCallError => e
+      failures << "entry unreadable: #{e.message}"
+    end
+
+    def validate_spec_paths(entry_dir, manifest, failures)
+      spec = manifest["spec"]
+      return unless spec.is_a?(Hash)
+
+      %w[idea brainstorm plan].each do |name|
+        relative = spec[name]
+        next if relative.to_s.empty? || confined_path?(entry_dir, relative)
+
+        failures << "spec.#{name} escapes corpus entry"
+      end
+    end
+
+    def confined_path?(entry_dir, relative)
+      return false unless relative.is_a?(String)
+
+      root = File.expand_path(entry_dir)
+      path = File.expand_path(relative, root)
+      path.start_with?("#{root}/")
     end
 
     def reference_integrity(entry_dir, manifest, failures)
@@ -124,10 +162,29 @@ module HiveBench
       path = File.join(entry_dir, "gate", "gate.yml")
       return nil unless File.file?(path)
 
-      YAML.safe_load_file(path)
+      gate_spec = YAML.safe_load_file(path)
+      return nil unless valid_gate_paths?(entry_dir, gate_spec, failures)
+
+      gate_spec
     rescue StandardError => e
       failures << "gate/gate.yml unparseable: #{e.message}"
       nil
+    end
+
+    def valid_gate_paths?(entry_dir, gate_spec, failures)
+      return true unless gate_spec.is_a?(Hash) && gate_spec["tests_patch"]
+
+      relative = gate_spec["tests_patch"]
+      unless confined_path?(entry_dir, relative)
+        failures << "gate.tests_patch escapes corpus entry"
+        return false
+      end
+      unless File.file?(File.join(entry_dir, relative))
+        failures << "gate.tests_patch not present"
+        return false
+      end
+
+      true
     end
 
     # Returns the subset ("gated"/"judged"). For a gated entry, the reference

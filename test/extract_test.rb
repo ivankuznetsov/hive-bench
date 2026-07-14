@@ -136,6 +136,35 @@ class ExtractTest < Minitest::Test
     assert_equal "unknown", manifest.dig("provenance", "original_model")
   end
 
+  def test_default_model_lookup_does_not_fall_forward_to_a_later_stage_model
+    bin = File.join(@root, "bin")
+    db = File.join(@root, "usage.db")
+    sql_capture = File.join(@root, "usage.sql")
+    FileUtils.mkdir_p(bin)
+    File.write(db, "")
+    File.write(File.join(bin, "sqlite3"), <<~RUBY)
+      #!/usr/bin/env ruby
+      sql = ARGV.fetch(1)
+      File.write(ENV.fetch("SQL_CAPTURE"), sql)
+      puts "claude-haiku-4-5-20251001" unless sql.include?("stage='4-execute'")
+    RUBY
+    FileUtils.chmod(0o755, File.join(bin, "sqlite3"))
+
+    old_env = ENV.to_h.slice("HIVE_USAGE_DB_PATH", "PATH", "SQL_CAPTURE")
+    ENV["HIVE_USAGE_DB_PATH"] = db
+    ENV["PATH"] = "#{bin}:#{ENV.fetch("PATH")}"
+    ENV["SQL_CAPTURE"] = sql_capture
+
+    manifest = extract(model_lookup: nil)
+
+    assert_equal "unknown", manifest.dig("provenance", "original_model")
+    assert_includes File.read(sql_capture), "stage='4-execute'"
+  ensure
+    %w[HIVE_USAGE_DB_PATH PATH SQL_CAPTURE].each do |key|
+      old_env&.key?(key) ? ENV[key] = old_env[key] : ENV.delete(key)
+    end
+  end
+
   # --- Edge / error paths ---
 
   def test_refuses_when_base_commit_missing

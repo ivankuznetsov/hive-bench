@@ -58,6 +58,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   coverage. A fresh paid campaign using campaign-declared Fable + Sol `ultra`,
   three samples, undersample repair, candidate-plan judging, and adversarial
   deliberation has not yet completed end to end.
+- **Mixed follow-up live validation** — stage-specific Sol/Terra Codex pins,
+  the combined Sol+Grok runner selection, and sole Sol `ce-code-review` policy
+  are unit/smoke-pinned but have not yet completed a paid cell. The serialized
+  follow-up campaign is the intended live proof.
 
 ## Finish-the-board queue (2026-07-04)
 
@@ -101,6 +105,9 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
 
 ## Native workflow publication and scheduling
 
+- **Hive release dependency** — the named `bench` workflow and its packaged
+  stage instructions must ship in a Hive release before the no-copy setup works
+  for public installs. Honeycomb is not deployed and is not part of this path.
 - **Public submission automation** — users can run a local campaign through
   the native workflow, but public inclusion still needs a documented review
   path for corpus manifests, frozen source/base/reference artifacts, objective

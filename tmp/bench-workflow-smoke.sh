@@ -11,16 +11,19 @@ export RUBYLIB="$HIVE_SRC/lib${RUBYLIB:+:$RUBYLIB}"
 
 cd "$ROOT"
 
-parse_descriptor() {
-  local path="$1"
-  ruby -e '
-    require "hive"
-    require "hive/workflows/descriptor_parser"
-    workflow = Hive::Workflows::DescriptorParser.parse_file(ARGV.fetch(0))
-    expected = %w[1-inbox 2-extract 3-generate 4-judge 5-publish 6-done]
-    abort("bad stages: #{workflow.stage_dirs.inspect}") unless workflow.stage_dirs == expected
-  ' "$path"
-}
+BENCH_INSTRUCTIONS="$(ruby -e '
+  require "hive/workflows/registry"
+  workflow = Hive::Workflows::Registry.fetch(:bench)
+  expected = %w[1-inbox 2-extract 3-generate 4-judge 5-publish 6-done]
+  abort("bad stages: #{workflow.stage_dirs.inspect}") unless workflow.stage_dirs == expected
+  agent_stages = workflow.stages.select { |stage| stage.kind == :agent }
+  instructions = agent_stages.map(&:instruction)
+  abort("bench instructions are missing") unless instructions.all? { |path| path && File.file?(path) }
+  dirs = instructions.map { |path| File.dirname(path) }.uniq
+  abort("bench instructions span unexpected directories: #{dirs.inspect}") unless dirs.one?
+  puts dirs.fetch(0)
+')"
+readonly BENCH_INSTRUCTIONS
 
 # Extract a stage instruction's script by its named marker — never "the first
 # ```bash block", which silently grabs doc examples added above the script.
@@ -51,6 +54,8 @@ assert_state() {
   fi
 }
 
+LIMITS_REACHED_MARKER='<!-- ERROR reason=limits_reached message="benchmark candidate or judge hit provider quota" retry_after="[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z" -->'
+
 assert_absent() {
   local file="$1" needle="$2"
   if grep -q "$needle" "$file"; then
@@ -71,31 +76,6 @@ assert_no_scratch() {
   fi
 }
 
-parse_descriptor "workflows/bench.yml"
-if git ls-files --error-unmatch .hive-state/workflows/bench.yml >/dev/null 2>&1 &&
-   [ -e .hive-state/workflows/bench.yml ]; then
-  echo "FAIL: .hive-state/workflows/bench.yml is tracked; a fresh hive init needs to create .hive-state" >&2
-  exit 1
-fi
-
-# The broken copy must still be named bench.yml: the parser checks id-vs-filename
-# first, and a mismatched temp name would fail for the wrong reason.
-broken_dir="$(mktemp -d)"
-broken="$broken_dir/bench.yml"
-broken_err="$broken_dir/err"
-trap 'rm -rf "$broken_dir"; [ -z "${WORKDIR:-}" ] || rm -rf "$WORKDIR"' EXIT
-sed 's/state_file: task.md/state_file: nested\/task.md/' workflows/bench.yml >"$broken"
-if parse_descriptor "$broken" >/dev/null 2>"$broken_err"; then
-  echo "broken descriptor unexpectedly parsed" >&2
-  exit 1
-fi
-# The rejection must be the nested-state_file rule, not an unrelated load error.
-if ! grep -q "must be a bare filename" "$broken_err"; then
-  echo "broken descriptor failed for an unexpected reason:" >&2
-  cat "$broken_err" >&2
-  exit 1
-fi
-
 # campaign.yml.example itself is validated against the REAL repo by the
 # real-root generate scenario below (the real contract validator, real
 # candidate profiles, real corpus) — no re-implemented validator logic here.
@@ -105,11 +85,10 @@ EX_TASK="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetc
 EX_CAND="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetch("candidates").first')"
 
 WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' EXIT
 
-# --- fresh-machine installation: Hive must be able to initialize an ordinary
-# clone before the canonical workflow is copied into its managed state
-# worktree. Tracking an "installed" .hive-state copy in the main checkout made
-# this exact sequence fail with "already exists". -----------------------------
+# --- fresh-machine installation: selecting the packaged workflow must bind the
+# project and create a bench task without any project-local workflow copy. -----
 FRESH_PROJECT="$WORKDIR/fresh-project"
 FRESH_HIVE_HOME="$WORKDIR/fresh-hive-home"
 FRESH_HOME="$WORKDIR/fresh-home"
@@ -125,19 +104,17 @@ git -C "$FRESH_PROJECT" add README.md
 git -C "$FRESH_PROJECT" commit -qm "seed fresh project"
 HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
   GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
-  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" init "$FRESH_PROJECT" \
+  HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" init "$FRESH_PROJECT" --workflow bench \
   </dev/null >/dev/null 2>"$WORKDIR/fresh-init.err"
-mkdir -p "$FRESH_PROJECT/.hive-state/workflows"
-cp -R workflows/bench.yml workflows/bench "$FRESH_PROJECT/.hive-state/workflows/"
-git -C "$FRESH_PROJECT/.hive-state" add workflows/bench.yml workflows/bench
-git -C "$FRESH_PROJECT/.hive-state" commit -qm "install bench workflow"
-parse_descriptor "$FRESH_PROJECT/.hive-state/workflows/bench.yml"
-diff -qr workflows/bench "$FRESH_PROJECT/.hive-state/workflows/bench" >/dev/null
-diff -u workflows/bench.yml "$FRESH_PROJECT/.hive-state/workflows/bench.yml" >/dev/null
+if [ -e "$FRESH_PROJECT/.hive-state/workflows/bench.yml" ] ||
+   [ -e "$FRESH_PROJECT/.hive-state/workflows/bench" ]; then
+  echo "FAIL: built-in bench workflow was copied into project state" >&2
+  exit 1
+fi
 HOME="$FRESH_HOME" XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" HIVE_HOME="$FRESH_HIVE_HOME" \
   GEM_HOME="$FRESH_GEM_HOME" GEM_PATH="$FRESH_GEM_PATH" \
   HIVE_BIN=/bin/true ruby "$HIVE_SRC/bin/hive" \
-  new fresh-project --workflow bench "benchmark smoke campaign" </dev/null >/dev/null
+  new fresh-project "benchmark smoke campaign" </dev/null >/dev/null
 if ! grep -Rqx 'workflow: bench' "$FRESH_PROJECT/.hive-state/stages/1-inbox"; then
   echo "FAIL: fresh install did not create a task pinned to workflow: bench" >&2
   exit 1
@@ -146,8 +123,11 @@ fi
 PROJECT="$WORKDIR/project"
 STATE="$PROJECT/.hive-state"
 SLUG="bench-smoke-260709-aa11"
-mkdir -p "$STATE/workflows" "$STATE/stages/1-inbox/$SLUG" "$PROJECT/harness/profiles" "$PROJECT/corpus"
-cp -R workflows/bench.yml workflows/bench "$STATE/workflows/"
+mkdir -p "$STATE/stages/1-inbox/$SLUG" "$STATE/bench-runtime" \
+  "$PROJECT/harness/profiles" "$PROJECT/corpus"
+# Native bench instructions resolve the immutable runtime snapshot under
+# .hive-state. Point that path at the smoke's controlled harness fixtures.
+ln -s "$PROJECT/harness" "$STATE/bench-runtime/harness"
 
 # Stage scripts run with HOME pointed here: the real ~/.openrouter_key must
 # never be exported into stub runs.
@@ -256,17 +236,23 @@ ln -s "$ROOT/harness/merge_results.rb" "$PROJECT/harness/merge_results.rb"
 ln -s "$ROOT/harness/lib" "$PROJECT/harness/lib"
 
 # Stub candidate profiles + corpus manifests mirroring campaign.yml.example
-# (plus a grok-flavoured candidate so the HB_RUNNER_IMAGE branch is reachable),
+# (plus Grok and Sol-flavoured candidates so both HB_RUNNER_IMAGE branches are
+# reachable),
 # so generate.md's contract validator accepts campaigns derived from the
 # example inside this throwaway project.
 ruby -ryaml -rfileutils -e '
   data = YAML.safe_load_file("campaign.yml.example")
-  ids = data.fetch("candidates").map(&:to_s) + ["grok-smoke"]
+  ids = data.fetch("candidates").map(&:to_s) + ["grok-smoke", "sol-smoke"]
   stub = <<~RUBY
     module HiveBench
       module Candidates
-        Candidate = Struct.new(:id, :grok_model, :pi_models)
-        def self.all = #{ids.inspect}.map { |id| Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil) }
+        Candidate = Struct.new(:id, :grok_model, :pi_models, :codex_model, :codex_models)
+        def self.all
+          #{ids.inspect}.map do |id|
+            Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil,
+                          id.include?("sol") ? "gpt-5.6-sol" : nil, nil)
+          end
+        end
         def self.by_id(id) = all.find { |c| c.id == id }
       end
     end
@@ -377,10 +363,10 @@ ruby -e '
 
 test -d "$STATE/stages/6-done/$SLUG"
 
-extract_stage_script workflows/bench/extract.md "$WORKDIR/extract.sh"
-extract_stage_script workflows/bench/generate.md "$WORKDIR/generate.sh"
-extract_stage_script workflows/bench/judge.md "$WORKDIR/judge.sh"
-extract_stage_script workflows/bench/publish.md "$WORKDIR/publish.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/extract.md" "$WORKDIR/extract.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/generate.md" "$WORKDIR/generate.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/judge.md" "$WORKDIR/judge.sh"
+extract_stage_script "$BENCH_INSTRUCTIONS/publish.md" "$WORKDIR/publish.sh"
 
 # --- campaign_id slug validation is duplicated across three stage scripts:
 # assert the copies have not drifted.
@@ -451,7 +437,7 @@ assert_state "$DUPJUDGE_DIR/generate.md" '<!-- WAITING -->' 'enabled judges must
 MISANCHOR_DIR="$WORKDIR/misanchor/w/x/y/z"
 mkdir -p "$MISANCHOR_DIR"
 (cd "$MISANCHOR_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$MISANCHOR_DIR/generate.md" '<!-- WAITING -->' 'did not resolve to the hive-bench repo root'
+assert_state "$MISANCHOR_DIR/generate.md" '<!-- WAITING -->' 'packaged bench runtime is missing'
 
 # --- extract: missing corpus slug parks WAITING --------------------------------
 EXTRACT_DIR="$STATE/stages/2-extract/$SLUG-missing-slug"
@@ -498,7 +484,7 @@ printf 'campaign_id: BAD_Slug\ncorpus_version: v3\n' >"$PUBLISH_BAD_DIR/campaign
 assert_state "$PUBLISH_BAD_DIR/publish.md" '<!-- WAITING -->' 'campaign_id must be a slug'
 assert_no_scratch "$PUBLISH_BAD_DIR" .publish-
 
-# --- generate wall discipline: pending[] fixture -> WAITING with retry note ----
+# --- generate wall discipline: pending[] fixture -> retryable quota ERROR ------
 # Runs the FULL generate script past the gate: the real contract validator over
 # a campaign derived from campaign.yml.example, per-cell command generation,
 # and the outcome inspection, with the stub hive_run.rb simulating a wall.
@@ -508,13 +494,13 @@ write_campaign bench-smoke-wall "$WALL_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-wall/campaign.yml"
 git -C "$STATE" commit -qm "smoke: wall campaign"
 (cd "$WALL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'UNFINISHED'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'stub provider wall'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Retry: fix the condition above'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'UNFINISHED'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'stub provider wall'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'Hive will retry this stage after the provider cooldown'
 # The pre-registered timeout must reach the harness invocation as HB_HIVE_TIMEOUT.
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'timeout=14400'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'timeout=14400'
 # Per-command stderr must be captured and surfaced next to the outcome report.
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Generation command stderr tails:'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'Generation command stderr tails:'
 if ! ls "$PROJECT"/runs/bench-smoke-wall/*--*/results.json >/dev/null 2>&1; then
   echo "FAIL: wall run left no per-cell results.json under runs/bench-smoke-wall" >&2
   exit 1
@@ -531,8 +517,8 @@ if [ "$(hive_run_calls)" != "$calls_before" ]; then
   echo "FAIL: generate re-invoked hive_run.rb for a pending cell with a captured diff" >&2
   exit 1
 fi
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'judges_pending'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'do NOT regenerate'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'judges_pending'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'do NOT regenerate'
 
 # --- never-re-buy: failed[]-bucketed cell with a captured diff -----------------
 FAILED_DIR="$STATE/stages/3-generate/$SLUG-failed"
@@ -560,7 +546,7 @@ write_campaign bench-smoke-exitcode "$EXITCODE_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-exitcode/campaign.yml"
 git -C "$STATE" commit -qm "smoke: exit-code campaign"
 (cd "$EXITCODE_DIR" && HOME="$FAKE_HOME" HB_SMOKE_EXIT=3 bash "$WORKDIR/generate.sh")
-assert_state "$EXITCODE_DIR/generate.md" '<!-- WAITING -->' 'One or more generation commands exited nonzero'
+assert_state "$EXITCODE_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'One or more generation commands exited nonzero'
 
 # --- generate: grok candidates must receive HB_RUNNER_IMAGE --------------------
 GROK_DIR="$STATE/stages/3-generate/$SLUG-grok"
@@ -569,7 +555,16 @@ write_campaign bench-smoke-grok "$GROK_DIR/campaign.yml" grok-smoke
 git -C "$STATE" add "stages/3-generate/$SLUG-grok/campaign.yml"
 git -C "$STATE" commit -qm "smoke: grok campaign"
 (cd "$GROK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$GROK_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:grok'
+assert_state "$GROK_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'image=hive-bench-runner:grok'
+
+# --- generate: Sol/Terra candidates use the combined Codex+Grok image ----------
+SOL_DIR="$STATE/stages/3-generate/$SLUG-sol"
+mkdir -p "$SOL_DIR"
+write_campaign bench-smoke-sol "$SOL_DIR/campaign.yml" sol-smoke
+git -C "$STATE" add "stages/3-generate/$SLUG-sol/campaign.yml"
+git -C "$STATE" commit -qm "smoke: sol campaign"
+(cd "$SOL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
+assert_state "$SOL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'image=hive-bench-runner:sol'
 
 # --- generate: contradictory per-cell result (terminal + nonempty buckets) -----
 CONTRA_DIR="$STATE/stages/3-generate/$SLUG-contra"
@@ -711,7 +706,8 @@ abort "SMOKE FAIL: the real-root generate scenario invoked hive_run.rb — the n
 RUBY
 REAL_STATE="$ANCHOR/.hive-state"
 REAL_DIR="$REAL_STATE/stages/3-generate/$SLUG-real"
-mkdir -p "$REAL_DIR"
+mkdir -p "$REAL_DIR" "$REAL_STATE/bench-runtime"
+ln -s "$ANCHOR/harness" "$REAL_STATE/bench-runtime/harness"
 write_campaign bench-smoke-real "$REAL_DIR/campaign.yml"
 git -C "$REAL_STATE" init -q
 git -C "$REAL_STATE" config user.email smoke@example.invalid

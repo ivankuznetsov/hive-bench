@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+harness_dir = File.expand_path("../harness", __dir__)
+$LOAD_PATH.unshift(harness_dir) unless $LOAD_PATH.include?(harness_dir)
+
 # Validates one corpus entry and writes a machine-readable verdict. Run by the
 # validate-submission workflow inside the isolated runner; exits non-zero on
 # reject so the PR check fails.

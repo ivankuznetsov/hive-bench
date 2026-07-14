@@ -7,11 +7,12 @@ require "lib/hive_config"
 # HiveConfig renders a candidate (model settings per hive stage) into a real
 # hive config.yml. These cover the field mapping the Stage A/B bring-up pinned.
 class HiveConfigTest < Minitest::Test
-  Candidate = Data.define(:plan, :execute, :review, :claude_model, :review_max_passes,
+  Candidate = Data.define(:plan, :execute, :review, :claude_model, :claude_effort, :review_max_passes,
                           :review_wall_clock_sec, :reviewers, :ci_command)
 
   def candidate(**over)
     base = { plan: "claude", execute: "claude", review: "claude", claude_model: "claude-opus-4-8",
+             claude_effort: nil,
              review_max_passes: 2, review_wall_clock_sec: 7200, reviewers: [],
              ci_command: "bundle exec rake test" }
     Candidate.new(**base, **over)
@@ -22,6 +23,12 @@ class HiveConfigTest < Minitest::Test
 
     assert_equal "claude-opus-4-8", h.dig("claude", "model")
     assert_equal "headless", h.dig("claude", "mode"), "no tmux in the container"
+  end
+
+  def test_pins_claude_effort_when_candidate_declares_it
+    h = HiveBench::HiveConfig.to_h(candidate(claude_model: "claude-fable-5", claude_effort: "high"))
+
+    assert_equal "high", h.dig("claude", "effort")
   end
 
   def test_open_and_codex_agents_omit_the_claude_model
