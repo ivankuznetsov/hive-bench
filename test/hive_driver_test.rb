@@ -398,8 +398,8 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, "HB_CODEX_EFFORT_PLAN=xhigh"
     assert_includes @seen_cmd, "HB_CODEX_EFFORT_EXECUTE=xhigh"
     assert_includes @seen_cmd, "HB_CODEX_EFFORT_REVIEW=xhigh"
-    assert_equal ["codex-ce-code-review"],
-                 HiveBench::HiveConfig.to_h(mixed).dig("review", "reviewers").map { |reviewer| reviewer["name"] }
+    assert_equal(["codex-ce-code-review"],
+                 HiveBench::HiveConfig.to_h(mixed).dig("review", "reviewers").map { |reviewer| reviewer["name"] })
   end
 
   def test_fable_grok_candidate_uses_sol_as_sole_reviewer
@@ -407,11 +407,12 @@ class HiveDriverTest < Minitest::Test
     driver.call(entry: entry, candidate: mixed, out_dir: @out)
 
     config = HiveBench::HiveConfig.to_h(mixed)
+
     assert_equal "claude-fable-5", config.dig("claude", "model")
     assert_equal "high", config.dig("claude", "effort")
     assert_includes @seen_cmd, "HB_GROK_MODEL=grok-4.5"
     assert_includes @seen_cmd, "HB_CODEX_MODEL_REVIEW=gpt-5.6-sol"
-    assert_equal ["codex-ce-code-review"], config.dig("review", "reviewers").map { |reviewer| reviewer["name"] }
+    assert_equal(["codex-ce-code-review"], config.dig("review", "reviewers").map { |reviewer| reviewer["name"] })
   end
 
   def test_default_codex_candidate_config_registers_plugins_without_effort

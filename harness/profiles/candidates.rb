@@ -139,29 +139,29 @@ module HiveBench
     # use the same `codex` Hive agent profile.
     def sol_plan_terra_exec_sol_review
       base("sol-plan->terra-exec-sol-review", plan: "codex", execute: "codex", review: "codex",
-                                                codex_models: { "plan" => SOL, "execute" => TERRA, "review" => SOL },
-                                                codex_efforts: { "plan" => "xhigh", "execute" => "xhigh", "review" => "xhigh" },
-                                                reviewers: sole_codex_ce_reviewer,
-                                                model_version: "sol-xhigh-plan/terra-xhigh-exec/sol-xhigh-review")
+                                              codex_models: { "plan" => SOL, "execute" => TERRA, "review" => SOL },
+                                              codex_efforts: { "plan" => "xhigh", "execute" => "xhigh", "review" => "xhigh" },
+                                              reviewers: sole_codex_ce_reviewer,
+                                              model_version: "sol-xhigh-plan/terra-xhigh-exec/sol-xhigh-review")
     end
 
     def fable_plan_grok_exec_sol_review
       base("fable-plan->grok-exec-sol-review", plan: "claude", execute: "grok", review: "codex",
-                                                claude_model: FABLE, claude_effort: "high",
-                                                codex_models: { "review" => SOL },
-                                                codex_efforts: { "review" => "xhigh" },
-                                                grok_model: "grok-4.5", grok_effort: "xhigh",
-                                                reviewers: sole_codex_ce_reviewer,
-                                                model_version: "fable-5-high-plan/grok-4.5-xhigh-exec/sol-xhigh-review")
+                                               claude_model: FABLE, claude_effort: "high",
+                                               codex_models: { "review" => SOL },
+                                               codex_efforts: { "review" => "xhigh" },
+                                               grok_model: "grok-4.5", grok_effort: "xhigh",
+                                               reviewers: sole_codex_ce_reviewer,
+                                               model_version: "fable-5-high-plan/grok-4.5-xhigh-exec/sol-xhigh-review")
     end
 
     def sol_plan_grok_exec_sol_review
       base("sol-plan->grok-exec-sol-review", plan: "codex", execute: "grok", review: "codex",
-                                              codex_models: { "plan" => SOL, "review" => SOL },
-                                              codex_efforts: { "plan" => "xhigh", "review" => "xhigh" },
-                                              grok_model: "grok-4.5", grok_effort: "xhigh",
-                                              reviewers: sole_codex_ce_reviewer,
-                                              model_version: "sol-xhigh-plan/grok-4.5-xhigh-exec/sol-xhigh-review")
+                                             codex_models: { "plan" => SOL, "review" => SOL },
+                                             codex_efforts: { "plan" => "xhigh", "review" => "xhigh" },
+                                             grok_model: "grok-4.5", grok_effort: "xhigh",
+                                             reviewers: sole_codex_ce_reviewer,
+                                             model_version: "sol-xhigh-plan/grok-4.5-xhigh-exec/sol-xhigh-review")
     end
   end
 end
