@@ -30,6 +30,7 @@ class ValidateSubmissionWorkflowTest < Minitest::Test
     assert_equal ".ci/submission", submission_checkout.dig("with", "path")
     assert_equal 0, submission_checkout.dig("with", "fetch-depth")
     assert_equal "harness/build_runner.sh", build.fetch("run")
+    assert_equal "4", validate.dig("env", "HB_CPUS")
     assert_includes validate.fetch("run"), 'validator/cli.rb "$SUBMISSION/$entry"'
     refute_includes validate.fetch("run"), '"$SUBMISSION/harness/build_runner.sh"'
     assert_includes validate.fetch("run"), "-- 'corpus/*/**'"

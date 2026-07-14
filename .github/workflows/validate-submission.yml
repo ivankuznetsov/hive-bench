@@ -57,6 +57,9 @@ jobs:
       - name: Validate changed corpus entries
         env:
           SUBMISSION: ${{ github.workspace }}/.ci/submission
+          # GitHub's hosted runner exposes four CPUs; isolation.sh otherwise
+          # requests its workstation default of eight and Docker refuses to start.
+          HB_CPUS: "4"
         run: |
           mkdir -p tmp
           if find "$SUBMISSION/corpus" -type l -print -quit | grep -q .; then

@@ -16,7 +16,9 @@ history for the three-dot merge-base diff, and any changed
 path under `corpus/<task>/**` selects that whole entry for validation; a missing
 manifest fails closed. Corpus symlinks, manifest spec paths, and gate test-patch
 paths that escape their entry are rejected so nested-checkout paths cannot
-resolve into trusted files.
+resolve into trusted files. The hosted validation job pins `HB_CPUS=4`; the
+runner exposes four CPUs, while the workstation-oriented isolation default is
+eight and would make Docker reject every gated entry before its tests start.
 
 **Verification:** The original labeled PR run failed before validation with
 `COPY hive-src.tar: not found`. A local canonical image build against the pinned
