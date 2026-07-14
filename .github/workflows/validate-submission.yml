@@ -9,9 +9,9 @@ name: validate-submission
 # out fork code.
 on:
   pull_request:
-    paths:
-      - "corpus/**"
-    types: [labeled, synchronize, reopened]
+    # A retained label must never authorize a later, unreviewed push. Maintainers
+    # remove and reapply `safe-to-validate` after every head change.
+    types: [labeled]
 
 permissions:
   contents: read   # no write, no secrets reach this workflow
@@ -22,31 +22,76 @@ concurrency:
 
 jobs:
   validate:
-    # Only run once a maintainer has reviewed the diff and applied the label.
-    if: contains(github.event.pull_request.labels.*.name, 'safe-to-validate')
+    # Bind authorization to this exact label event and its recorded head SHA.
+    if: github.event.label.name == 'safe-to-validate'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out trusted hive-bench validation code
+        uses: actions/checkout@v4
         with:
-          # Check out the PR head explicitly; no persisted credentials.
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Check out submitted PR data
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          path: .ci/submission
+          fetch-depth: 0
           persist-credentials: false
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
+      - name: Check out the pinned Hive runtime
+        uses: actions/checkout@v4
+        with:
+          repository: ivankuznetsov/hive
+          ref: 5028d7655fb1b0fa0a223e967661c678b09b336f
+          path: .ci/hive
+          persist-credentials: false
       - name: Build the no-network runner image
-        run: docker build -f Dockerfile.runner -t hive-bench-runner:latest .
+        env:
+          HIVE_SRC: ${{ github.workspace }}/.ci/hive
+        run: harness/build_runner.sh
       - name: Validate changed corpus entries
+        env:
+          SUBMISSION: ${{ github.workspace }}/.ci/submission
         run: |
           mkdir -p tmp
+          if find "$SUBMISSION/corpus" -type l -print -quit | grep -q .; then
+            echo "corpus submissions must not contain symlinks"
+            exit 1
+          fi
           # Validate every entry touched by this PR.
-          git fetch origin "${{ github.event.pull_request.base.sha }}" --depth=1 || true
-          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD -- 'corpus/*/manifest.yml' | xargs -r -n1 dirname | sort -u)
-          [ -z "$changed" ] && { echo "no corpus entries changed"; exit 0; }
+          git -C "$SUBMISSION" fetch \
+            "https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git" \
+            "${{ github.event.pull_request.base.sha }}"
+          git -C "$SUBMISSION" diff --name-only -z \
+            "${{ github.event.pull_request.base.sha }}"...HEAD \
+            -- 'corpus/*/**' > tmp/changed-corpus-paths
+          mapfile -d '' changed_paths < tmp/changed-corpus-paths
+          declare -A entries=()
+          for path in "${changed_paths[@]}"; do
+            if [[ ! "$path" =~ ^corpus/([A-Za-z0-9][A-Za-z0-9._-]*)/ ]]; then
+              echo "unsupported corpus path: $path"
+              exit 1
+            fi
+            entries["corpus/${BASH_REMATCH[1]}"]=1
+          done
+          [ "${#entries[@]}" -gt 0 ] || { echo "no corpus entries changed"; exit 0; }
+          mapfile -t changed < <(printf '%s\n' "${!entries[@]}" | sort)
           rc=0
-          for entry in $changed; do
+          for entry in "${changed[@]}"; do
             echo "::group::validate $entry"
-            ruby validator/cli.rb "$entry" --result "tmp/result-$(basename "$entry").json" || rc=1
+            if [ ! -f "$SUBMISSION/$entry/manifest.yml" ]; then
+              echo "missing manifest after corpus change: $entry/manifest.yml"
+              rc=1
+              echo "::endgroup::"
+              continue
+            fi
+            ruby -I"$GITHUB_WORKSPACE/harness" validator/cli.rb "$SUBMISSION/$entry" \
+              --result "tmp/result-$(basename "$entry").json" || rc=1
             echo "::endgroup::"
           done
           exit $rc

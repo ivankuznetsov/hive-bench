@@ -157,14 +157,15 @@ contains Grok, so mixed Sol/Grok cells do not fall back to the older Grok-only
 runner. A single campaign task remains one daemon slot and walks these cells
 one at a time.
 
-Every stage failure is durable and idempotent: it appends status and ends with
-`<!-- WAITING -->`, while already-bought candidate patches, judge scores, and
-deliberations are reused on the next dispatch. Hive's installed daemon version
-decides whether a particular provider-limit marker is eligible for automatic
-cooldown recovery. If that version does not redispatch a generic custom-stage
-WAITING marker, touching the current state file (for example `touch
-generate.md`) remains the manual edit-resume signal. The benchmark workflow
-does not duplicate Hive's retry policy.
+Every stage failure is durable and idempotent, while already-bought candidate
+patches, judge scores, and deliberations are reused on the next dispatch.
+Ordinary failures end with `<!-- WAITING -->`. A quota-only generation wall on
+current Hive ends with `<!-- ERROR reason=limits_reached ... -->` carrying a UTC
+ISO-8601 `retry_after`; the daemon keeps it held until that cooldown and then
+redispatches it automatically. Older Hive versions that do not recognize this
+custom-stage marker may still require touching the current state file (for
+example `touch generate.md`) as the manual edit-resume signal. The benchmark
+workflow does not duplicate Hive's retry policy.
 
 When a candidate patch already exists, the generate status directs judge
 backfill at the campaign-root `runs/<campaign_id>/results.json`, never at the

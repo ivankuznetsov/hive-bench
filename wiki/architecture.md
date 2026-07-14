@@ -108,7 +108,21 @@ and are classified as execution failures instead of trusting a stale patch.
   still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
-  gem (`build_runner.sh` pins it from `git archive HEAD`).
+  gem (`build_runner.sh` pins it from `git archive HEAD`). The gated corpus-submission
+  workflow checks out Hive at an immutable full commit SHA and calls this same builder
+  from an immutable checkout of the PR's trusted base SHA; validator, harness, and
+  Dockerfile code never come from the submitted head. Only the submitted `corpus/**`
+  paths are data. Authorization runs only for a fresh `safe-to-validate` label event,
+  so a later push requires the maintainer to remove and reapply the label. Invoking
+  `docker build` directly is invalid because `hive-src.tar` is intentionally generated
+  only by the helper and excluded from the repository. Changed-entry selection uses the
+  full PR history and every path under `corpus/<task>/**`; patch-, gate-, and spec-only
+  edits therefore cannot bypass validation. An entry missing its manifest fails closed.
+  Corpus symlinks are rejected before validation, and manifest spec paths plus the gate's
+  `tests_patch` must remain inside their entry, preventing the nested submission checkout
+  from borrowing files in the trusted root. `validator/cli.rb` initializes the harness
+  load path itself, so its documented standalone invocation does not depend on Rake's
+  test-only `-Iharness` setup.
 
 ## Reused from v1 (unchanged)
 

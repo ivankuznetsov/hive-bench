@@ -54,7 +54,7 @@ assert_state() {
   fi
 }
 
-LIMITS_REACHED_MARKER='<!-- ERROR reason=limits_reached message="benchmark candidate or judge hit provider quota" retry_after="[^"]*" -->'
+LIMITS_REACHED_MARKER='<!-- ERROR reason=limits_reached message="benchmark candidate or judge hit provider quota" retry_after="[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z" -->'
 
 assert_absent() {
   local file="$1" needle="$2"
