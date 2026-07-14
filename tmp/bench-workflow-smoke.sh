@@ -54,6 +54,8 @@ assert_state() {
   fi
 }
 
+LIMITS_REACHED_MARKER='<!-- ERROR reason=limits_reached message="benchmark candidate or judge hit provider quota" retry_after="[^"]*" -->'
+
 assert_absent() {
   local file="$1" needle="$2"
   if grep -q "$needle" "$file"; then
@@ -482,7 +484,7 @@ printf 'campaign_id: BAD_Slug\ncorpus_version: v3\n' >"$PUBLISH_BAD_DIR/campaign
 assert_state "$PUBLISH_BAD_DIR/publish.md" '<!-- WAITING -->' 'campaign_id must be a slug'
 assert_no_scratch "$PUBLISH_BAD_DIR" .publish-
 
-# --- generate wall discipline: pending[] fixture -> WAITING with retry note ----
+# --- generate wall discipline: pending[] fixture -> retryable quota ERROR ------
 # Runs the FULL generate script past the gate: the real contract validator over
 # a campaign derived from campaign.yml.example, per-cell command generation,
 # and the outcome inspection, with the stub hive_run.rb simulating a wall.
@@ -492,13 +494,13 @@ write_campaign bench-smoke-wall "$WALL_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-wall/campaign.yml"
 git -C "$STATE" commit -qm "smoke: wall campaign"
 (cd "$WALL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'UNFINISHED'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'stub provider wall'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Retry: fix the condition above'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'UNFINISHED'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'stub provider wall'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'Hive will retry this stage after the provider cooldown'
 # The pre-registered timeout must reach the harness invocation as HB_HIVE_TIMEOUT.
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'timeout=14400'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'timeout=14400'
 # Per-command stderr must be captured and surfaced next to the outcome report.
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'Generation command stderr tails:'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'Generation command stderr tails:'
 if ! ls "$PROJECT"/runs/bench-smoke-wall/*--*/results.json >/dev/null 2>&1; then
   echo "FAIL: wall run left no per-cell results.json under runs/bench-smoke-wall" >&2
   exit 1
@@ -515,8 +517,8 @@ if [ "$(hive_run_calls)" != "$calls_before" ]; then
   echo "FAIL: generate re-invoked hive_run.rb for a pending cell with a captured diff" >&2
   exit 1
 fi
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'judges_pending'
-assert_state "$WALL_DIR/generate.md" '<!-- WAITING -->' 'do NOT regenerate'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'judges_pending'
+assert_state "$WALL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'do NOT regenerate'
 
 # --- never-re-buy: failed[]-bucketed cell with a captured diff -----------------
 FAILED_DIR="$STATE/stages/3-generate/$SLUG-failed"
@@ -544,7 +546,7 @@ write_campaign bench-smoke-exitcode "$EXITCODE_DIR/campaign.yml"
 git -C "$STATE" add "stages/3-generate/$SLUG-exitcode/campaign.yml"
 git -C "$STATE" commit -qm "smoke: exit-code campaign"
 (cd "$EXITCODE_DIR" && HOME="$FAKE_HOME" HB_SMOKE_EXIT=3 bash "$WORKDIR/generate.sh")
-assert_state "$EXITCODE_DIR/generate.md" '<!-- WAITING -->' 'One or more generation commands exited nonzero'
+assert_state "$EXITCODE_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'One or more generation commands exited nonzero'
 
 # --- generate: grok candidates must receive HB_RUNNER_IMAGE --------------------
 GROK_DIR="$STATE/stages/3-generate/$SLUG-grok"
@@ -553,7 +555,7 @@ write_campaign bench-smoke-grok "$GROK_DIR/campaign.yml" grok-smoke
 git -C "$STATE" add "stages/3-generate/$SLUG-grok/campaign.yml"
 git -C "$STATE" commit -qm "smoke: grok campaign"
 (cd "$GROK_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$GROK_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:grok'
+assert_state "$GROK_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'image=hive-bench-runner:grok'
 
 # --- generate: Sol/Terra candidates use the combined Codex+Grok image ----------
 SOL_DIR="$STATE/stages/3-generate/$SLUG-sol"
@@ -562,7 +564,7 @@ write_campaign bench-smoke-sol "$SOL_DIR/campaign.yml" sol-smoke
 git -C "$STATE" add "stages/3-generate/$SLUG-sol/campaign.yml"
 git -C "$STATE" commit -qm "smoke: sol campaign"
 (cd "$SOL_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/generate.sh")
-assert_state "$SOL_DIR/generate.md" '<!-- WAITING -->' 'image=hive-bench-runner:sol'
+assert_state "$SOL_DIR/generate.md" "$LIMITS_REACHED_MARKER" 'image=hive-bench-runner:sol'
 
 # --- generate: contradictory per-cell result (terminal + nonempty buckets) -----
 CONTRA_DIR="$STATE/stages/3-generate/$SLUG-contra"
