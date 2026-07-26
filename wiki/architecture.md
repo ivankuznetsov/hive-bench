@@ -25,6 +25,10 @@ for each corpus task T, for each candidate C:
   commits only `plan.md`; transient Hive lock churn is deliberately left outside that
   bookkeeping commit.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
+- **`lib/profile.rb`** — the legacy v1 candidate invocation shape. Its local
+  binary/version/auth-configuration preflight adapts the public
+  `agent-cli-runtime` probe contract; HiveBench continues to own benchmark
+  model pins, auth mounts, containers, and live provider checks.
 - **`profiles/candidates.rb`** — the v2/v3 slate. A *candidate* is a
   model-per-stage config: `all-opus-4.8`, `all-codex`,
   `opus-plan→codex-exec`, or one of the Sol/Terra/Grok follow-up workflows.
