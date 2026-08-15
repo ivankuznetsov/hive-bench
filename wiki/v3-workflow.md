@@ -100,9 +100,14 @@ contract, not prose for an agent to reimplement.
   key. It checks `pending[]`/`failed[]` before rejudging because rejudge output
   does not carry those keys. Rejudge writes `results.json.next` and renames it
   over the campaign root only on success; backfilled scores exist only in that
-  root file. `--only-missing` also treats legacy or undersampled judge records
-  as incomplete, so a three-sample campaign cannot complete with a one-sample
-  score. Every judge record persists the individual scores, reasons,
+  root file. `--only-missing` also treats legacy, undersampled, or
+  wrong-reasoning-effort judge records as incomplete, so a three-sample
+  `ultra` campaign cannot complete with a one-sample or `xhigh` score. Effort
+  map keys are normalized for CLI and library callers. Fresh replacements take
+  the invocation's effort before merging with untouched incumbents;
+  document-wide annotation does not relabel skipped judges, and legacy records
+  gain only missing provenance keys from repository defaults. Every judge
+  record persists the individual scores, reasons,
   `sample_count`, interval, model family, and reasoning-effort provenance.
   Judges grade the candidate-generated plan rather than silently substituting
   the frozen reference plan.
