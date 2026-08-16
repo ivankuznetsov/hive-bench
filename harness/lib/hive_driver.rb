@@ -573,6 +573,12 @@ module HiveBench
           message = obj["message"]
           u = (message["usage"] if message.is_a?(Hash)) || obj["usage"]
           if u.is_a?(Hash)
+            # Pi emits interim message_update usage and repeats each finalized
+            # response on turn_end. Each assistant message_end is one billable
+            # response, so a multi-turn run can contribute several of them.
+            if u.key?("cacheRead") || u.key?("input")
+              next unless obj["type"] == "message_end" && message.is_a?(Hash) && message["role"] == "assistant"
+            end
             # Two stream schemas: claude's snake_case *_tokens and pi's camelCase
             # input/output/cacheRead/cacheWrite — without the aliases, open-model
             # cells recorded zero tokens and no cost.
