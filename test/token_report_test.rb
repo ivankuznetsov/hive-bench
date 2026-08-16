@@ -37,13 +37,18 @@ class TokenReportTest < Minitest::Test
     end
   end
 
-  def test_pi_events_use_camel_case_and_own_model
+  def test_pi_counts_only_final_assistant_message_usage
     Dir.mktmpdir do |dir|
       write_log(dir, "execute-impl-1.log",
-                ['[stream] {"model":"z-ai/glm-5.2","usage":{"input":10,"output":5,"cacheRead":100,"cacheWrite":1}}'])
+                ['[stream] {"type":"message_update","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":5,"output":2,"cacheRead":50,"cacheWrite":0}}}',
+                 '[stream] {"type":"message_end","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":10,"output":5,"cacheRead":100,"cacheWrite":1}}}',
+                 '[stream] {"type":"turn_end","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":10,"output":5,"cacheRead":100,"cacheWrite":1}}}',
+                 '[stream] {"type":"message_update","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":8,"output":3,"cacheRead":80,"cacheWrite":1}}}',
+                 '[stream] {"type":"message_end","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":20,"output":7,"cacheRead":200,"cacheWrite":3}}}',
+                 '[stream] {"type":"turn_end","message":{"role":"assistant","model":"z-ai/glm-5.2","usage":{"input":20,"output":7,"cacheRead":200,"cacheWrite":3}}}'])
       r = T.scan_cell(dir)
 
-      assert_equal({ "input" => 10, "output" => 5, "cache_read" => 100, "cache_write" => 1 }, r["z-ai/glm-5.2"])
+      assert_equal({ "input" => 30, "output" => 12, "cache_read" => 300, "cache_write" => 4 }, r["z-ai/glm-5.2"])
     end
   end
 

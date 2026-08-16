@@ -111,6 +111,30 @@ class HiveDriverTest < Minitest::Test
     assert_in_delta 9.99, cell.telemetry["cost_usd_reported"], 0.001
   end
 
+  def test_pi_telemetry_counts_only_final_assistant_message_usage
+    update = '[stream] {"type":"message_update","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+             '"usage":{"input":5,"output":2,"cacheRead":50,"cacheWrite":0}}}'
+    final = '[stream] {"type":"message_end","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+            '"usage":{"input":10,"output":5,"cacheRead":100,"cacheWrite":1}}}'
+    duplicate = '[stream] {"type":"turn_end","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+                '"usage":{"input":10,"output":5,"cacheRead":100,"cacheWrite":1}}}'
+    update_2 = '[stream] {"type":"message_update","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+               '"usage":{"input":8,"output":3,"cacheRead":80,"cacheWrite":1}}}'
+    final_2 = '[stream] {"type":"message_end","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+              '"usage":{"input":20,"output":7,"cacheRead":200,"cacheWrite":3}}}'
+    duplicate_2 = '[stream] {"type":"turn_end","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
+                  '"usage":{"input":20,"output":7,"cacheRead":200,"cacheWrite":3}}}'
+
+    cell = driver(log_lines: [update, final, duplicate, update_2, final_2, duplicate_2]).call(
+      entry: entry, candidate: HiveBench::Candidates.by_id("all-glm-5.2"), out_dir: @out
+    )
+
+    assert_equal 30, cell.telemetry["input_tokens"]
+    assert_equal 12, cell.telemetry["output_tokens"]
+    assert_equal 300, cell.telemetry["cached_tokens"]
+    assert_equal 4, cell.telemetry["cache_creation_tokens"]
+  end
+
   def test_no_token_telemetry_means_no_cost_not_zero_cost
     cell = driver.call(entry: entry, candidate: candidate, out_dir: @out)
 

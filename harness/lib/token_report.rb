@@ -15,7 +15,8 @@ module HiveBench
   #   claude: input_tokens / output_tokens / cache_read_input_tokens /
   #           cache_creation_input_tokens; model at message.model.
   #           input_tokens EXCLUDES cache reads.
-  #   pi:     input / output / cacheRead / cacheWrite; model on the same object.
+  #   pi:     input / output / cacheRead / cacheWrite at message.usage on each
+  #           assistant message_end; model at message.model.
   #   codex:  input_tokens / cached_input_tokens / output_tokens
   #           (+ reasoning_output_tokens as a detail of output); NO model id.
   #           input_tokens INCLUDES cached_input_tokens (OpenAI convention).
@@ -48,6 +49,13 @@ module HiveBench
 
           usage = obj["usage"] || obj.dig("message", "usage")
           next unless usage.is_a?(Hash)
+          # Pi repeats the same in-progress/cumulative usage on message_update
+          # and turn_end. Each assistant message_end is one billable model
+          # response; summing the other event copies inflates every Pi-backed
+          # candidate by roughly four times.
+          if usage.key?("cacheRead") || usage.key?("input")
+            next unless obj["type"] == "message_end" && obj.dig("message", "role") == "assistant"
+          end
 
           model = obj["model"] || obj.dig("message", "model") || stage_models[stage] || "unknown"
           next if model == "<synthetic>"

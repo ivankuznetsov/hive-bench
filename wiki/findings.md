@@ -137,9 +137,11 @@ signal.
 - **kimi-k2.7-code struggles inside hive's harness** (3 execute_failed + 1
   empty_diff *before* the drain) — needs a look at its failure mode before
   reading it as model quality.
-- **Full-cycle review costs ~4× bare execute** for pay-per-token models
-  (glm: ~49M cache-read tokens/task; $81 for 6 cells) — the subscription
-  models hide the same burn.
+- **Pi usage must be read from final assistant events only.** Pi repeats
+  cumulative usage on `message_update`, `message_end`, and `turn_end`; summing
+  all three inflated the published GLM telemetry. Re-reading the six retained
+  streams from `message_end` reduces GLM from 83.65M to 21.793M normalized
+  tokens/task and from $21.97 to $5.65/task without changing any diff or score.
 
 ## v1 findings (the imitation — still informative)
 
