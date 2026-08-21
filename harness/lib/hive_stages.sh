@@ -345,9 +345,10 @@ normalize_null_plan_dependency() {
 
 # 1. PLAN — real /ce-plan, or reuse the identity-verified plan when the host
 # driver resumes an execute turn interrupted by exact model transport evidence
-# or a post-cleanup dirty-worktree marker. Clear exactly the verified marker
-# before asking Hive to continue.
+# or a post-cleanup dirty-worktree marker. Clear exactly the verified ordinary
+# marker, or complete Hive-validated committed residue, before continuing.
 PLAN_TASK=""
+EXECUTE_RESIDUE_RECOVERED=0
 if [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
   PLAN_TASK="/work/.hive-state/stages/4-execute/$SLUG"
   bash /hive_resume_execute.sh "$PLAN_TASK" "${HB_RESUME_MARKER_ID:-}" \
@@ -358,6 +359,10 @@ if [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
   stage plan 0
   echo "HB_NOTE plan_reused"
   echo "HB_NOTE execute_resumed"
+  if [ -f /work/.hb/execute-residue-recovered ]; then
+    EXECUTE_RESIDUE_RECOVERED=1
+    echo "HB_NOTE execute_residue_recovered"
+  fi
 else
   hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG" --json >/work/.hb/plan.json 2>>/work/.hb/stage.err
   PLAN_RC=$?
@@ -385,7 +390,9 @@ else
 fi
 
 # 2. EXECUTE — real develop -> worktree off base_commit.
-if [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
+if [ "$EXECUTE_RESIDUE_RECOVERED" -eq 1 ]; then
+  stage develop 0
+elif [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
   hive develop "$PLAN_TASK" --json >/work/.hb/develop.json 2>>/work/.hb/stage.err
   stage develop $?
 fi

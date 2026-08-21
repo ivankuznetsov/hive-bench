@@ -119,10 +119,12 @@ and are classified as execution failures instead of trusting a stale patch.
   marker shape, independent of the configured positive timeout. The container
   revalidates the marker id and reason, invokes Hive's task-locked scope,
   symlink, secret-content, and signing checks for dirty residue, proves the
-  worktree clean, clears only that marker, and asks Hive to continue
-  `develop`. Auth/usage limits, ordinary implementation failures, and identity
+  worktree clean, and asks Hive's native `--complete-execute` boundary to mark
+  the recovered descendant commit complete without a second implementation
+  model turn. Auth/usage limits, ordinary implementation failures, and identity
   drift still take the normal fresh-run path. Resumed cells record
-  `execute_resumed: true` in efficiency telemetry. The guarded recovery call
+  `execute_resumed: true`; native residue completions additionally record
+  `execute_residue_recovered: true` in efficiency telemetry. The guarded recovery call
   passes the exact task-directory path, avoiding ambiguity with the operator's
   global Hive project registry inside the benchmark container.
 - **Hermetic target commits have deterministic identity.** Repository setup

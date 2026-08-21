@@ -21,6 +21,12 @@ commit. The isolated clone boundary, staged-symlink rejection, and added-content
 secret scan remain in force; only the repo-specific filename allowlist is
 relaxed so the complete candidate diff is preserved for judging.
 
+**Action:** Dirty-execute resume now requests Hive's native
+`commit-residue --complete-execute` boundary and skips the second `develop`
+model turn when Hive confirms completion. This prevents a shell-less model from
+making another small edit on every retry while preserving the original
+candidate diff and the normal open-pr/review continuation.
+
 **Action:** Generalized the exact Pi local version-probe timeout classifier from
 the original 10-second value to any positive configured deadline while retaining
 the full provider-specific marker message. This preserves partial work when a

@@ -19,9 +19,12 @@ class HiveResumeExecuteTest < Minitest::Test
       if [ "${1:-}" = "worktree" ]; then
         [ "${HIVE_RECOVERY_FAIL:-0}" = "1" ] && exit 1
         worktree="$HB_WORK_ROOT/.worktrees/$(basename "${3:-}")"
-        git -C "$worktree" add -A || exit 1
-        git -C "$worktree" -c user.name=Hive -c user.email=hive@example.invalid \
-          commit -m 'guarded residue recovery' --quiet || exit 1
+        if [ -n "$(git -C "$worktree" status --porcelain)" ]; then
+          git -C "$worktree" add -A || exit 1
+          git -C "$worktree" -c user.name=Hive -c user.email=hive@example.invalid \
+            commit -m 'guarded residue recovery' --quiet || exit 1
+        fi
+        printf '{"execute_completed":true}\n'
         exit 0
       fi
       printf '%s\n' "$@" >"$HIVE_CAPTURE"
@@ -77,7 +80,7 @@ class HiveResumeExecuteTest < Minitest::Test
                  File.readlines(@capture, chomp: true)
   end
 
-  def test_dirty_worktree_reason_requires_a_now_clean_owned_worktree
+  def test_dirty_worktree_reason_completes_clean_or_guardedly_committed_residue
     worktree = File.join(@root, ".worktrees", "task")
     FileUtils.mkdir_p(worktree)
     _out, _err, status = Open3.capture3("git", "init", "-q", worktree)
@@ -89,9 +92,8 @@ class HiveResumeExecuteTest < Minitest::Test
     _out, _err, status = run_helper("dirty123")
 
     assert_predicate status, :success?
-    assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
-                  "marker_id=dirty123,reason=dirty_worktree", "--json"],
-                 File.readlines(@capture, chomp: true)
+    refute_path_exists @capture
+    assert_path_exists File.join(@root, ".hb", "execute-residue-recovered")
 
     FileUtils.rm_f(@capture)
     File.write(File.join(worktree, "residue.txt"), "dirty\n")
@@ -100,9 +102,8 @@ class HiveResumeExecuteTest < Minitest::Test
     assert_predicate status, :success?
     assert_equal "guarded residue recovery",
                  `git -C #{worktree} log -1 --pretty=%s`.strip
-    assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
-                  "marker_id=dirty123,reason=dirty_worktree", "--json"],
-                 File.readlines(@capture, chomp: true)
+    refute_path_exists @capture
+    assert_path_exists File.join(@root, ".hb", "execute-residue-recovered")
 
     FileUtils.rm_f(@capture)
     FileUtils.rm_rf(File.join(worktree, ".git"))

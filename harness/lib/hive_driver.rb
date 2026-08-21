@@ -588,6 +588,7 @@ module HiveBench
       # a covariate of the known scope-fork variance; surfaced so it's analyzable.
       tel["plan_forced_complete"] = true if stdout&.match?(/^HB_NOTE plan_forced_complete$/)
       tel["execute_resumed"] = true if stdout&.match?(/^HB_NOTE execute_resumed$/)
+      tel["execute_residue_recovered"] = true if stdout&.match?(/^HB_NOTE execute_residue_recovered$/)
       review_telemetry(tel, work, stdout)
       if (hit = answer_key_suspect(entry, work, stdout))
         # The agent appears to have touched the held-out reference PR — the score
