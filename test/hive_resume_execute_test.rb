@@ -18,7 +18,7 @@ class HiveResumeExecuteTest < Minitest::Test
       #!/usr/bin/env bash
       if [ "${1:-}" = "worktree" ]; then
         [ "${HIVE_RECOVERY_FAIL:-0}" = "1" ] && exit 1
-        worktree="$HB_WORK_ROOT/.worktrees/${3:-}"
+        worktree="$HB_WORK_ROOT/.worktrees/$(basename "${3:-}")"
         git -C "$worktree" add -A || exit 1
         git -C "$worktree" -c user.name=Hive -c user.email=hive@example.invalid \
           commit -m 'guarded residue recovery' --quiet || exit 1

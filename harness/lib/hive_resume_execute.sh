@@ -32,7 +32,7 @@ if [ "$REASON" = "dirty_worktree" ]; then
     exit 5
   fi
   if [ -n "$WORKTREE_STATUS" ]; then
-    if ! hive worktree commit-residue "$(basename "$TASK_DIR")" --json \
+    if ! hive worktree commit-residue "$TASK_DIR" --json \
       >/dev/null 2>>"$ERR_OUT"; then
       echo "HB_ERROR execute_resume_worktree_recovery_failed" >>"$ERR_OUT"
       exit 5
