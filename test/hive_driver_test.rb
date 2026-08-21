@@ -245,6 +245,45 @@ class HiveDriverTest < Minitest::Test
     refute cell.telemetry["recovered_artifact"]
   end
 
+  def test_timeout_after_develop_promotes_execute_patch_for_judging
+    execute_patch = "diff --git a/app.rb b/app.rb\n"
+    runner = lambda do |_cmd|
+      File.write(File.join(@work, "candidate-execute.patch"), execute_patch)
+      "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_STAGE open-pr rc=0\nHB_EXIT rc=124\n"
+    end
+    timed_review = hive_driver(runner:, reuse_existing: false, reuse_unverified: false)
+
+    cell = timed_review.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert_equal execute_patch, File.read(File.join(@work, "candidate.patch"))
+    assert cell.telemetry["stage_timed_out"]
+    assert_equal "timed_out", cell.telemetry["review_status"]
+  end
+
+  def test_timeout_after_develop_is_recovered_without_replacing_target
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    sentinel = File.join(@work, "resume-sentinel")
+    File.write(sentinel, "keep")
+    File.write(File.join(@work, "candidate-execute.patch"), "diff --git a/app.rb b/app.rb\n")
+    FileUtils.rm_f(File.join(@work, "candidate.patch"))
+    File.write(
+      File.join(@work, ".hb", "stages.out"),
+      "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_STAGE open-pr rc=0\nHB_EXIT rc=124\n"
+    )
+    no_rerun = hive_driver(
+      runner: ->(_cmd) { flunk "timed-out review artifact must not be regenerated" },
+      reuse_existing: true, reuse_unverified: false
+    )
+
+    cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert_path_exists sentinel
+    assert cell.telemetry["recovered_artifact"]
+    assert_equal "verified", cell.telemetry["artifact_provenance"]
+  end
+
   def test_codex_transport_failure_resumes_identity_verified_execute_in_place
     mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
     driver.call(entry: entry, candidate: mixed, out_dir: @out)

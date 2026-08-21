@@ -87,7 +87,11 @@ contract, not prose for an agent to reimplement.
   Completion is stricter than the re-buy guard: every per-cell result must be
   terminal with both `pending[]` and `failed[]` empty. Harness commands run
   under non-login `bash -c`; bounded stderr tails are folded into a WAITING
-  status when commands fail. Once the matrix is clean, the stage merges an
+  status when commands fail. If the outer Hive timeout fires after develop has
+  completed, the harness atomically promotes `candidate-execute.patch` over any
+  partial review diff, records `review_status: timed_out`, and treats the paid
+  generation as scoreable; a provenance-matched rerun recovers the same snapshot
+  without replacing the target. Once the matrix is clean, the stage merges an
   existing campaign-root result first and the per-cell results second, which
   preserves root-only rejudge scores while keeping per-cell run/gate data
   authoritative. It writes `runs/<campaign_id>/results.json.next` and renames

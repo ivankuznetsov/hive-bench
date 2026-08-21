@@ -122,10 +122,13 @@ module HiveBench
     # persisted transcript and captured patch classify as a generated cell.
     def recover_cell(entry, candidate, work, base, identity)
       transcript = File.join(work, ".hb", "stages.out")
-      patch = File.join(work, "candidate.patch")
-      return unless File.file?(transcript) && File.file?(patch)
+      return unless File.file?(transcript)
 
       stdout = File.read(transcript)
+      promote_execute_patch_after_timeout(work, stdout)
+      patch = File.join(work, "candidate.patch")
+      return unless File.file?(patch)
+
       diff = File.read(patch)
       status, = classify(stdout, work, diff)
       return unless status == "generated"
@@ -635,6 +638,7 @@ module HiveBench
     # ---- result assembly ----
 
     def build_cell(entry, candidate, work, stdout, wall, recovered: nil)
+      timeout_fallback = promote_execute_patch_after_timeout(work, stdout)
       diff_path = File.join(work, "candidate.patch")
       diff = File.file?(diff_path) ? File.read(diff_path) : ""
       tel = telemetry(work).merge("wall_clock_sec" => wall)
@@ -650,6 +654,10 @@ module HiveBench
       tel["execute_residue_recovered"] = true if stdout&.match?(/^HB_NOTE execute_residue_recovered$/)
       tel["review_resumed"] = true if stdout&.match?(/^HB_NOTE review_resumed$/)
       review_telemetry(tel, work, stdout)
+      if timeout_fallback
+        tel["stage_timed_out"] = true
+        tel["review_status"] = "timed_out"
+      end
       if (hit = answer_key_suspect(entry, work, stdout))
         # The agent appears to have touched the held-out reference PR — the score
         # would measure retrieval, not skill. Flag loudly; a curator adjudicates.
@@ -661,6 +669,26 @@ module HiveBench
       # for a paid artifact sentinel. Preserve real diffs and terminal empties.
       FileUtils.rm_f(diff_path) if diff.empty? && !%w[generated empty_diff].include?(status)
       cell(entry, candidate, status, status == "generated" ? diff_path : nil, tel, reason)
+    end
+
+    # The outer timeout can kill hive_stages.sh while review is running, before
+    # it gets a chance to restore the trustworthy execute snapshot over any
+    # partial review diff. Once develop completed, preserve that paid artifact
+    # atomically and let judging proceed with review marked as timed out.
+    def promote_execute_patch_after_timeout(work, stdout)
+      return false unless stdout.to_s.match?(/^HB_EXIT rc=124$/)
+      return false unless stage_ok?(stdout, "plan") && stage_ok?(stdout, "develop")
+
+      execute_patch = File.join(work, "candidate-execute.patch")
+      return false unless File.file?(execute_patch) && File.size?(execute_patch)
+
+      final_patch = File.join(work, "candidate.patch")
+      next_patch = "#{final_patch}.next"
+      FileUtils.cp(execute_patch, next_patch)
+      File.rename(next_patch, final_patch)
+      true
+    ensure
+      FileUtils.rm_f(next_patch) if defined?(next_patch) && next_patch
     end
 
     # Review-cycle telemetry. Review failing must NOT lose a generated cell —
@@ -689,10 +717,17 @@ module HiveBench
       err = File.file?(f = File.join(work, ".hb", "stage.err")) ? File.read(f) : ""
       limit_hit = AgentLimit.limit_hit?("#{stdout}\n#{err}")
       # timeout(1) kills the whole stage script — a slow candidate, not one that
-      # cannot plan. HB_EXIT comes from the run_container wrapper; any other
-      # nonzero means the harness itself did not produce a trustworthy artifact.
+      # cannot plan. A completed develop stage retains a trustworthy execute
+      # snapshot even when review overruns the outer bound. HB_EXIT comes from
+      # the run_container wrapper; any other nonzero means the harness itself
+      # did not produce a trustworthy artifact.
       exit_rc = stdout.to_s[/^HB_EXIT rc=(\d+)$/, 1]&.to_i
-      return ["timed_out", "hive run exceeded HB_HIVE_TIMEOUT (#{PLAN_TIMEOUT}s)"] if exit_rc == 124
+      if exit_rc == 124
+        return ["generated", nil] if stage_ok?(stdout, "plan") && stage_ok?(stdout, "develop") &&
+                                     !diff.strip.empty?
+
+        return ["timed_out", "hive run exceeded HB_HIVE_TIMEOUT (#{PLAN_TIMEOUT}s)"]
+      end
       # Review is optional for generation integrity: hive_stages.sh atomically
       # restores candidate-execute.patch when review fails. A review-only limit
       # therefore defers review lift/Fable judging, not the already trustworthy
