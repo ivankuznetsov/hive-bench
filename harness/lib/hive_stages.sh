@@ -349,7 +349,17 @@ normalize_null_plan_dependency() {
 # marker, or complete Hive-validated committed residue, before continuing.
 PLAN_TASK=""
 EXECUTE_RESIDUE_RECOVERED=0
-if [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
+RESUME_REVIEW="${HB_RESUME_REVIEW:-0}"
+if [ "$RESUME_REVIEW" = "1" ]; then
+  PLAN_TASK="/work/.hive-state/stages/6-review/$SLUG"
+  if [ ! -d "$PLAN_TASK" ] || [ ! -s /work/candidate-execute.patch ]; then
+    echo "HB_ERROR review_resume_preflight_failed" >&2
+    exit 5
+  fi
+  stage plan 0
+  echo "HB_NOTE plan_reused"
+  echo "HB_NOTE review_resumed"
+elif [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
   PLAN_TASK="/work/.hive-state/stages/4-execute/$SLUG"
   bash /hive_resume_execute.sh "$PLAN_TASK" "${HB_RESUME_MARKER_ID:-}" \
     /work/.hb/resume-clear.json /work/.hb/stage.err
@@ -390,7 +400,7 @@ else
 fi
 
 # 2. EXECUTE — real develop -> worktree off base_commit.
-if [ "$EXECUTE_RESIDUE_RECOVERED" -eq 1 ]; then
+if [ "$RESUME_REVIEW" = "1" ] || [ "$EXECUTE_RESIDUE_RECOVERED" -eq 1 ]; then
   stage develop 0
 elif [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
   hive develop "$PLAN_TASK" --json >/work/.hb/develop.json 2>>/work/.hb/stage.err
@@ -398,9 +408,13 @@ elif [ -n "$PLAN_TASK" ] && [ "$PLAN_TASK" != "." ]; then
 fi
 
 # Post-execute capture: the raw first-pass diff, kept for review-lift analysis.
-if ! capture /work/candidate-execute.patch execute; then
-  echo "HB_NOTE execute_patch_failed"
-  exit 4
+if [ "$RESUME_REVIEW" = "1" ]; then
+  echo "HB_DIFF execute lines=$(wc -l </work/candidate-execute.patch) files=$(grep -c '^diff --git' /work/candidate-execute.patch)"
+else
+  if ! capture /work/candidate-execute.patch execute; then
+    echo "HB_NOTE execute_patch_failed"
+    exit 4
+  fi
 fi
 
 # 3-4. OPEN-PR + REVIEW — the rest of the real hive cycle (HB_REVIEW=0 skips).
@@ -442,8 +456,12 @@ exit 0
 GH
   chmod +x /work/.hb/bin/gh
 
-  hive open-pr "$(task_dir)" --json >/work/.hb/open_pr.json 2>>/work/.hb/stage.err
-  stage open-pr $?
+  if [ "$RESUME_REVIEW" = "1" ]; then
+    stage open-pr 0
+  else
+    hive open-pr "$(task_dir)" --json >/work/.hb/open_pr.json 2>>/work/.hb/stage.err
+    stage open-pr $?
+  fi
   hive review "$(task_dir)" --json >/work/.hb/review.json 2>>/work/.hb/stage.err
   REVIEW_RC=$?
   stage review "$REVIEW_RC"

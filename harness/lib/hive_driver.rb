@@ -84,12 +84,16 @@ module HiveBench
       hive_runtime = resolved_hive_runtime
       identity = generation_identity(entry, candidate, base, hive_runtime:)
 
-      if @reuse_existing && (recovered = recover_cell(entry, candidate, work, base, identity))
+      resume_review = @reuse_existing && resumable_review?(entry, work, identity)
+      if !resume_review && @reuse_existing &&
+         (recovered = recover_cell(entry, candidate, work, base, identity))
         return recovered
       end
 
-      resume_marker_id = @reuse_existing && resumable_execute_marker(entry, candidate, work, identity)
-      unless resume_marker_id
+      resume_marker_id =
+        !resume_review && @reuse_existing &&
+        resumable_execute_marker(entry, candidate, work, identity)
+      unless resume_review || resume_marker_id
         setup_repo(source, base, work)
         seed_task(entry, slug, work)
         File.write(File.join(work, ".hive-state", "config.yml"), HiveConfig.to_yaml(candidate))
@@ -101,7 +105,7 @@ module HiveBench
       started = @clock.call
       stdout = run_container(
         slug, base, work, candidate, out_dir,
-        resume_marker_id: resume_marker_id, hive_runtime:
+        resume_marker_id: resume_marker_id, resume_review:, hive_runtime:
       )
       wall = (@clock.call - started).round(2)
 
@@ -171,6 +175,33 @@ module HiveBench
       marker_id
     rescue SystemCallError
       nil
+    end
+
+    # Review is natively restartable from its durable phase/pass state. Resume
+    # only a provenance-matched, terminally failed full-cycle transcript that
+    # retained the pre-review execute patch; active or auth/limit failures are
+    # deliberately ineligible.
+    def resumable_review?(entry, work, identity)
+      return false unless generation_identity_matches?(work, identity)
+
+      slug = entry.fetch("task_id")
+      task = File.join(work, ".hive-state", "stages", "6-review", slug)
+      transcript = File.join(work, ".hb", "stages.out")
+      error_log = File.join(work, ".hb", "stage.err")
+      execute_patch = File.join(work, "candidate-execute.patch")
+      return false unless File.directory?(task) && File.file?(transcript)
+      return false unless File.file?(execute_patch) && File.size?(execute_patch)
+
+      stdout = File.read(transcript)
+      return false unless stdout.match?(/^HB_STAGE review rc=[1-9]\d*$/)
+      return false unless stdout.match?(/^HB_EXIT rc=\d+$/)
+
+      diagnostic = File.file?(error_log) ? File.read(error_log) : ""
+      return false if AgentLimit.limit_hit?(diagnostic) || diagnostic.match?(AUTH_FAILURE)
+
+      true
+    rescue SystemCallError
+      false
     end
 
     def latest_execute_terminal(work, slug)
@@ -295,11 +326,13 @@ module HiveBench
     end
 
     def run_container(slug, base, work, candidate, out_dir, resume_marker_id: nil,
+                      resume_review: false,
                       hive_runtime: resolved_hive_runtime)
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
              "-e", "HIVE_HOME=#{HIVE_HOME}",
              *(resume_marker_id ? ["-e", "HB_RESUME_EXECUTE=1", "-e", "HB_RESUME_MARKER_ID=#{resume_marker_id}"] : []),
+             *(resume_review ? ["-e", "HB_RESUME_REVIEW=1"] : []),
              # Full-cycle by default (plan->execute->open-pr->review, the real
              # hive pipeline); HB_REVIEW=0 falls back to plan+execute only.
              "-e", "HB_REVIEW=#{ENV.fetch("HB_REVIEW", "1")}",
@@ -592,6 +625,7 @@ module HiveBench
       tel["plan_forced_complete"] = true if stdout&.match?(/^HB_NOTE plan_forced_complete$/)
       tel["execute_resumed"] = true if stdout&.match?(/^HB_NOTE execute_resumed$/)
       tel["execute_residue_recovered"] = true if stdout&.match?(/^HB_NOTE execute_residue_recovered$/)
+      tel["review_resumed"] = true if stdout&.match?(/^HB_NOTE review_resumed$/)
       review_telemetry(tel, work, stdout)
       if (hit = answer_key_suspect(entry, work, stdout))
         # The agent appears to have touched the held-out reference PR — the score

@@ -376,6 +376,82 @@ class HiveDriverTest < Minitest::Test
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=dirty123"]
   end
 
+  def test_terminal_review_failure_resumes_identity_verified_candidate_in_place
+    opencode = HiveBench::Candidates.by_id("all-ox-alpha-opencode@high")
+    driver.call(entry: entry, candidate: opencode, out_dir: @out)
+    sentinel = File.join(@work, "review-resume-sentinel")
+    File.write(sentinel, "keep")
+    task = File.join(@work, ".hive-state", "stages", "6-review", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(
+      File.join(task, "task.md"),
+      "<!-- REVIEW_WORKING phase=fix pass=1 marker_id=review123 -->\n"
+    )
+    File.write(
+      File.join(@work, "candidate-execute.patch"),
+      "diff --git a/app.rb b/app.rb\n"
+    )
+    File.write(
+      File.join(@work, ".hb", "stages.out"),
+      "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_STAGE open-pr rc=0\n" \
+      "HB_STAGE review rc=70\nHB_EXIT rc=0\n"
+    )
+    File.write(
+      File.join(@work, ".hb", "stage.err"),
+      "requested OpenCode route is unavailable in the local model inventory\n"
+    )
+
+    seen = nil
+    resumed = hive_driver(runner: lambda do |cmd|
+      seen = cmd
+
+      assert_path_exists sentinel, "review resume must retain the candidate target"
+      assert_path_exists File.join(@work, "candidate-execute.patch")
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE plan rc=0\nHB_NOTE plan_reused\nHB_NOTE review_resumed\n" \
+        "HB_STAGE develop rc=0\nHB_STAGE open-pr rc=0\nHB_STAGE review rc=0\n" \
+        "HB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: opencode, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["review_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_REVIEW=1"]
+    refute_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
+  end
+
+  def test_review_resume_rejects_missing_patch_auth_limit_and_identity_drift
+    opencode = HiveBench::Candidates.by_id("all-ox-alpha-opencode@high")
+    driver.call(entry: entry, candidate: opencode, out_dir: @out)
+    task = File.join(@work, ".hive-state", "stages", "6-review", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"), "<!-- REVIEW_WORKING phase=fix pass=1 -->\n")
+    File.write(
+      File.join(@work, ".hb", "stages.out"),
+      "HB_STAGE review rc=70\nHB_EXIT rc=0\n"
+    )
+    checker = hive_driver(reuse_existing: true, reuse_unverified: false)
+    identity = checker.send(:generation_identity, entry, opencode, @base)
+
+    refute checker.send(:resumable_review?, entry, @work, identity)
+
+    File.write(File.join(@work, "candidate-execute.patch"), "diff --git a/a b/a\n")
+    File.write(File.join(@work, ".hb", "stage.err"), "401 unauthorized\n")
+
+    refute checker.send(:resumable_review?, entry, @work, identity)
+
+    File.write(File.join(@work, ".hb", "stage.err"), "rate limit reached\n")
+
+    refute checker.send(:resumable_review?, entry, @work, identity)
+
+    File.write(File.join(@work, ".hb", "stage.err"), "local probe failed\n")
+    changed = identity.merge("base_commit" => "different")
+
+    refute checker.send(:resumable_review?, entry, @work, changed)
+    assert checker.send(:resumable_review?, entry, @work, identity)
+  end
+
   def test_resume_rejects_nonterminal_transport_text_auth_limits_and_identity_drift
     mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
     driver.call(entry: entry, candidate: mixed, out_dir: @out)

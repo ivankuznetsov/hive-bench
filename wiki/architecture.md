@@ -127,6 +127,13 @@ and are classified as execution failures instead of trusting a stale patch.
   `execute_residue_recovered: true` in efficiency telemetry. The guarded recovery call
   passes the exact task-directory path, avoiding ambiguity with the operator's
   global Hive project registry inside the benchmark container.
+- **Terminal review failures resume from durable review state.** A provenance-
+  matched cell with a completed container transcript, a nonzero review stage,
+  and a retained nonempty `candidate-execute.patch` can restart Hive review in
+  place. Auth and usage-limit failures remain ineligible. The resumed container
+  reuses the task-owned stage-6 phase/pass state, skips plan/execute/open-pr,
+  preserves the original execute patch for failure fallback, and records
+  `review_resumed: true` in efficiency telemetry.
 - **Pi version probing is metadata-only under benchmark load.** Pi cells mount
   a benchmark launcher through `HIVE_PI_BIN`. Its sole special case is
   `pi --version`: it reads the pinned installed npm package version without
