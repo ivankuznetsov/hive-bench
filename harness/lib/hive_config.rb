@@ -171,7 +171,19 @@ module HiveBench
         "agent" => candidate.review,
         "ci" => { "command" => candidate.ci_command, "max_attempts" => 3, "agent" => candidate.review },
         "triage" => { "enabled" => true, "agent" => candidate.review, "bias" => "courageous" },
-        "fix" => { "agent" => candidate.review, "auto_commit" => { "sign_policy" => "inherit" } },
+        "fix" => {
+          "agent" => candidate.review,
+          "auto_commit" => {
+            "sign_policy" => "inherit",
+            # Benchmark targets are disposable isolated clones and several
+            # corpus tasks legitimately span schemas/, examples/, packaging,
+            # and other repo-specific paths outside Hive's conservative
+            # production review allowlist. Keep symlink and secret-content
+            # safety checks, but let CleanExit preserve the candidate's full
+            # implementation when a tool-only harness cannot run git commit.
+            "scope_check" => { "enabled" => false }
+          }
+        },
         "browser_test" => { "enabled" => false },
         "github_publish" => { "enabled" => false },
         "max_passes" => candidate.review_max_passes,

@@ -14,6 +14,13 @@ The runner deliberately does not mount an operator's global Git config, so
 without this local identity CleanExit could validate safe residue but fail the
 final commit before the cell reached a terminal generated state.
 
+**Action:** Disabled the production filename scope allowlist in benchmark-only
+Hive configs. Corpus tasks legitimately add paths such as `schemas/` and
+`examples/`, and a tool-only model may leave those changes for CleanExit to
+commit. The isolated clone boundary, staged-symlink rejection, and added-content
+secret scan remain in force; only the repo-specific filename allowlist is
+relaxed so the complete candidate diff is preserved for judging.
+
 **Action:** Generalized the exact Pi local version-probe timeout classifier from
 the original 10-second value to any positive configured deadline while retaining
 the full provider-specific marker message. This preserves partial work when a

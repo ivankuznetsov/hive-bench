@@ -130,6 +130,13 @@ and are classified as execution failures instead of trusting a stale patch.
   config. Agent-authored and guarded CleanExit residue commits therefore work
   without inheriting an operator's host-global Git config. Preserved dirty-row
   recovery repairs this local identity before invoking Hive's commit guard.
+- **Candidate residue is preserved across the full isolated clone.** Benchmark
+  config disables only CleanExit's production filename allowlist because held-out
+  tasks legitimately change repo-specific `schemas/`, `examples/`, packaging,
+  and similar paths. The target is a disposable isolated clone, while staged
+  symlink rejection and added-content secret scanning remain active. This lets
+  tool-only model harnesses reach Hive's committed completion boundary without
+  deleting or selectively scoring their implementation.
 - **Parallel cells retain bounded launch claims.** Candidate configs raise
   Hive's detached-worker launch claim from the production default to 300
   seconds. This keeps an admitted plan/execute attempt alive while a heavily

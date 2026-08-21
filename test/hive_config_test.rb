@@ -70,6 +70,7 @@ class HiveConfigTest < Minitest::Test
     assert_equal "courageous", r.dig("triage", "bias")
     assert_equal "claude", r.dig("fix", "agent")
     assert_equal "inherit", r.dig("fix", "auto_commit", "sign_policy")
+    assert_equal false, r.dig("fix", "auto_commit", "scope_check", "enabled")
     refute r.dig("browser_test", "enabled")
     refute r.dig("github_publish", "enabled"), "no real GitHub in the container"
     names = r["reviewers"].map { |rev| rev["skill"] }
