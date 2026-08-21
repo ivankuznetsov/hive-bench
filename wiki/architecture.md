@@ -114,8 +114,10 @@ and are classified as execution failures instead of trusting a stale patch.
   task is parked at `4-execute`, the driver preserves its plan/worktree only for
   exact terminal Codex disconnects, exact Pi SSE/idle transport failures, or a
   `dirty_worktree` marker whose clean-exit residue commit left the worktree
-  clean. The container revalidates the marker id and reason, checks cleanliness
-  for the dirty-worktree case, clears only that marker, and asks Hive to continue
+  clean. A Pi attempt whose model never started because the bounded local
+  ten-second version probe expired is also resumable by its exact marker shape.
+  The container revalidates the marker id and reason, checks cleanliness for the
+  dirty-worktree case, clears only that marker, and asks Hive to continue
   `develop`. Auth/usage limits, ordinary implementation failures, and identity
   drift still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.

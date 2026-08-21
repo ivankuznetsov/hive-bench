@@ -58,6 +58,8 @@ module HiveBench
       JSON\ error\ injected\ into\ SSE\ stream|
       Upstream\ idle\ timeout\ exceeded
     )\z/ix
+    PI_RESUMABLE_PREFLIGHT_FAILURE =
+      /\Apreflight failed: agent profile :pi probe failed: pi version check timed out after 10s: pi\z/i
     AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
@@ -150,12 +152,18 @@ module HiveBench
       return unless marker_id
       return marker_id if reason == "dirty_worktree"
 
+      marker_message = marker[/\bmessage="([^"]*)"/, 1]
+      marker_provider = marker[/\bprovider=([^\s>]+)/, 1]
+      if candidate.execute == "pi" && marker_provider == "pi" &&
+         marker_message&.match?(PI_RESUMABLE_PREFLIGHT_FAILURE)
+        return marker_id
+      end
+
       terminal = latest_execute_terminal(work, slug)
       message = resumable_terminal_message(candidate.execute, terminal)
       return if message.to_s.empty?
       return if AgentLimit.limit_hit?(message) || message.match?(AUTH_FAILURE)
 
-      marker_message = marker[/\bmessage="([^"]*)"/, 1]
       return if marker_message && marker_message != message
 
       marker_id

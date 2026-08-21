@@ -314,6 +314,37 @@ class HiveDriverTest < Minitest::Test
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=pi123"]
   end
 
+  def test_pi_local_version_probe_timeout_resumes_without_replacing_partial_work
+    pi = HiveBench::Candidates.by_id("all-ox-alpha@high")
+    driver.call(entry: entry, candidate: pi, out_dir: @out)
+    sentinel = File.join(@work, "resume-sentinel")
+    File.write(sentinel, "keep")
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(
+      File.join(task, "task.md"),
+      "<!-- ERROR reason=implementer_failed provider=pi status=error " \
+      "message=\"preflight failed: agent profile :pi probe failed: pi version " \
+      "check timed out after 10s: pi\" marker_id=probe123 -->\n"
+    )
+
+    seen = nil
+    resumed = hive_driver(runner: lambda do |cmd|
+      seen = cmd
+
+      assert_path_exists sentinel, "resume must retain work after a local probe timeout"
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
+        "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: pi, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["execute_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=probe123"]
+  end
+
   def test_post_cleanup_dirty_worktree_marker_resumes_in_place
     driver.call(entry: entry, candidate: candidate, out_dir: @out)
     task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
