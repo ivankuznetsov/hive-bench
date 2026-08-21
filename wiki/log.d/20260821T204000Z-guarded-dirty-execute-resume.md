@@ -8,6 +8,12 @@ The command receives the exact task-directory path so resolution stays scoped
 to the mounted benchmark project rather than a global project with the same
 slug or an unrelated default worktree root.
 
+**Action:** Seeded a deterministic repository-local Git author identity during
+target clone setup and again before guarded recovery of preserved dirty rows.
+The runner deliberately does not mount an operator's global Git config, so
+without this local identity CleanExit could validate safe residue but fail the
+final commit before the cell reached a terminal generated state.
+
 **Action:** Generalized the exact Pi local version-probe timeout classifier from
 the original 10-second value to any positive configured deadline while retaining
 the full provider-specific marker message. This preserves partial work when a

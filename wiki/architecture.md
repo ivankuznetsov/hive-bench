@@ -125,6 +125,11 @@ and are classified as execution failures instead of trusting a stale patch.
   `execute_resumed: true` in efficiency telemetry. The guarded recovery call
   passes the exact task-directory path, avoiding ambiguity with the operator's
   global Hive project registry inside the benchmark container.
+- **Hermetic target commits have deterministic identity.** Repository setup
+  writes `hive-bench <bench@hive-bench>` into the target clone's local Git
+  config. Agent-authored and guarded CleanExit residue commits therefore work
+  without inheriting an operator's host-global Git config. Preserved dirty-row
+  recovery repairs this local identity before invoking Hive's commit guard.
 - **Parallel cells retain bounded launch claims.** Candidate configs raise
   Hive's detached-worker launch claim from the production default to 300
   seconds. This keeps an admitted plan/execute attempt alive while a heavily

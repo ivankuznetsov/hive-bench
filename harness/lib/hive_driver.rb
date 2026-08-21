@@ -261,6 +261,8 @@ module HiveBench
       git("clone", "--quiet", "--no-local", source, work)
       git("-C", work, "checkout", "-q", "-B", "main", base)
       git("-C", work, "remote", "remove", "origin")
+      git("-C", work, "config", "user.email", "bench@hive-bench")
+      git("-C", work, "config", "user.name", "hive-bench")
     end
 
     def seed_task(entry, slug, work)

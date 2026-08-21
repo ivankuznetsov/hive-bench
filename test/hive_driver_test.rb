@@ -121,6 +121,15 @@ class HiveDriverTest < Minitest::Test
     assert_in_delta 9.99, cell.telemetry["cost_usd_reported"], 0.001
   end
 
+  def test_target_clone_has_hermetic_commit_identity
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    email = Open3.capture2("git", "-C", @work, "config", "--local", "user.email").first.strip
+    name = Open3.capture2("git", "-C", @work, "config", "--local", "user.name").first.strip
+    assert_equal "bench@hive-bench", email
+    assert_equal "hive-bench", name
+  end
+
   def test_pi_telemetry_counts_only_final_assistant_message_usage
     update = '[stream] {"type":"message_update","message":{"role":"assistant","model":"z-ai/glm-5.2",' \
              '"usage":{"input":5,"output":2,"cacheRead":50,"cacheWrite":0}}}'

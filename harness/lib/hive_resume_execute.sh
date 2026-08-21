@@ -32,6 +32,11 @@ if [ "$REASON" = "dirty_worktree" ]; then
     exit 5
   fi
   if [ -n "$WORKTREE_STATUS" ]; then
+    if ! git -C "$WORKTREE" config user.email bench@hive-bench || \
+       ! git -C "$WORKTREE" config user.name hive-bench; then
+      echo "HB_ERROR execute_resume_worktree_recovery_failed" >>"$ERR_OUT"
+      exit 5
+    fi
     if ! hive worktree commit-residue "$TASK_DIR" --json \
       >/dev/null 2>>"$ERR_OUT"; then
       echo "HB_ERROR execute_resume_worktree_recovery_failed" >>"$ERR_OUT"
