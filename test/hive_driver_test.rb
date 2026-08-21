@@ -719,6 +719,10 @@ class HiveDriverTest < Minitest::Test
     assert_equal HiveBench::Candidates::GLM, config.dig("models", "review_fix", "model")
     refute(@seen_cmd.any? { |arg| arg.to_s.start_with?("HB_PI_MODEL") })
     assert_includes @seen_cmd,
+                    "#{HiveBench::HiveDriver::PI_BENCH_LAUNCHER}:/opt/hb/pi-bench-launcher:ro"
+    assert_includes @seen_cmd.each_cons(2).to_a,
+                    ["-e", "HIVE_PI_BIN=/opt/hb/pi-bench-launcher"]
+    assert_includes @seen_cmd,
                     "#{HiveBench::HiveDriver::PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro",
                     "Pi cells load the GLM transport fix inside the runner"
     assert_includes @seen_cmd,

@@ -127,6 +127,11 @@ and are classified as execution failures instead of trusting a stale patch.
   `execute_residue_recovered: true` in efficiency telemetry. The guarded recovery call
   passes the exact task-directory path, avoiding ambiguity with the operator's
   global Hive project registry inside the benchmark container.
+- **Pi version probing is metadata-only under benchmark load.** Pi cells mount
+  a benchmark launcher through `HIVE_PI_BIN`. Its sole special case is
+  `pi --version`: it reads the pinned installed npm package version without
+  booting the full Node CLI. Every model invocation delegates all arguments
+  unchanged to `/usr/local/bin/pi`.
 - **Hermetic target commits have deterministic identity.** Repository setup
   writes `hive-bench <bench@hive-bench>` into the target clone's local Git
   config. Agent-authored and guarded CleanExit residue commits therefore work

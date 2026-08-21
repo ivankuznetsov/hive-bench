@@ -33,6 +33,7 @@ module HiveBench
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
     RESUME_EXECUTE_SH = File.expand_path("hive_resume_execute.sh", __dir__)
     OPENCODE_BENCH_RUNTIME = File.expand_path("opencode_bench_runtime.rb", __dir__)
+    PI_BENCH_LAUNCHER = File.expand_path("pi_bench_launcher.sh", __dir__)
     PI_TOOL_STREAM = File.expand_path("pi_tool_stream.ts", __dir__)
     PI_OPENROUTER_MODELS = File.expand_path("../profiles/pi_openrouter_models.json", __dir__)
     CLAUDE_DIR = File.expand_path("~/.claude")
@@ -450,8 +451,10 @@ module HiveBench
         raise "pi CE skills missing or not a directory: #{pi_skills}" unless File.directory?(pi_skills)
 
         mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro",
+                   "-v", "#{PI_BENCH_LAUNCHER}:/opt/hb/pi-bench-launcher:ro",
                    "-v", "#{PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro",
-                   "-v", "#{PI_OPENROUTER_MODELS}:/opt/hb/pi-openrouter-models.json:ro"]
+                   "-v", "#{PI_OPENROUTER_MODELS}:/opt/hb/pi-openrouter-models.json:ro",
+                   "-e", "HIVE_PI_BIN=/opt/hb/pi-bench-launcher"]
       end
       if uses?(candidate, "grok")
         # Keep sessions/config/leader state ephemeral per cell. Only the
