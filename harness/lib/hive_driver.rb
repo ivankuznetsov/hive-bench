@@ -99,6 +99,8 @@ module HiveBench
         File.write(File.join(work, ".hive-state", "config.yml"), HiveConfig.to_yaml(candidate))
         init_state_repo(work)
         persist_generation_identity(work, identity)
+      else
+        refresh_resume_attempt_timers(work, candidate)
       end
       seed_project_enrollment(work)
 
@@ -249,6 +251,26 @@ module HiveBench
       dir = File.join(work, ".hb")
       FileUtils.mkdir_p(dir)
       File.write(File.join(dir, GENERATION_IDENTITY), "#{JSON.pretty_generate(identity)}\n")
+    end
+
+    # Resume can reuse a target created by an older harness revision. Refresh
+    # only the startup lease timers that make detached Hive workers robust to
+    # parallel host load; candidate routing and all task artifacts stay frozen.
+    def refresh_resume_attempt_timers(work, candidate)
+      state = File.join(work, ".hive-state")
+      path = File.join(state, "config.yml")
+      config = YAML.safe_load(File.read(path))
+      desired = HiveConfig.to_h(candidate)
+      keys = %w[attempt_launch_timeout_sec attempt_first_heartbeat_timeout_sec]
+      return unless keys.any? { |key| config[key] != desired.fetch(key) }
+
+      keys.each { |key| config[key] = desired.fetch(key) }
+      File.write(path, YAML.dump(config))
+      git("-C", state, "add", "config.yml")
+      git(
+        "-C", state, "-c", "commit.gpgsign=false", "commit", "-qm",
+        "bench: refresh resume attempt timers"
+      )
     end
 
     # Hive validates stage actions against its global project registry. Keep a

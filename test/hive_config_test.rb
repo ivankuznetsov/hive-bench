@@ -125,6 +125,8 @@ class HiveConfigTest < Minitest::Test
     assert_equal "main", h["default_branch"], "branch off local main (= task base_commit)"
     assert_equal 300, h["attempt_launch_timeout_sec"],
                  "parallel runner startup must fit inside the launch claim"
+    assert_equal 300, h["attempt_first_heartbeat_timeout_sec"],
+                 "parallel worker startup must fit before the first heartbeat"
   end
 
   def test_round_trips_to_yaml

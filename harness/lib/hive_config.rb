@@ -26,6 +26,7 @@ module HiveBench
 
     DEFAULT_WORKTREE_ROOT = "/work/.worktrees"
     DEFAULT_BRANCH = "main"
+    PARALLEL_ATTEMPT_STARTUP_TIMEOUT_SEC = 300
     OPENCODE_PLUGIN = "/opt/compound-engineering"
     OPENCODE_OX_ALPHA_MODEL = {
       "name" => "Ox Alpha",
@@ -58,7 +59,8 @@ module HiveBench
         # detached Hive workers boot. Keep the launch claim bounded, but do not
         # expire it at the production-oriented 30-second default before the
         # worker can claim its already-admitted attempt.
-        "attempt_launch_timeout_sec" => 300,
+        "attempt_launch_timeout_sec" => PARALLEL_ATTEMPT_STARTUP_TIMEOUT_SEC,
+        "attempt_first_heartbeat_timeout_sec" => PARALLEL_ATTEMPT_STARTUP_TIMEOUT_SEC,
         "plan_review" => { "enabled" => false },
         "plan" => { "agent" => candidate.plan },
         "execute" => { "agent" => candidate.execute },

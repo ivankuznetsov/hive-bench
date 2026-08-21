@@ -400,6 +400,13 @@ class HiveDriverTest < Minitest::Test
       File.join(@work, ".hb", "stage.err"),
       "requested OpenCode route is unavailable in the local model inventory\n"
     )
+    state_config = File.join(@work, ".hive-state", "config.yml")
+    legacy_config = YAML.safe_load(File.read(state_config))
+    legacy_config.delete("attempt_launch_timeout_sec")
+    legacy_config.delete("attempt_first_heartbeat_timeout_sec")
+    File.write(state_config, YAML.dump(legacy_config))
+    sh!("git", "add", "config.yml", chdir: File.dirname(state_config))
+    sh!("git", "commit", "-qm", "legacy config", chdir: File.dirname(state_config))
 
     seen = nil
     resumed = hive_driver(runner: lambda do |cmd|
@@ -407,6 +414,9 @@ class HiveDriverTest < Minitest::Test
 
       assert_path_exists sentinel, "review resume must retain the candidate target"
       assert_path_exists File.join(@work, "candidate-execute.patch")
+      refreshed = YAML.safe_load(File.read(state_config))
+      assert_equal 300, refreshed["attempt_launch_timeout_sec"]
+      assert_equal 300, refreshed["attempt_first_heartbeat_timeout_sec"]
       File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
       "HB_STAGE plan rc=0\nHB_NOTE plan_reused\nHB_NOTE review_resumed\n" \
         "HB_STAGE develop rc=0\nHB_STAGE open-pr rc=0\nHB_STAGE review rc=0\n" \
