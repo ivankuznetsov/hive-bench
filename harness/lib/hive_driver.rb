@@ -54,6 +54,10 @@ module HiveBench
       failed\ to\ lookup\ address\ information:.*|
       error\ sending\ request\ for\ url\ \(https://chatgpt\.com/backend-api/codex/responses\)
     )\z}ix
+    PI_RESUMABLE_EXECUTE_FAILURE = /\A(?:
+      JSON\ error\ injected\ into\ SSE\ stream|
+      Upstream\ idle\ timeout\ exceeded
+    )\z/ix
     AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
@@ -127,11 +131,11 @@ module HiveBench
       build_cell(entry, candidate, work, stdout, nil, recovered: provenance)
     end
 
-    # Resume only a provenance-matched Hive task whose final Codex turn failed
-    # because model transport disappeared. Auth/usage limits and ordinary
-    # implementation failures deliberately remain ineligible.
+    # Resume only a provenance-matched Hive task with a recovery-safe terminal
+    # state. This covers exact Codex/Pi transport failures and Hive's
+    # dirty_worktree marker after the clean-exit hook has committed the residue.
+    # Auth/usage limits and ordinary implementation failures remain ineligible.
     def resumable_execute_marker(entry, candidate, work, identity)
-      return unless candidate.execute == "codex"
       return unless generation_identity_matches?(work, identity)
 
       slug = entry.fetch("task_id")
@@ -139,25 +143,54 @@ module HiveBench
       return unless File.file?(task_md)
 
       marker = File.read(task_md)[/<!-- ERROR\b[^>]*-->/]
-      return unless marker&.match?(/\breason=implementer_failed\b/)
+      reason = marker&.[](/\breason=([^\s>]+)/, 1)
+      return unless %w[dirty_worktree implementer_failed provider_error].include?(reason)
 
       marker_id = marker[/\bmarker_id=([^\s>]+)/, 1]
       return unless marker_id
+      return marker_id if reason == "dirty_worktree"
 
+      terminal = latest_execute_terminal(work, slug)
+      message = resumable_terminal_message(candidate.execute, terminal)
+      return if message.to_s.empty?
+      return if AgentLimit.limit_hit?(message) || message.match?(AUTH_FAILURE)
+
+      marker_message = marker[/\bmessage="([^"]*)"/, 1]
+      return if marker_message && marker_message != message
+
+      marker_id
+    rescue SystemCallError
+      nil
+    end
+
+    def latest_execute_terminal(work, slug)
       logs = Dir.glob(File.join(work, ".hive-state", "logs", slug, "execute-*.log"))
       latest = logs.max_by { |path| File.mtime(path) }
       return unless latest
 
-      terminal = File.foreach(latest).filter_map { |line| stream_json(line) }
-                                     .reverse_each.find { |event| event["type"].to_s.start_with?("turn.") }
-      return unless terminal&.fetch("type", nil) == "turn.failed"
+      terminal = nil
+      File.foreach(latest) do |line|
+        event = stream_json(line)
+        type = event&.fetch("type", "").to_s
+        terminal = event if type.start_with?("turn.") || type == "turn_end"
+      end
+      terminal
+    end
 
-      message = terminal.dig("error", "message").to_s
-      return if AgentLimit.limit_hit?(message) || message.match?(AUTH_FAILURE)
+    def resumable_terminal_message(agent, terminal)
+      case agent
+      when "codex"
+        return unless terminal&.fetch("type", nil) == "turn.failed"
 
-      marker_id if message.match?(RESUMABLE_EXECUTE_FAILURE)
-    rescue SystemCallError
-      nil
+        message = terminal.dig("error", "message").to_s
+        message if message.match?(RESUMABLE_EXECUTE_FAILURE)
+      when "pi"
+        return unless terminal&.fetch("type", nil) == "turn_end"
+        return unless terminal.dig("message", "stopReason") == "error"
+
+        message = terminal.dig("message", "errorMessage").to_s
+        message if message.match?(PI_RESUMABLE_EXECUTE_FAILURE)
+      end
     end
 
     def generation_identity(entry, candidate, base, hive_runtime: resolved_hive_runtime)

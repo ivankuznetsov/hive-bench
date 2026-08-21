@@ -26,7 +26,11 @@ class HiveResumeExecuteTest < Minitest::Test
   end
 
   def run_helper(marker_id)
-    env = { "PATH" => "#{@bin}:#{ENV.fetch("PATH")}", "HIVE_CAPTURE" => @capture }
+    env = {
+      "PATH" => "#{@bin}:#{ENV.fetch("PATH")}",
+      "HIVE_CAPTURE" => @capture,
+      "HB_WORK_ROOT" => @root
+    }
     Open3.capture3(env, "bash", HELPER, @task, marker_id,
                    File.join(@root, "out.json"), File.join(@root, "err.log"))
   end
@@ -51,5 +55,51 @@ class HiveResumeExecuteTest < Minitest::Test
     assert_equal 5, status.exitstatus
     refute_path_exists @capture
     assert_includes File.read(File.join(@root, "err.log")), "execute_resume_preflight_failed"
+  end
+
+  def test_clears_verified_provider_error_reason
+    File.write(File.join(@task, "task.md"),
+               "<!-- ERROR reason=provider_error provider=pi marker_id=provider123 -->\n")
+
+    _out, _err, status = run_helper("provider123")
+
+    assert_predicate status, :success?
+    assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
+                  "marker_id=provider123,reason=provider_error", "--json"],
+                 File.readlines(@capture, chomp: true)
+  end
+
+  def test_dirty_worktree_reason_requires_a_now_clean_owned_worktree
+    worktree = File.join(@root, ".worktrees", "task")
+    FileUtils.mkdir_p(worktree)
+    _out, _err, status = Open3.capture3("git", "init", "-q", worktree)
+
+    assert_predicate status, :success?
+    File.write(File.join(@task, "task.md"),
+               "<!-- ERROR reason=dirty_worktree marker_id=dirty123 -->\n")
+
+    _out, _err, status = run_helper("dirty123")
+
+    assert_predicate status, :success?
+    assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
+                  "marker_id=dirty123,reason=dirty_worktree", "--json"],
+                 File.readlines(@capture, chomp: true)
+
+    FileUtils.rm_f(@capture)
+    File.write(File.join(worktree, "residue.txt"), "dirty\n")
+    _out, _err, status = run_helper("dirty123")
+
+    assert_equal 5, status.exitstatus
+    refute_path_exists @capture
+    assert_includes File.read(File.join(@root, "err.log")),
+                    "execute_resume_worktree_still_dirty"
+
+    FileUtils.rm_f(@capture)
+    FileUtils.rm_rf(File.join(worktree, ".git"))
+    FileUtils.rm_f(File.join(worktree, "residue.txt"))
+    _out, _err, status = run_helper("dirty123")
+
+    assert_equal 5, status.exitstatus
+    refute_path_exists @capture
   end
 end

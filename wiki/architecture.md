@@ -110,12 +110,14 @@ and are classified as execution failures instead of trusting a stale patch.
   backfill without rebuying the run. A completed artifact with mismatched
   provenance fails closed without deleting anything; replacing it requires the
   explicit `--no-reuse-existing-artifacts` fresh-run option.
-- **Identity-verified Codex transport failures resume in place.** When a task is
-  parked at `4-execute` with the exact `implementer_failed` marker and its final
-  Codex event is a model-transport disconnect (not an auth/usage limit), the
-  driver preserves the worktree, reuses the committed plan, clears only that
-  marker by id, and asks Hive to continue `develop`. Other incomplete artifacts
-  still take the normal fresh-run path. Resumed cells record
+- **Identity-verified recoverable execute failures resume in place.** When a
+  task is parked at `4-execute`, the driver preserves its plan/worktree only for
+  exact terminal Codex disconnects, exact Pi SSE/idle transport failures, or a
+  `dirty_worktree` marker whose clean-exit residue commit left the worktree
+  clean. The container revalidates the marker id and reason, checks cleanliness
+  for the dirty-worktree case, clears only that marker, and asks Hive to continue
+  `develop`. Auth/usage limits, ordinary implementation failures, and identity
+  drift still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD` and applies the default Pi and

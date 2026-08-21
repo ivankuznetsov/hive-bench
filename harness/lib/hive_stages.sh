@@ -344,8 +344,9 @@ normalize_null_plan_dependency() {
 }
 
 # 1. PLAN — real /ce-plan, or reuse the identity-verified plan when the host
-# driver resumes an execute turn interrupted only by model transport. Clear
-# exactly the persisted implementer_failed marker before asking Hive to continue.
+# driver resumes an execute turn interrupted by exact model transport evidence
+# or a post-cleanup dirty-worktree marker. Clear exactly the verified marker
+# before asking Hive to continue.
 PLAN_TASK=""
 if [ "${HB_RESUME_EXECUTE:-0}" = "1" ]; then
   PLAN_TASK="/work/.hive-state/stages/4-execute/$SLUG"

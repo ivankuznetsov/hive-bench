@@ -271,6 +271,71 @@ class HiveDriverTest < Minitest::Test
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=abc123"]
   end
 
+  def test_pi_sse_failure_resumes_identity_verified_execute_in_place
+    pi = HiveBench::Candidates.by_id("all-ox-alpha@high")
+    driver.call(entry: entry, candidate: pi, out_dir: @out)
+    sentinel = File.join(@work, "resume-sentinel")
+    File.write(sentinel, "keep")
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(
+      File.join(task, "task.md"),
+      "<!-- ERROR reason=implementer_failed provider=pi status=error " \
+      "message=\"JSON error injected into SSE stream\" marker_id=pi123 -->\n"
+    )
+    logs = File.join(@work, ".hive-state", "logs", "add-i-key")
+    FileUtils.mkdir_p(logs)
+    File.write(
+      File.join(logs, "execute-impl-1.log"),
+      "#{JSON.generate(
+        "type" => "turn_end",
+        "message" => {
+          "stopReason" => "error",
+          "errorMessage" => "JSON error injected into SSE stream"
+        }
+      )}\n"
+    )
+
+    seen = nil
+    resumed = hive_driver(runner: lambda do |cmd|
+      seen = cmd
+
+      assert_path_exists sentinel, "resume must retain Pi's partial worktree"
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
+        "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: pi, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["execute_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=pi123"]
+  end
+
+  def test_post_cleanup_dirty_worktree_marker_resumes_in_place
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    task = File.join(@work, ".hive-state", "stages", "4-execute", "add-i-key")
+    FileUtils.mkdir_p(task)
+    File.write(File.join(task, "task.md"),
+               "<!-- ERROR reason=dirty_worktree marker_id=dirty123 -->\n")
+
+    seen = nil
+    resumed = hive_driver(runner: lambda do |cmd|
+      seen = cmd
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      "HB_STAGE resume-clear rc=0\nHB_STAGE plan rc=0\nHB_NOTE plan_reused\n" \
+        "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
+    end, reuse_existing: true, reuse_unverified: false)
+
+    cell = resumed.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_equal "generated", cell.status
+    assert cell.telemetry["execute_resumed"]
+    assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=dirty123"]
+  end
+
   def test_resume_rejects_nonterminal_transport_text_auth_limits_and_identity_drift
     mixed = HiveBench::Candidates.by_id("opus-plan->codex-exec-xhigh")
     driver.call(entry: entry, candidate: mixed, out_dir: @out)

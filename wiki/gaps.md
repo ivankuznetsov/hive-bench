@@ -54,7 +54,7 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   explicit prerequisite; a portable immutable runtime bundle remains future
   work.
 - **Execute-resume crash window and CLI drift** — transport recovery fails closed
-  if Codex changes its terminal event/message shape. Also, a host/container crash
+  if Codex or Pi changes its terminal event/message shape. Also, a host/container crash
   after the exact error marker is cleared but before `hive develop` starts can
   leave the preserved task markerless; a durable resume-intent journal would
   close that narrow window.
