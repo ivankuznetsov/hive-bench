@@ -32,6 +32,9 @@ for each corpus task T, for each candidate C:
 - Identity-verified execute/review resumes keep candidate artifacts in place,
   but refresh the finite detached-worker launch and first-heartbeat timers to
   the current parallel-benchmark values before re-entering Hive.
+- OpenCode's local capability probe has a benchmark-only 300-second capture
+  bound because each agent phase repeats CLI help/auth/model inspection while
+  all cells are running concurrently.
 - **`profiles/candidates.rb`** — the v2/v3 slate. A *candidate* is a
   model-per-stage config: `all-opus-4.8`, `all-codex`,
   `opus-plan→codex-exec`, or one of the Sol/Terra/Grok follow-up workflows.

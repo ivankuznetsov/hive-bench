@@ -602,7 +602,7 @@ module HiveBench
       [
         "-v", "#{OPENCODE_BENCH_RUNTIME}:/opt/hb/opencode_bench_runtime.rb:ro",
         "-e", "HB_OPENCODE_CE_PREFLIGHT=1",
-        "-e", "HB_OPENCODE_PROBE_TIMEOUT_SEC=60",
+        "-e", "HB_OPENCODE_PROBE_TIMEOUT_SEC=300",
         "-e", "RUBYOPT=-r/opt/hb/opencode_bench_runtime"
       ]
     end

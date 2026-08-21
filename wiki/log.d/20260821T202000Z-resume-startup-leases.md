@@ -6,3 +6,6 @@
   keys in legacy candidate configs and commit that config-only state change.
 - Candidate routing, model selection, reasoning effort, and task artifacts are
   not rewritten during resume.
+- Raised the benchmark-only OpenCode local-probe capture bound from 60 to 300
+  seconds after a live review triage probe timed out under full parallel load;
+  this bound covers local CLI inspection, not an OpenRouter model request.

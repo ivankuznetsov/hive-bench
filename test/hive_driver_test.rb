@@ -597,7 +597,7 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd,
                     "#{HiveBench::HiveDriver::OPENCODE_BENCH_RUNTIME}:/opt/hb/opencode_bench_runtime.rb:ro"
     assert_includes @seen_cmd, "HB_OPENCODE_CE_PREFLIGHT=1"
-    assert_includes @seen_cmd, "HB_OPENCODE_PROBE_TIMEOUT_SEC=60"
+    assert_includes @seen_cmd, "HB_OPENCODE_PROBE_TIMEOUT_SEC=300"
     assert_includes @seen_cmd, "OPENROUTER_API_KEY"
   ensure
     ENV["OPENROUTER_API_KEY"] = previous
