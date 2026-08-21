@@ -59,7 +59,7 @@ module HiveBench
       Upstream\ idle\ timeout\ exceeded
     )\z/ix
     PI_RESUMABLE_PREFLIGHT_FAILURE =
-      /\Apreflight failed: agent profile :pi probe failed: pi version check timed out after 10s: pi\z/i
+      /\Apreflight failed: agent profile :pi probe failed: pi version check timed out after [1-9]\d*s: pi\z/i
     AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
@@ -135,7 +135,8 @@ module HiveBench
 
     # Resume only a provenance-matched Hive task with a recovery-safe terminal
     # state. This covers exact Codex/Pi transport failures and Hive's
-    # dirty_worktree marker after the clean-exit hook has committed the residue.
+    # dirty_worktree marker whose residue can be committed through Hive's
+    # guarded worktree recovery command inside the resumed container.
     # Auth/usage limits and ordinary implementation failures remain ineligible.
     def resumable_execute_marker(entry, candidate, work, identity)
       return unless generation_identity_matches?(work, identity)

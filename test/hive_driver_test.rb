@@ -325,7 +325,7 @@ class HiveDriverTest < Minitest::Test
       File.join(task, "task.md"),
       "<!-- ERROR reason=implementer_failed provider=pi status=error " \
       "message=\"preflight failed: agent profile :pi probe failed: pi version " \
-      "check timed out after 10s: pi\" marker_id=probe123 -->\n"
+      "check timed out after 30s: pi\" marker_id=probe123 -->\n"
     )
 
     seen = nil

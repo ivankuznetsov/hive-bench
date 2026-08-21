@@ -16,6 +16,14 @@ class HiveResumeExecuteTest < Minitest::Test
     FileUtils.mkdir_p([@task, @bin])
     File.write(File.join(@bin, "hive"), <<~SH)
       #!/usr/bin/env bash
+      if [ "${1:-}" = "worktree" ]; then
+        [ "${HIVE_RECOVERY_FAIL:-0}" = "1" ] && exit 1
+        worktree="$HB_WORK_ROOT/.worktrees/${3:-}"
+        git -C "$worktree" add -A || exit 1
+        git -C "$worktree" -c user.name=Hive -c user.email=hive@example.invalid \
+          commit -m 'guarded residue recovery' --quiet || exit 1
+        exit 0
+      fi
       printf '%s\n' "$@" >"$HIVE_CAPTURE"
     SH
     FileUtils.chmod(0o755, File.join(@bin, "hive"))
@@ -89,10 +97,12 @@ class HiveResumeExecuteTest < Minitest::Test
     File.write(File.join(worktree, "residue.txt"), "dirty\n")
     _out, _err, status = run_helper("dirty123")
 
-    assert_equal 5, status.exitstatus
-    refute_path_exists @capture
-    assert_includes File.read(File.join(@root, "err.log")),
-                    "execute_resume_worktree_still_dirty"
+    assert_predicate status, :success?
+    assert_equal "guarded residue recovery",
+                 `git -C #{worktree} log -1 --pretty=%s`.strip
+    assert_equal ["markers", "clear", @task, "--name", "ERROR", "--match-attr",
+                  "marker_id=dirty123,reason=dirty_worktree", "--json"],
+                 File.readlines(@capture, chomp: true)
 
     FileUtils.rm_f(@capture)
     FileUtils.rm_rf(File.join(worktree, ".git"))
@@ -101,5 +111,31 @@ class HiveResumeExecuteTest < Minitest::Test
 
     assert_equal 5, status.exitstatus
     refute_path_exists @capture
+  end
+
+  def test_dirty_worktree_recovery_failure_does_not_clear_marker
+    worktree = File.join(@root, ".worktrees", "task")
+    FileUtils.mkdir_p(worktree)
+    _out, _err, status = Open3.capture3("git", "init", "-q", worktree)
+    assert_predicate status, :success?
+    File.write(File.join(worktree, "residue.txt"), "dirty\n")
+    File.write(File.join(@task, "task.md"),
+               "<!-- ERROR reason=dirty_worktree marker_id=dirty123 -->\n")
+
+    env = {
+      "PATH" => "#{@bin}:#{ENV.fetch("PATH")}",
+      "HIVE_CAPTURE" => @capture,
+      "HIVE_RECOVERY_FAIL" => "1",
+      "HB_WORK_ROOT" => @root
+    }
+    _out, _err, status = Open3.capture3(
+      env, "bash", HELPER, @task, "dirty123",
+      File.join(@root, "out.json"), File.join(@root, "err.log")
+    )
+
+    assert_equal 5, status.exitstatus
+    refute_path_exists @capture
+    assert_includes File.read(File.join(@root, "err.log")),
+                    "execute_resume_worktree_recovery_failed"
   end
 end

@@ -113,11 +113,13 @@ and are classified as execution failures instead of trusting a stale patch.
 - **Identity-verified recoverable execute failures resume in place.** When a
   task is parked at `4-execute`, the driver preserves its plan/worktree only for
   exact terminal Codex disconnects, exact Pi SSE/idle transport failures, or a
-  `dirty_worktree` marker whose clean-exit residue commit left the worktree
-  clean. A Pi attempt whose model never started because the bounded local
-  ten-second version probe expired is also resumable by its exact marker shape.
-  The container revalidates the marker id and reason, checks cleanliness for the
-  dirty-worktree case, clears only that marker, and asks Hive to continue
+  `dirty_worktree` marker whose residue passes Hive's guarded
+  `worktree commit-residue` command. A Pi attempt whose model never started
+  because the bounded local version probe expired is also resumable by its exact
+  marker shape, independent of the configured positive timeout. The container
+  revalidates the marker id and reason, invokes Hive's task-locked scope,
+  symlink, secret-content, and signing checks for dirty residue, proves the
+  worktree clean, clears only that marker, and asks Hive to continue
   `develop`. Auth/usage limits, ordinary implementation failures, and identity
   drift still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.

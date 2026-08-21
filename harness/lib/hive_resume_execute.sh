@@ -27,9 +27,23 @@ if [ "$REASON" = "dirty_worktree" ]; then
   fi
   WORKTREE_STATUS="$(git -C "$WORKTREE" status --porcelain --untracked-files=all 2>>"$ERR_OUT")"
   WORKTREE_STATUS_RC=$?
-  if [ "$WORKTREE_STATUS_RC" -ne 0 ] || [ -n "$WORKTREE_STATUS" ]; then
+  if [ "$WORKTREE_STATUS_RC" -ne 0 ]; then
     echo "HB_ERROR execute_resume_worktree_still_dirty" >>"$ERR_OUT"
     exit 5
+  fi
+  if [ -n "$WORKTREE_STATUS" ]; then
+    if ! hive worktree commit-residue "$(basename "$TASK_DIR")" --json \
+      >/dev/null 2>>"$ERR_OUT"; then
+      echo "HB_ERROR execute_resume_worktree_recovery_failed" >>"$ERR_OUT"
+      exit 5
+    fi
+
+    WORKTREE_STATUS="$(git -C "$WORKTREE" status --porcelain --untracked-files=all 2>>"$ERR_OUT")"
+    WORKTREE_STATUS_RC=$?
+    if [ "$WORKTREE_STATUS_RC" -ne 0 ] || [ -n "$WORKTREE_STATUS" ]; then
+      echo "HB_ERROR execute_resume_worktree_still_dirty" >>"$ERR_OUT"
+      exit 5
+    fi
   fi
 fi
 
