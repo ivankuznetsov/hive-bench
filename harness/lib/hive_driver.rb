@@ -29,16 +29,26 @@ module HiveBench
                        :diff_path, :telemetry, :reason)
 
     IMAGE = ENV.fetch("HB_RUNNER_IMAGE", "hive-bench-runner:latest")
+    OPENCODE_IMAGE = ENV.fetch("HB_OPENCODE_RUNNER_IMAGE", "hive-bench-runner:opencode")
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
     RESUME_EXECUTE_SH = File.expand_path("hive_resume_execute.sh", __dir__)
+    OPENCODE_BENCH_RUNTIME = File.expand_path("opencode_bench_runtime.rb", __dir__)
     PI_TOOL_STREAM = File.expand_path("pi_tool_stream.ts", __dir__)
+    PI_OPENROUTER_MODELS = File.expand_path("../profiles/pi_openrouter_models.json", __dir__)
     CLAUDE_DIR = File.expand_path("~/.claude")
     HOME = "/home/asterio"
+    HIVE_RUNTIME_CONTAINER_ROOT = "/opt/hb/hive-current"
+    HIVE_GEM_HOME_CONTAINER_ROOT = "/usr/local/bundle"
+    HIVE_RUNTIME_RUBYLIB = [
+      "#{HIVE_RUNTIME_CONTAINER_ROOT}/components/agent-cli-runtime/lib",
+      "#{HIVE_RUNTIME_CONTAINER_ROOT}/lib"
+    ].join(":").freeze
     GROK_AUTH_DIR = File.expand_path(
       ENV.fetch("HB_GROK_AUTH_DIR", "~/.local/state/hive-bench/grok-auth")
     )
     GROK_AUTH = File.join(GROK_AUTH_DIR, "auth.json")
     GROK_AUTH_CONTAINER_DIR = "#{HOME}/.grok-auth".freeze
+    HIVE_HOME = "/work/.hb/hive-home".freeze
     GENERATION_IDENTITY = "generation-identity.json"
     RESUMABLE_EXECUTE_FAILURE = %r{\Astream\ disconnected\ before\ completion:\ (?:
       failed\ to\ lookup\ address\ information:.*|
@@ -47,9 +57,11 @@ module HiveBench
     AUTH_FAILURE = /(?:\b401\b|unauthorized|authentication failed|login required|missing bearer)/i
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
-    def initialize(reuse_existing:, reuse_unverified:, clock: -> { Time.now.utc }, runner: nil)
+    def initialize(reuse_existing:, reuse_unverified:, clock: -> { Time.now.utc }, runner: nil,
+                   hive_runtime: nil)
       @clock = clock
       @runner = runner # injectable container runner for tests; default shells docker
+      @hive_runtime = hive_runtime
       @reuse_existing = reuse_existing
       @reuse_unverified = reuse_unverified
     end
@@ -62,7 +74,8 @@ module HiveBench
       base = entry.dig("source", "base_commit") or raise ArgumentError, "entry has no source.base_commit"
       source = entry["checkout_source"] or raise ArgumentError, "entry has no checkout_source"
       work = File.expand_path(File.join(out_dir, "target")) # absolute: docker -v needs it
-      identity = generation_identity(entry, candidate, base)
+      hive_runtime = resolved_hive_runtime
+      identity = generation_identity(entry, candidate, base, hive_runtime:)
 
       if @reuse_existing && (recovered = recover_cell(entry, candidate, work, base, identity))
         return recovered
@@ -76,9 +89,13 @@ module HiveBench
         init_state_repo(work)
         persist_generation_identity(work, identity)
       end
+      seed_project_enrollment(work)
 
       started = @clock.call
-      stdout = run_container(slug, base, work, candidate, out_dir, resume_marker_id: resume_marker_id)
+      stdout = run_container(
+        slug, base, work, candidate, out_dir,
+        resume_marker_id: resume_marker_id, hive_runtime:
+      )
       wall = (@clock.call - started).round(2)
 
       build_cell(entry, candidate, work, stdout, wall)
@@ -143,12 +160,13 @@ module HiveBench
       nil
     end
 
-    def generation_identity(entry, candidate, base)
+    def generation_identity(entry, candidate, base, hive_runtime: resolved_hive_runtime)
       JSON.parse(JSON.generate(
                    "schema" => "hive-bench-generation-identity",
                    "schema_version" => 1,
                    "task_id" => entry.fetch("task_id"),
                    "base_commit" => base,
+                   "hive_runtime" => { "version" => hive_runtime.fetch(:version) },
                    "candidate" => candidate.to_h
                  ))
     end
@@ -157,6 +175,25 @@ module HiveBench
       dir = File.join(work, ".hb")
       FileUtils.mkdir_p(dir)
       File.write(File.join(dir, GENERATION_IDENTITY), "#{JSON.pretty_generate(identity)}\n")
+    end
+
+    # Hive validates stage actions against its global project registry. Keep a
+    # one-project registry inside each cell so host enrollment cannot influence
+    # task resolution or durable attempts in the benchmark container.
+    def seed_project_enrollment(work)
+      home = File.join(work, ".hb", "hive-home")
+      FileUtils.mkdir_p(home)
+      File.write(
+        File.join(home, "config.yml"),
+        YAML.dump(
+          "registered_projects" => [
+            {
+              "name" => "work", "path" => "/work",
+              "hive_state_path" => "/work/.hive-state"
+            }
+          ]
+        )
+      )
     end
 
     def generation_identity_matches?(work, expected)
@@ -212,9 +249,11 @@ module HiveBench
       FileUtils.cp_r(src, File.join(tdir, "assets"))
     end
 
-    def run_container(slug, base, work, candidate, out_dir, resume_marker_id: nil)
+    def run_container(slug, base, work, candidate, out_dir, resume_marker_id: nil,
+                      hive_runtime: resolved_hive_runtime)
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
+             "-e", "HIVE_HOME=#{HIVE_HOME}",
              *(resume_marker_id ? ["-e", "HB_RESUME_EXECUTE=1", "-e", "HB_RESUME_MARKER_ID=#{resume_marker_id}"] : []),
              # Full-cycle by default (plan->execute->open-pr->review, the real
              # hive pipeline); HB_REVIEW=0 falls back to plan+execute only.
@@ -234,15 +273,65 @@ module HiveBench
              "-v", "#{STAGES_SH}:/hive_stages.sh:ro",
              "-v", "#{RESUME_EXECUTE_SH}:/hive_resume_execute.sh:ro",
              "-v", "#{work}:/work",
+             *hive_runtime_mounts(hive_runtime),
+             *opencode_runtime_args(candidate),
              *auth_mounts(candidate, out_dir),
              *env_args(candidate),
-             IMAGE,
+             runner_image(candidate),
              # HB_EXIT lets classify() tell a timeout (rc=124) from a stage
              # failure; tee persists the markers so a driver crash after the
              # (expensive) container run can never lose the classification.
              "mkdir -p /work/.hb; { timeout #{PLAN_TIMEOUT} bash /hive_stages.sh #{slug} #{base}; " \
              "echo HB_EXIT rc=$?; } | tee /work/.hb/stages.out"]
       (@runner || method(:capture)).call(cmd)
+    end
+
+    # The image owns the OS and toolchain. Mount the selected host Hive runtime
+    # so a cell cannot silently execute an older gem baked into the image.
+    def hive_runtime_mounts(runtime = resolved_hive_runtime)
+      [
+        "-v", "#{runtime.fetch(:root)}:#{HIVE_RUNTIME_CONTAINER_ROOT}:ro",
+        "-v", "#{runtime.fetch(:gem_home)}:#{HIVE_GEM_HOME_CONTAINER_ROOT}:ro",
+        "-e", "RUBYLIB=#{HIVE_RUNTIME_RUBYLIB}",
+        "-e", "HB_HIVE_VERSION=#{runtime.fetch(:version)}",
+        "-e", "HIVE_BENCH_ALLOW_DISABLED_PLAN_REVIEW=1"
+      ]
+    end
+
+    def resolved_hive_runtime
+      @hive_runtime || active_hive_runtime
+    end
+
+    def active_hive_runtime
+      bin = File.realpath(ENV.fetch("HB_HIVE_BIN") { find_hive_executable })
+      root = File.expand_path("..", File.dirname(bin))
+      canonical_bin = File.join(root, "bin", "hive")
+      hive_lib = File.join(root, "lib", "hive.rb")
+      unless File.file?(canonical_bin) && File.executable?(canonical_bin) && File.file?(hive_lib)
+        raise "active hive binary is not beside a complete runtime: #{bin}"
+      end
+
+      gem_home = File.realpath(ENV.fetch("HB_HIVE_GEM_HOME", Gem.user_dir))
+      raise "active hive gem home is not a directory: #{gem_home}" unless File.directory?(gem_home)
+
+      out, err, status = Open3.capture3(canonical_bin, "--version")
+      version = out.strip
+      unless status.success? && version.match?(/\A\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.-]+)?\z/)
+        detail = err.strip.empty? ? out.strip : err.strip
+        raise "cannot identify active hive runtime version: #{detail}"
+      end
+
+      { root:, gem_home:, version: }.freeze
+    rescue Errno::ENOENT, Errno::EACCES => e
+      raise "active hive runtime is unavailable: #{e.message}"
+    end
+
+    def find_hive_executable
+      ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |directory|
+        candidate = File.join(directory, "hive")
+        return candidate if File.file?(candidate) && File.executable?(candidate)
+      end
+      raise "active hive executable is not on PATH (set HB_HIVE_BIN)"
     end
 
     # Generation needs model-API egress, so `--network none` is impossible here —
@@ -293,9 +382,9 @@ module HiveBench
                    "-v", "#{codex}:#{HOME}/.codex/auth.json:ro"]
         # Codex registers plugins in config.toml (found 2026-07-09: the cache
         # mount alone leaves skills unregistered). The bench GENERATES a
-        # minimal config per cell — plugin registration + /work trust, plus
-        # the effort pin for xhigh candidates — never the operator's own
-        # config.toml (it carries personal MCP servers and project trusts).
+        # minimal config per cell — plugin registration + /work trust — never
+        # the operator's own config.toml (it carries personal MCP servers and
+        # project trusts). Model routing lives in Hive config.yml.
         cfg = File.expand_path(File.join(out_dir, "codex-config.toml"))
         File.write(cfg, codex_config(candidate))
         mounts += ["-v", "#{cfg}:#{HOME}/.codex/config.toml:ro"]
@@ -317,7 +406,8 @@ module HiveBench
         raise "pi CE skills missing or not a directory: #{pi_skills}" unless File.directory?(pi_skills)
 
         mounts += ["-v", "#{pi_skills}:/opt/hb/pi-ce-skills:ro",
-                   "-v", "#{PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro"]
+                   "-v", "#{PI_TOOL_STREAM}:/opt/hb/pi-tool-stream.ts:ro",
+                   "-v", "#{PI_OPENROUTER_MODELS}:/opt/hb/pi-openrouter-models.json:ro"]
       end
       if uses?(candidate, "grok")
         # Keep sessions/config/leader state ephemeral per cell. Only the
@@ -387,50 +477,46 @@ module HiveBench
       state.file? && state.uid == Process.uid && state.nlink == 1 && state.mode.nobits?(0o022)
     end
 
-    # OPENROUTER_API_KEY is forwarded (never echoed) when a pi/open-model stage
-    # runs, along with per-stage model pins for the in-container shims. Codex
-    # needs stage pins when one cell uses Sol to plan/review and Terra to execute;
-    # Grok's profile also needs the shim because Hive passes no model flags.
+    # Forward credentials only. Candidate identity is declared in Hive's native
+    # `models:` config and compiled by its Agent CLI runtime.
     def env_args(candidate)
       args = []
-      if uses?(candidate, "pi")
+      if uses?(candidate, "pi") || uses?(candidate, "opencode")
         args += ENV["OPENROUTER_API_KEY"] ? ["-e", "OPENROUTER_API_KEY"] : []
-        (candidate.pi_models || {}).each do |stage, pattern|
-          args += ["-e", "HB_PI_MODEL_#{stage.upcase}=#{pattern}"]
-        end
-      end
-      if uses?(candidate, "codex")
-        (candidate.codex_models || {}).each do |stage, model|
-          args += ["-e", "HB_CODEX_MODEL_#{stage.upcase}=#{model}"]
-        end
-        (candidate.codex_efforts || {}).each do |stage, effort|
-          args += ["-e", "HB_CODEX_EFFORT_#{stage.upcase}=#{effort}"]
-        end
       end
       if uses?(candidate, "grok")
         args += ["-e", "GROK_AUTH_PATH=#{GROK_AUTH_CONTAINER_DIR}/auth.json"]
-        args += ["-e", "HB_GROK_MODEL=#{candidate.grok_model}"] if candidate.grok_model
-        args += ["-e", "HB_GROK_EFFORT=#{candidate.grok_effort}"] if candidate.grok_effort
       end
       args
     end
 
-    def uses?(candidate, agent)
-      [candidate.plan, candidate.execute, candidate.review].include?(agent)
+    def runner_image(candidate)
+      uses?(candidate, "opencode") ? OPENCODE_IMAGE : IMAGE
     end
 
-    # Minimal per-cell codex config: CE plugin registration (the cache is
-    # mounted + linked separately) + trust for /work, + the effort pin for
-    # xhigh candidates. Deliberately NOT the operator's config.toml — that
-    # carries personal MCP servers and host project trusts.
-    def codex_config(candidate)
-      # TOML: top-level keys must precede any [table] section, so the model
-      # and effort pins go first.
-      pins = +""
-      pins << %(model = "#{candidate.codex_model}"\n) if candidate.codex_model
-      pins << %(model_reasoning_effort = "#{candidate.codex_effort}"\n) if candidate.codex_effort
-      pins << "\n" unless pins.empty?
-      pins + <<~TOML
+    def opencode_runtime_args(candidate)
+      return [] unless uses?(candidate, "opencode")
+
+      [
+        "-v", "#{OPENCODE_BENCH_RUNTIME}:/opt/hb/opencode_bench_runtime.rb:ro",
+        "-e", "HB_OPENCODE_CE_PREFLIGHT=1",
+        "-e", "HB_OPENCODE_PROBE_TIMEOUT_SEC=60",
+        "-e", "RUBYOPT=-r/opt/hb/opencode_bench_runtime"
+      ]
+    end
+
+    def uses?(candidate, agent)
+      stage_agents = [candidate.plan, candidate.execute, candidate.review]
+      reviewer_agents = Array(candidate.reviewers).filter_map do |reviewer|
+        reviewer.is_a?(Hash) ? (reviewer["agent"] || reviewer[:agent]) : nil
+      end
+      (stage_agents + reviewer_agents).include?(agent)
+    end
+
+    # Candidate model and effort live in Hive's stage routes, not the operator's
+    # global Codex config. This file only registers CE and trusts the worktree.
+    def codex_config(_candidate)
+      <<~TOML
         [marketplaces.compound-engineering-plugin]
         source_type = "git"
         source = "https://github.com/EveryInc/compound-engineering-plugin.git"
@@ -466,6 +552,9 @@ module HiveBench
         warn "hive-bench: ANSWER-KEY ACCESS SUSPECT — #{entry["task_id"]}: #{hit}"
       end
       status, reason = classify(stdout, work, diff)
+      # Failed runs can leave a zero-byte capture that `generate` would mistake
+      # for a paid artifact sentinel. Preserve real diffs and terminal empties.
+      FileUtils.rm_f(diff_path) if diff.empty? && !%w[generated empty_diff].include?(status)
       cell(entry, candidate, status, status == "generated" ? diff_path : nil, tel, reason)
     end
 

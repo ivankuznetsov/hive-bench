@@ -9,8 +9,8 @@ for results, [[decisions]] for the methodology choices, `HANDOFF.md` for run com
 for each corpus task T, for each candidate C:
   1. clone target repo, `checkout -B main T.base_commit`, remove origin
   2. seed .hive-state/stages/2-brainstorm/<slug>/ with the FROZEN brainstorm + idea + assets
-  3. write .hive-state/config.yml from C (agent-per-stage, claude.model, …); git init .hive-state
-  4. container: hive plan (/ce-plan) -> force-complete if WAITING -> hive develop (execute)
+  3. write .hive-state/config.yml from C (agent/model/effort per stage, plan review disabled); git init .hive-state
+  4. container: exact mounted Hive runtime -> hive plan (/ce-plan) -> run a markerless promoted plan when required -> force-complete if WAITING -> hive develop (execute)
   5. capture working-tree diff (base..worktree, vendored-excluded) -> candidate.patch
   6. parse token telemetry from .hive-state/logs/<slug>/*.log (Pi counts each
      assistant `message_end`; update/turn-end copies are non-billable)
@@ -20,19 +20,22 @@ for each corpus task T, for each candidate C:
 ## Components (all under `harness/`)
 
 - **`lib/hive_driver.rb`** — host orchestrator (steps 1–3, 5–6 + the docker run); returns a
-  `Run::Cell`-shaped result so it flows into the existing `RunAll`/`Score`.
+  `Run::Cell`-shaped result so it flows into the existing `RunAll`/`Score`. It
+  mounts one selected host Hive runtime, records that version in generation
+  identity, and seeds a per-cell `HIVE_HOME` registry containing only `/work`.
 - **`lib/hive_stages.sh`** — runs INSIDE the container (step 4 + capture): plan, force-complete
   a WAITING plan (no human Q&A), develop, capture the working-tree diff. Force-completion
   commits only `plan.md`; transient Hive lock churn is deliberately left outside that
-  bookkeeping commit.
+  bookkeeping commit. A successful durable promotion that leaves plan markerless
+  is continued once with Hive's native `hive run` action before capture.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
 - **`profiles/candidates.rb`** — the v2/v3 slate. A *candidate* is a
   model-per-stage config: `all-opus-4.8`, `all-codex`,
   `opus-plan→codex-exec`, or one of the Sol/Terra/Grok follow-up workflows.
-  `claude_model` / `claude_effort` pin Claude. `codex_models` /
-  `codex_efforts` and `pi_models` select models per plan/execute/review stage
-  through container shims, which is how one Codex-backed cell can use Sol to
-  plan/review and Terra to execute.
+  `claude_model` / `claude_effort`, `codex_models` / `codex_efforts`,
+  `pi_models`, Grok fields, and OpenCode fields render into Hive's native
+  provider-neutral `models:` map. The shared Agent CLI runtime compiles CLI
+  flags; the benchmark no longer owns Codex/Grok/model-selection wrappers.
 - **`hive_run.rb`** — the CLI: corpus × candidates via `RunAll`, judged vs the gold
   (`withhold_reference: false`), no-op gate (the corpus is mostly uncurated).
   `--seeds N` controls judge samples per judge (default 1; ≥3 for published cells —
@@ -65,6 +68,12 @@ plan/execute result: the execute fallback remains a generated cell, while the
 missing review lift or judge score is deferred. Limits before plan or execute
 completion still park the generation.
 
+The provider-limit classifier reads only the harness transcript and structured
+stage error. Agent stream logs contain arbitrary repository, wiki, and fixture
+text and are not trusted quota channels; quota prose returned by a tool cannot
+false-park a failed cell. A failed stage's zero-byte patch sentinel is removed
+so retry logic cannot mistake it for paid generation evidence.
+
 Diff capture uses intent-to-add with the same generated-tree exclusions as the
 host restorer; it does not stage those trees into the branch that review sees.
 The exclusions include Bundler's `.bundle-local/` path as well as `.bundle/`,
@@ -89,7 +98,7 @@ and are classified as execution failures instead of trusting a stale patch.
   URL or `gh pr view/diff/checkout <n>` in the agent stream logs); a hit lands in
   telemetry as `answer_key_access_suspect` and warns loudly.
 - **Completed artifacts survive result/judge failures.** Before generation, the
-  driver persists the task, base commit, and full candidate definition in
+  driver persists the task, base commit, exact Hive runtime version, and full candidate definition in
   `.hb/generation-identity.json`. On retry it reuses `target/candidate.patch`
   only when that identity matches and Hive's `.hb/stages.out` transcript still
   classifies it as generated. `--no-reuse-existing-artifacts` forces a fresh
@@ -109,7 +118,8 @@ and are classified as execution failures instead of trusting a stale patch.
   still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
-  gem (`build_runner.sh` pins it from `git archive HEAD`). The gated corpus-submission
+  gem (`build_runner.sh` pins it from `git archive HEAD` and applies the default Pi and
+  explicit OpenCode runner tags). The gated corpus-submission
   workflow checks out Hive at an immutable full commit SHA and calls this same builder
   from an immutable checkout of the PR's trusted base SHA; validator, harness, and
   Dockerfile code never come from the submitted head. Only the submitted `corpus/**`
@@ -135,8 +145,12 @@ and are classified as execution failures instead of trusting a stale patch.
 
 Every one of these was needed to make real hive run headlessly with `/ce-plan`:
 
-- hive baked via **`gem install`** (not a mounted bundle — keeps hive's deps off the target
-  repo's CI). Build deps: `build-essential libsqlite3-dev pkg-config`.
+- the image retains a baked Hive fallback, but generation mounts the exact
+  selected host Hive source and matching gem home read-only. The stage script
+  verifies `HB_HIVE_VERSION` before any provider call.
+- Pi `0.84.2`, OpenCode `1.18.18`, and Compound Engineering `3.22.4` are pinned.
+  OpenCode gets a distinct image tag and a local `/opt/compound-engineering`
+  plugin; launch fails closed unless all 33 CE workflows are discoverable.
 - **non-root** (`runner`, uid 1000 == host uid → no git-ownership friction); claude refuses
   `--dangerously-skip-permissions` as root.
 - `HOME=/home/asterio` **and** `/home/asterio/.claude` on a **writable tmpfs**
@@ -153,6 +167,8 @@ Every one of these was needed to make real hive run headlessly with `/ce-plan`:
   0.3.6's hard-coded agent preflight; Grok itself still uses `GROK_AUTH_PATH`.
 - target clone: **drop `origin`** so the execute worktree branches off local `main`=base_commit.
   `.hive-state` is **its own git repo** (`git init`). Resolve the task by **path** (not slug).
+- each cell has an isolated `HIVE_HOME` with one registered project (`/work`),
+  and the explicit benchmark grant is required for `plan_review.enabled: false`.
 - capture the **working-tree** diff (the execute agent often leaves work uncommitted).
 
 These are mirrored in the code comments and [[findings]] (the Bash-tool bug). The fully

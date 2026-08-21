@@ -7,9 +7,12 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **open models (glm/kimi via pi)** — hive has **no `--model` flag for pi**; the model comes
-  from pi's provider config. To vary glm vs kimi, configure `~/.pi/agent` per run or add an
-  `agents.pi.args` passthrough. UNVERIFIED.
+- **OpenCode/Ox Alpha final evidence** — native provider-neutral routing now
+  covers Pi and OpenCode without model-selection shims, and focused tests pin
+  the separate OpenCode image, hermetic model declaration, CE inventory gate,
+  and no-plan-review parity. The paid parallel campaign is still running; do
+  not call the candidate generated, judged, deliberated, or publishable until
+  its retained result artifacts prove those layers.
 - **codex usage shape** — codex's stream reports input tokens with no cache split, so the
   token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
   codex reports cached tokens before publishing cost columns.
@@ -45,6 +48,11 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   inventing a duration. Persist start/end timestamps if recovered cells must enter
   time comparisons. Pre-identity artifacts also cannot prove their external model
   pins; their explicit recovery path marks `artifact_provenance: legacy-unverified`.
+- **Active Hive runtime portability** — generation now records and mounts an
+  exact Hive source/runtime plus the matching host gem home. This removes image
+  drift but makes a complete local Hive checkout and compatible gem home an
+  explicit prerequisite; a portable immutable runtime bundle remains future
+  work.
 - **Execute-resume crash window and CLI drift** — transport recovery fails closed
   if Codex changes its terminal event/message shape. Also, a host/container crash
   after the exact error marker is cleared but before `hive develop` starts can

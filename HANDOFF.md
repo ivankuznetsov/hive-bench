@@ -42,6 +42,9 @@ canonical scored cells from the last `hive_run.rb` pass.
 ```
 HIVE_SRC=~/Dev/hive harness/build_runner.sh
 ```
+The builder applies both `hive-bench-runner:latest` (Pi/default) and
+`hive-bench-runner:opencode` to the same pinned image. Override them with
+`IMAGE_TAG` and `OPENCODE_IMAGE_TAG` when a campaign needs private tags.
 
 **Run a candidate over the corpus (real hive, judged vs the reference PR):**
 ```

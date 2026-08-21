@@ -26,16 +26,35 @@ module HiveBench
 
     DEFAULT_WORKTREE_ROOT = "/work/.worktrees"
     DEFAULT_BRANCH = "main"
+    OPENCODE_PLUGIN = "/opt/compound-engineering"
+    OPENCODE_OX_ALPHA_MODEL = {
+      "name" => "Ox Alpha",
+      "family" => "alpha",
+      "release_date" => "2026-08-20",
+      "attachment" => true,
+      "reasoning" => true,
+      "temperature" => true,
+      "tool_call" => true,
+      "cost" => { "input" => 0, "output" => 0 },
+      "limit" => { "context" => 1_048_576, "output" => 131_072 },
+      "modalities" => { "input" => %w[text image], "output" => ["text"] },
+      "status" => "active",
+      "variants" => { "high" => { "reasoning" => { "effort" => "high" } } }
+    }.freeze
+    OPENCODE_PERMISSIONS = {
+      "preset" => "scoped", "tools" => %w[Read Write Edit]
+    }.freeze
 
     # candidate: responds to plan, execute, review (agent names: "claude"/"codex"/
     #   "pi"), claude_model (CLI id or nil), review_max_passes, review_wall_clock_sec,
     #   reviewers (Array), ci_command (String or nil).
     def to_h(candidate, worktree_root: DEFAULT_WORKTREE_ROOT, default_branch: DEFAULT_BRANCH)
-      {
+      config = {
         "claude" => { "mode" => "headless", "model" => candidate.claude_model,
                       "effort" => candidate.claude_effort }.compact,
         "default_branch" => default_branch,
         "worktree_root" => worktree_root,
+        "plan_review" => { "enabled" => false },
         "plan" => { "agent" => candidate.plan },
         "execute" => { "agent" => candidate.execute },
         # Without this, hive's built-in default (claude) would open the PR even
@@ -43,6 +62,89 @@ module HiveBench
         "open_pr" => { "agent" => candidate.review },
         "review" => review_config(candidate)
       }
+      if uses?(candidate, "opencode")
+        config["permissions"] = OPENCODE_PERMISSIONS
+        config["agents"] = {
+          "opencode" => {
+            "config" => {
+              "provider" => {
+                "openrouter" => {
+                  "models" => { "stealth/ox-alpha" => OPENCODE_OX_ALPHA_MODEL }
+                }
+              }
+            },
+            "credential_env" => ["OPENROUTER_API_KEY"],
+            "plugins" => [OPENCODE_PLUGIN],
+            "isolation" => "hermetic"
+          }
+        }
+      end
+
+      models = {}
+      add_route(models, "plan", route_for(candidate, candidate.plan, "plan"))
+      add_route(models, "execute", route_for(candidate, candidate.execute, "execute"))
+
+      # Candidate-owned review calls share one route. Reviewer panel members
+      # retain their own model declarations, so a mixed panel cannot inherit the
+      # candidate model from this coarse key.
+      review_route = route_for(candidate, candidate.review, "review")
+      add_route(models, "open_pr", review_route)
+      %w[review_ci review_triage review_fix].each { |stage| add_route(models, stage, review_route) }
+      add_route(models, "review_reviewers", shared_reviewer_route(config.dig("review", "reviewers")))
+      config["models"] = models unless models.empty?
+      config
+    end
+
+    def add_route(models, stage, route)
+      models[stage] = route.dup unless route.empty?
+    end
+
+    def route_for(candidate, agent, stage)
+      case agent
+      when "claude"
+        { "model" => candidate.claude_model, "effort" => candidate.claude_effort }.compact
+      when "codex"
+        {
+          "model" => candidate.codex_models&.fetch(stage, nil) || candidate.codex_model,
+          "effort" => candidate.codex_efforts&.fetch(stage, nil) || candidate.codex_effort
+        }.compact
+      when "pi"
+        { "model" => candidate.pi_models&.fetch(stage, nil) }.compact
+      when "opencode"
+        {
+          "model" => candidate.opencode_models&.fetch(stage, nil),
+          "effort" => candidate.opencode_effort
+        }.compact
+      when "grok"
+        { "model" => candidate.grok_model, "effort" => candidate.grok_effort }.compact
+      else
+        {}
+      end
+    end
+
+    def uses?(candidate, agent)
+      stage_agents = [candidate.plan, candidate.execute, candidate.review]
+      reviewer_agents = Array(candidate.reviewers).filter_map do |reviewer|
+        reviewer.is_a?(Hash) ? (reviewer["agent"] || reviewer[:agent]) : nil
+      end
+      (stage_agents + reviewer_agents).include?(agent)
+    end
+
+    # Hive has one routing key for the whole reviewer panel. Emit only a value
+    # shared by every non-linter reviewer; individual reviewer declarations own
+    # all other model/effort differences.
+    def shared_reviewer_route(reviewers)
+      specs = Array(reviewers).select { |reviewer| reviewer.is_a?(Hash) && reviewer["kind"] != "linter" }
+      return {} if specs.empty?
+
+      efforts = specs.map { |reviewer| reviewer["effort"] }
+      return { "effort" => efforts.first } if efforts.all? && efforts.uniq.one?
+
+      models = specs.map { |reviewer| reviewer["model"] }
+      return { "model" => models.first } if models.all? && models.uniq.one?
+      return { "effort" => "inherit" } if efforts.none? && models.any?
+
+      {}
     end
 
     # PROD review STRUCTURE on the CANDIDATE'S OWN MODELS (maintainer decision
@@ -82,13 +184,14 @@ module HiveBench
         { "name" => "#{agent}-ce-code-review", "kind" => "agent", "agent" => agent,
           "skill" => "ce-code-review", "output_basename" => "#{agent}-ce-code-review",
           "prompt_template" => CE_TEMPLATE_BY_AGENT.fetch(agent, "reviewer_claude_ce_code_review.md.erb"),
-          "budget_usd" => 50, "timeout_sec" => 7200 }
+          "budget_usd" => 50, "timeout_sec" => 7200 }.merge(route_for(candidate, agent, "review"))
       end
       if agents.include?("claude")
         set << { "name" => "pr-review-toolkit", "kind" => "agent", "agent" => "claude",
                  "skill" => "pr-review-toolkit:review-pr", "output_basename" => "pr-review-toolkit",
                  "prompt_template" => "reviewer_pr_review_toolkit.md.erb",
                  "budget_usd" => 50, "timeout_sec" => 7200 }
+               .merge(route_for(candidate, "claude", "review"))
       end
       set
     end
