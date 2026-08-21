@@ -49,6 +49,9 @@ for each corpus task T, for each candidate C:
   (`withhold_reference: false`), no-op gate (the corpus is mostly uncurated).
   `--seeds N` controls judge samples per judge (default 1; ≥3 for published cells —
   one seed collapses the tie interval).
+- The Sol CLI judge has a finite 3,600-second per-sample bound; a live ultra
+  judgment on a large patch exceeded the old 1,800-second ceiling while the
+  campaign was generating and judging all cells concurrently.
 - **`lib/model_family.rb` / `lib/pricing.rb`** — family mapping for the
   `same_family` judge flag + cross-family aggregate, and the versioned usual-tier
   price table (canonical `cost_usd` = tokens × table; the CLI's self-reported
