@@ -32,6 +32,9 @@ for each corpus task T, for each candidate C:
 - Identity-verified execute/review resumes keep candidate artifacts in place,
   but refresh the finite detached-worker launch and first-heartbeat timers to
   the current parallel-benchmark values before re-entering Hive.
+- Pi execute turns that end with the typed transport terminal `Stream ended
+  without finish_reason` resume in place, preserving partial work just like the
+  other bounded SSE/idle transport failures.
 - OpenCode's local capability probe has a benchmark-only 300-second capture
   bound because each agent phase repeats CLI help/auth/model inspection while
   all cells are running concurrently.

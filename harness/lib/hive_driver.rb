@@ -57,7 +57,8 @@ module HiveBench
     )\z}ix
     PI_RESUMABLE_EXECUTE_FAILURE = /\A(?:
       JSON\ error\ injected\ into\ SSE\ stream|
-      Upstream\ idle\ timeout\ exceeded
+      Upstream\ idle\ timeout\ exceeded|
+      Stream\ ended\ without\ finish_reason
     )\z/ix
     PI_RESUMABLE_PREFLIGHT_FAILURE =
       /\Apreflight failed: agent profile :pi probe failed: pi version check timed out after [1-9]\d*s: pi\z/i
