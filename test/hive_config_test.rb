@@ -122,6 +122,8 @@ class HiveConfigTest < Minitest::Test
 
     assert_equal "/work/.worktrees", h["worktree_root"], "worktree persists on the host mount"
     assert_equal "main", h["default_branch"], "branch off local main (= task base_commit)"
+    assert_equal 300, h["attempt_launch_timeout_sec"],
+                 "parallel runner startup must fit inside the launch claim"
   end
 
   def test_round_trips_to_yaml

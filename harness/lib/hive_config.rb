@@ -54,6 +54,11 @@ module HiveBench
                       "effort" => candidate.claude_effort }.compact,
         "default_branch" => default_branch,
         "worktree_root" => worktree_root,
+        # A full parallel campaign can put the host under swap pressure while
+        # detached Hive workers boot. Keep the launch claim bounded, but do not
+        # expire it at the production-oriented 30-second default before the
+        # worker can claim its already-admitted attempt.
+        "attempt_launch_timeout_sec" => 300,
         "plan_review" => { "enabled" => false },
         "plan" => { "agent" => candidate.plan },
         "execute" => { "agent" => candidate.execute },

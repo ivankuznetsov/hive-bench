@@ -119,6 +119,11 @@ and are classified as execution failures instead of trusting a stale patch.
   `develop`. Auth/usage limits, ordinary implementation failures, and identity
   drift still take the normal fresh-run path. Resumed cells record
   `execute_resumed: true` in efficiency telemetry.
+- **Parallel cells retain bounded launch claims.** Candidate configs raise
+  Hive's detached-worker launch claim from the production default to 300
+  seconds. This keeps an admitted plan/execute attempt alive while a heavily
+  loaded benchmark container starts, without changing the model timeout or
+  making worker startup unbounded.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD` and applies the default Pi and
   explicit OpenCode runner tags). The gated corpus-submission
