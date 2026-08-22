@@ -34,6 +34,45 @@ actual hive. See [[architecture]].
   this diff accomplish the task," not "how close to the reference"). v2 runs RunAll with
   `withhold_reference: false`.
 
+## Ox Alpha: Pi versus OpenCode (2026-08-22)
+
+The same OpenRouter `stealth/ox-alpha` model ran the six-task corpus through two
+separate single-family harnesses at high reasoning. Both serialized
+`plan_review.enabled: false`; OpenCode additionally proved the mounted Compound
+Engineering plugin, `/opt/compound-engineering/skills`, and all 33 generated CE
+commands in the retained run config.
+
+| task | Pi Sol | OpenCode Sol | Pi Fable | OpenCode Fable |
+|---|---:|---:|---:|---:|
+| add-i-key | 6.000 | 4.167 | 6.833 | — |
+| web-install | 3.767 | 2.167 | 6.000 | — |
+| install | 2.167 | 2.000 | — | 3.500 |
+| fix-tmux | 5.500 | 3.833 | — | — |
+| fix-review | 2.333 | 3.000 | 3.167 | 6.000 |
+| daemon | 3.000 | 2.833 | — | — |
+| **mean** | **3.794** | **3.000** | **5.333 (3/6)** | **4.750 (2/6)** |
+
+All Sol values are three-sample means at explicit `ultra` judge effort. Pi led
+five of six tasks and by 0.794 points overall; OpenCode led only fix-review.
+The Fable columns are incomplete and must not be treated as a six-task harness
+comparison: an earlier Claude session cap left seven rows without Fable scores,
+although later calls succeeded after the allowance reset.
+
+The canonical local artifacts are
+`runs/v3-ox-alpha-high-20260821-final/results.json` (Pi),
+`runs/v3-opencode-ox-alpha-high-20260821-final/results.json` (OpenCode), and
+`runs/v3-ox-alpha-high-20260821-combined-final/results.json` (12 rows). The
+combined result validates as 12 distinct generated cells, zero pending, zero
+failed, and 12/12 Sol judges at three samples.
+
+This campaign also exercised recovery rather than hiding it. The original Pi
+fix-review artifact was lost by the pre-fix timeout path and had to be freshly
+regenerated. The subsequent harness fix preserved completed candidate patches
+across post-develop timeouts, and the Pi daemon and web-install rows were then
+recovered without buying generation again. Hive fixes separately closed stale
+dynamic OpenCode routing and the false `dirty_worktree` terminal marker left
+after safe execute-residue auto-commit.
+
 ## Full-cycle smoke (2026-07-02, fix-claude-tmux-ready-detector, fable-5 judge)
 
 First run of the COMPLETE pipeline (plan → execute → open-pr → review) across the

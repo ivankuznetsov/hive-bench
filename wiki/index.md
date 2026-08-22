@@ -24,7 +24,7 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 - [[gaps]] — what's unverified / left to build
 - [[log]] — work log
 
-## Status (2026-07-13)
+## Status (2026-08-22)
 
 v2 is **published** as a real-hive benchmark: plan, execute, open-pr, and
 review run in the container by default, then the final post-review diff is
@@ -34,14 +34,23 @@ Codex 5.5 xhigh, GPT-5.6 Sol xhigh, GLM 5.2, Grok 4.5, and Opus-plan → Codex
 xhigh. It uses one Fable 5 and one Sol xhigh score per non-empty cell; the
 three-sample Sol `ultra` follow-up remains a separate campaign.
 
+The paid Ox Alpha harness comparison is now terminal: six Pi cells and six
+OpenCode cells all generated, with zero pending or failed rows. Both harnesses
+used OpenRouter `stealth/ox-alpha` at high reasoning, disabled plan review, and
+ran the same six tasks. Every row has three Sol `ultra` samples; five rows also
+have three Fable samples, while the other seven lack Fable scores because the
+Claude session cap was reached earlier in the campaign. See [[findings]].
+
 v3 adds campaign orchestration, stronger runtime gates, replication, and
 calibrated judge presentation. The native `bench` Hive workflow has guarded,
 idempotent stages and full no-cost fixture paths through
 extract/generate/judge/publish. Hive installs its versioned harness snapshot in
 the benchmark project's `.hive-state/bench-runtime`, so local users do not need
 to clone this repository merely to run the named workflow. Its maintained defaults are Fable plus Sol
-`ultra`, three samples, candidate-plan judging, and adversarial deliberation;
-the first paid campaign with that complete contract has not yet run end to end.
+`ultra`, three samples, candidate-plan judging, and adversarial deliberation.
+The Ox Alpha run proves paid generation and three-sample judging, but did not
+run the native workflow's deliberation and publish stages; that complete
+end-to-end contract remains open.
 See [[gaps]] and [[v3-workflow]].
 
 ## Query protocol

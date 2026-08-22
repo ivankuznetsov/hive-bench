@@ -7,12 +7,13 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **OpenCode/Ox Alpha final evidence** — native provider-neutral routing now
-  covers Pi and OpenCode without model-selection shims, and focused tests pin
-  the separate OpenCode image, hermetic model declaration, CE inventory gate,
-  and no-plan-review parity. The paid parallel campaign is still running; do
-  not call the candidate generated, judged, deliberated, or publishable until
-  its retained result artifacts prove those layers.
+- ~~**OpenCode/Ox Alpha generation and judging evidence**~~ — SOLVED: the paid
+  parallel campaign retained 6/6 Pi and 6/6 OpenCode generated cells, with zero
+  pending or failed rows and three Sol `ultra` samples on every row. OpenCode's
+  retained config proves the separate image, hermetic model declaration,
+  33-command CE inventory, and no-plan-review parity. Fable remains partial
+  (5/12 rows) because of an earlier Claude session cap. Deliberation and native
+  workflow publication were not run, so those layers remain unproven.
 - **codex usage shape** — codex's stream reports input tokens with no cache split, so the
   token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
   codex reports cached tokens before publishing cost columns.
