@@ -26,14 +26,35 @@ class HiveStagesTest < Minitest::Test
     end
   end
 
-  def test_codex_shim_accepts_stage_selected_model_and_effort
+  def test_stage_models_are_owned_by_hive_without_legacy_cli_shims
     source = File.read(SCRIPT)
 
-    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_PLAN:-}"'
-    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_EXECUTE:-}"'
-    assert_includes source, 'HB_CODEX_MODEL="${HB_CODEX_MODEL_REVIEW:-}"'
-    assert_includes source, 'args+=(-m "$HB_CODEX_MODEL")'
-    assert_includes source, 'model_reasoning_effort=\"$HB_CODEX_EFFORT\"'
+    refute_includes source, "HB_CODEX_MODEL_"
+    refute_includes source, "HB_PI_MODEL_"
+    refute_includes source, "HB_GROK_MODEL"
+    assert_includes source, 'hive plan "/work/.hive-state/stages/2-brainstorm/$SLUG"'
+    assert_includes source, 'hive develop "$PLAN_TASK"'
+  end
+
+  def test_failed_plan_never_advances_a_partial_artifact_to_develop
+    source = File.read(SCRIPT)
+    plan_block = source[/hive plan .*?PLAN_TASK=.*?\n/m]
+
+    refute_nil plan_block
+    assert_includes plan_block, 'PLAN_RC=$?'
+    assert_includes plan_block, 'if [ "$PLAN_RC" -ne 0 ]'
+    assert_includes plan_block, 'HB_NOTE plan_failed'
+    assert_operator plan_block.index('exit 4'), :<,
+                    plan_block.index('PLAN_TASK=')
+  end
+
+  def test_opencode_preflight_requires_the_complete_pinned_ce_corpus
+    source = File.read(SCRIPT)
+
+    assert_includes source, "preflight_opencode_ce_skills"
+    assert_includes source, "missing CE skill path"
+    assert_includes source, "incomplete CE skill corpus"
+    assert_includes source, 'HB_NOTE opencode_ce_skills enabled count=33'
   end
 
   def test_grok_auth_preflight_fails_when_credential_disappears
@@ -225,6 +246,73 @@ class HiveStagesTest < Minitest::Test
                    sh!("git", "show", "--pretty=", "--name-only", "HEAD", chdir: state_root).lines.map(&:strip).reject(&:empty?)
       assert_includes sh!("git", "status", "--short", chdir: state_root), " D stages/3-plan/task/.lock"
       assert_includes sh!("git", "status", "--short", chdir: state_root), "?? .commit-lock"
+    end
+  end
+
+  def test_normalize_null_plan_dependency_removes_only_the_invalid_frontmatter_field
+    source = File.read(SCRIPT)
+    normalize = source[/^normalize_null_plan_dependency\(\) \{.*?^\}/m]
+
+    refute_nil normalize
+
+    Dir.mktmpdir("hb-normalize-plan") do |root|
+      state_root = File.join(root, ".hive-state")
+      plan_dir = File.join(state_root, "stages", "3-plan", "task")
+      plan = File.join(plan_dir, "plan.md")
+      FileUtils.mkdir_p(plan_dir)
+      sh!("git", "init", "-q", "-b", "main", chdir: state_root)
+      sh!("git", "config", "user.email", "t@example.com", chdir: state_root)
+      sh!("git", "config", "user.name", "T", chdir: state_root)
+      File.write(plan, "---\ntitle: Plan\ndepends_on: null\n---\n\n# Plan\n")
+      sh!("git", "add", ".", chdir: state_root)
+      sh!("git", "commit", "-qm", "base", chdir: state_root)
+
+      out, err, status = Open3.capture3(
+        "bash", "-c", "#{normalize}\nnormalize_null_plan_dependency \"$1\" \"$2\"",
+        "hive-stages-test", plan, state_root
+      )
+
+      assert_predicate status, :success?, "#{err}\n#{out}"
+      assert_equal "---\ntitle: Plan\n---\n\n# Plan\n", File.read(plan)
+      assert_includes out, "plan_dependency_null_removed"
+      assert_equal ["stages/3-plan/task/plan.md"],
+                   sh!("git", "show", "--pretty=", "--name-only", "HEAD", chdir: state_root).lines.map(&:strip).reject(&:empty?)
+    end
+  end
+
+  def test_missing_plan_artifact_runs_the_markerless_plan_stage_once
+    source = File.read(SCRIPT)
+    ensure_plan = source[/^ensure_plan_artifact\(\) \{.*?^\}/m]
+
+    refute_nil ensure_plan
+
+    Dir.mktmpdir("hb-plan-resume") do |root|
+      state_root = File.join(root, ".hive-state")
+      hb_root = File.join(root, ".hb")
+      plan_task = File.join(state_root, "stages", "3-plan", "task")
+      bin = File.join(root, "bin")
+      FileUtils.mkdir_p([plan_task, hb_root, bin])
+      hive = File.join(bin, "hive")
+      File.write(hive, <<~SH)
+        #!/usr/bin/env bash
+        printf '# Plan\n\n<!-- COMPLETE -->\n' >"$2/plan.md"
+        printf '{}\n'
+      SH
+      FileUtils.chmod(0o755, hive)
+
+      out, err, status = Open3.capture3(
+        { "PATH" => "#{bin}:#{ENV.fetch("PATH")}" },
+        "bash", "-c",
+        "stage() { echo \"HB_STAGE $1 rc=$2\"; }\n#{ensure_plan}\n" \
+          "ensure_plan_artifact \"$1\" \"$2\" \"$3\"; printf 'PLAN_MD=%s\\n' \"$PLAN_MD\"",
+        "hive-stages-test", plan_task, state_root, hb_root
+      )
+
+      assert_predicate status, :success?, "#{err}\n#{out}"
+      assert_includes out, "HB_STAGE plan-run rc=0"
+      assert_includes out, "HB_NOTE plan_stage_resumed"
+      assert_includes out, "PLAN_MD=#{plan_task}/plan.md"
+      assert_path_exists File.join(hb_root, "plan-run.json")
     end
   end
 

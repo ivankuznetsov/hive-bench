@@ -64,3 +64,33 @@ cells load `harness/lib/pi_tool_stream.ts`, which adds GLM's provider-specific
 `tool_stream: true` request field for `z-ai/glm-5.2` only. This changes the
 transport framing, not the candidate model, prompt, tools, or generated tool
 arguments.
+
+## Ox Alpha through Pi and OpenCode
+
+The single-family `all-ox-alpha@high` candidate routes plan, execute, and
+review through Pi as `openrouter/stealth/ox-alpha:high`. The explicit suffix is
+part of the candidate identity: Ox Alpha's provider default is higher than the
+requested benchmark tier. The runner mounts a minimal Pi OpenRouter catalog
+and writes the existing `OPENROUTER_API_KEY` into Pi's ephemeral native auth
+store without persisting or printing it.
+
+`all-ox-alpha-opencode@high` runs the same three stages as
+`openrouter/stealth/ox-alpha` with OpenCode variant `high`. It uses the separate
+`hive-bench-runner:opencode` image with OpenCode `1.18.18` and Compound
+Engineering `3.22.4` at `/opt/compound-engineering`. Before Hive starts, the
+stage script verifies the local plugin config, the required plan/work/review
+commands, and an exact 33-workflow CE inventory. The OpenCode profile is
+hermetic, declares the Ox Alpha capability locally, and receives only the named
+`OPENROUTER_API_KEY` credential.
+
+Both candidates serialize `plan_review.enabled: false` and require the
+process-local `HIVE_BENCH_ALLOW_DISABLED_PLAN_REVIEW=1` grant. No critique
+model is inserted before execution, keeping Pi and OpenCode on the same
+historical benchmark contract. Fable and Sol are judges only and run after a
+candidate patch is generated.
+
+The exact Hive runtime mount also puts that checkout's
+`components/agent-cli-runtime/lib` and `lib` directories first on `RUBYLIB`.
+Invoking the mounted `bin/hive` directly would otherwise resolve the
+host-installed component gem, silently bypassing component changes in the
+selected checkout even though Hive's own source came from the mount.

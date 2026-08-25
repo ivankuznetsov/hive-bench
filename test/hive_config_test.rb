@@ -3,18 +3,23 @@
 require "minitest/autorun"
 require "yaml"
 require "lib/hive_config"
+require "profiles/candidates"
 
 # HiveConfig renders a candidate (model settings per hive stage) into a real
 # hive config.yml. These cover the field mapping the Stage A/B bring-up pinned.
 class HiveConfigTest < Minitest::Test
   Candidate = Data.define(:plan, :execute, :review, :claude_model, :claude_effort, :review_max_passes,
-                          :review_wall_clock_sec, :reviewers, :ci_command)
+                          :review_wall_clock_sec, :reviewers, :ci_command, :pi_models,
+                          :opencode_models, :opencode_effort, :codex_model, :codex_effort,
+                          :codex_models, :codex_efforts, :grok_model, :grok_effort)
 
   def candidate(**over)
     base = { plan: "claude", execute: "claude", review: "claude", claude_model: "claude-opus-4-8",
              claude_effort: nil,
              review_max_passes: 2, review_wall_clock_sec: 7200, reviewers: [],
-             ci_command: "bundle exec rake test" }
+             ci_command: "bundle exec rake test", pi_models: nil, opencode_models: nil,
+             opencode_effort: nil, codex_model: nil, codex_effort: nil,
+             codex_models: nil, codex_efforts: nil, grok_model: nil, grok_effort: nil }
     Candidate.new(**base, **over)
   end
 
@@ -65,6 +70,7 @@ class HiveConfigTest < Minitest::Test
     assert_equal "courageous", r.dig("triage", "bias")
     assert_equal "claude", r.dig("fix", "agent")
     assert_equal "inherit", r.dig("fix", "auto_commit", "sign_policy")
+    assert_equal false, r.dig("fix", "auto_commit", "scope_check", "enabled")
     refute r.dig("browser_test", "enabled")
     refute r.dig("github_publish", "enabled"), "no real GitHub in the container"
     names = r["reviewers"].map { |rev| rev["skill"] }
@@ -117,11 +123,57 @@ class HiveConfigTest < Minitest::Test
 
     assert_equal "/work/.worktrees", h["worktree_root"], "worktree persists on the host mount"
     assert_equal "main", h["default_branch"], "branch off local main (= task base_commit)"
+    assert_equal 300, h["attempt_launch_timeout_sec"],
+                 "parallel runner startup must fit inside the launch claim"
+    assert_equal 300, h["attempt_first_heartbeat_timeout_sec"],
+                 "parallel worker startup must fit before the first heartbeat"
   end
 
   def test_round_trips_to_yaml
     y = YAML.safe_load(HiveBench::HiveConfig.to_yaml(candidate))
 
     assert_equal "claude-opus-4-8", y.dig("claude", "model")
+  end
+
+  def test_benchmark_disables_plan_review_for_all_candidates
+    h = HiveBench::HiveConfig.to_h(candidate)
+
+    assert_equal false, h.dig("plan_review", "enabled")
+  end
+
+  def test_ox_alpha_pi_candidate_routes_one_high_reasoning_family_through_every_stage
+    h = HiveBench::HiveConfig.to_h(HiveBench::Candidates.all_ox_alpha_high)
+
+    assert_equal "pi", h.dig("plan", "agent")
+    assert_equal "pi", h.dig("execute", "agent")
+    assert_equal "pi", h.dig("review", "agent")
+    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "plan", "model")
+    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "execute", "model")
+    %w[open_pr review_ci review_triage review_fix].each do |stage|
+      assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", stage, "model")
+    end
+    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("review", "reviewers", 0, "model")
+    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "review_reviewers", "model")
+  end
+
+  def test_ox_alpha_opencode_candidate_has_hermetic_ce_plugin_and_high_routes
+    h = HiveBench::HiveConfig.to_h(HiveBench::Candidates.all_ox_alpha_opencode_high)
+
+    assert_equal "opencode", h.dig("plan", "agent")
+    assert_equal "opencode", h.dig("execute", "agent")
+    assert_equal "opencode", h.dig("review", "agent")
+    assert_equal "scoped", h.dig("permissions", "preset")
+    assert_equal ["/opt/compound-engineering"], h.dig("agents", "opencode", "plugins")
+    assert_equal ["OPENROUTER_API_KEY"], h.dig("agents", "opencode", "credential_env")
+    assert_equal "hermetic", h.dig("agents", "opencode", "isolation")
+    assert h.dig("agents", "opencode", "config", "provider", "openrouter", "models", "stealth/ox-alpha")
+    %w[plan execute open_pr review_ci review_triage review_fix].each do |stage|
+      assert_equal "openrouter/stealth/ox-alpha", h.dig("models", stage, "model")
+      assert_equal "high", h.dig("models", stage, "effort")
+    end
+    assert_equal "openrouter/stealth/ox-alpha", h.dig("review", "reviewers", 0, "model")
+    assert_equal "high", h.dig("review", "reviewers", 0, "effort")
+    assert_equal "high", h.dig("models", "review_reviewers", "effort")
+    assert_nil h.dig("models", "review_reviewers", "model")
   end
 end

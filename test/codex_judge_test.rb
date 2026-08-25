@@ -17,6 +17,10 @@ class CodexJudgeTest < Minitest::Test
     FileUtils.remove_entry(@dir) if @dir && File.directory?(@dir)
   end
 
+  def test_default_timeout_covers_parallel_ultra_judging
+    assert_equal 3600, CJ::DEFAULT_TIMEOUT
+  end
+
   def fake_bin(stderr:, exit_code:)
     path = File.join(@dir, "fake_codex.sh")
     File.write(path, <<~SH)
