@@ -2,17 +2,23 @@
 
 What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 
-## Candidate matrix (opus, codex, and the mixed candidate PROVEN 2026-07-02)
+## Candidate and runtime validation
 
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **open models (glm/kimi via pi)** — hive has **no `--model` flag for pi**; the model comes
-  from pi's provider config. To vary glm vs kimi, configure `~/.pi/agent` per run or add an
-  `agents.pi.args` passthrough. UNVERIFIED.
+- ~~**open-model routing (glm/kimi via Pi)**~~ — RESOLVED in the installed
+  2026-08-25 snapshot: the candidate's stage model is declared in Hive's
+  provider-neutral `models:` map and the shared Agent CLI runtime compiles Pi's
+  native flag. The remaining Pi wrapper changes tool streaming only.
 - **codex usage shape** — codex's stream reports input tokens with no cache split, so the
   token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
   codex reports cached tokens before publishing cost columns.
+- **Packaged Pi telemetry regression** — default-branch commit `aa64322` fixed
+  token accounting to count final assistant `message_end` events only. Queued
+  installed-runtime commit `90fef72` removes that filter and again sums repeated
+  `message_update`/`message_end`/`turn_end` usage. Candidate output and scores are
+  unaffected, but Pi token/cost totals from this snapshot are not publishable.
 
 ## Review stage (SHIPPED 2026-07-02 — leftovers)
 
@@ -22,6 +28,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
     REVIEW_COMPLETE/WAITING/STALE marker (file/format) and wire it into telemetry.
   - CI-fix phase is inert while `ci.command` is null (prod parity); once gates are curated,
     feed the gate's `test_cmd` in as `ci_command` so review runs real CI.
+  - The installed snapshot again inherits Hive's default review auto-commit
+    scope check. No queued test or paid run proves that corpus tasks touching
+    schemas, examples, packaging, or other non-default paths complete review
+    without a scope rejection.
 
 ## Cleanup (Stage E)
 
@@ -45,11 +55,24 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   inventing a duration. Persist start/end timestamps if recovered cells must enter
   time comparisons. Pre-identity artifacts also cannot prove their external model
   pins; their explicit recovery path marks `artifact_provenance: legacy-unverified`.
-- **Execute-resume crash window and CLI drift** — transport recovery fails closed
-  if Codex changes its terminal event/message shape. Also, a host/container crash
-  after the exact error marker is cleared but before `hive develop` starts can
-  leave the preserved task markerless; a durable resume-intent journal would
-  close that narrow window.
+- **Execute-resume crash window and CLI drift** — recovery is now limited to an
+  identity-matched Codex `implementer_failed` marker plus one of two exact
+  transport messages. It fails closed if Codex changes its terminal shape. A
+  crash after the exact marker is cleared but before `hive develop` starts can
+  still leave the preserved task markerless; a durable resume-intent journal
+  would close that window. Pi/preflight failures, `provider_error`,
+  dirty-worktree residue, and failed review no longer resume in place; the
+  intended cost/recovery posture for those removed paths has no queued live
+  validation.
+- **Runner/default and identity drift** — the installed driver no longer mounts
+  or version-checks the host's active Hive runtime, and schema-v1 generation
+  identity no longer contains the Hive version. It also stops overriding
+  `plan_review` and attempt launch/first-heartbeat timeouts. The exact defaults
+  and parallel-start behavior therefore depend on the baked runner image, and
+  compatibility with pre-change identity files has not been demonstrated. The
+  stage wrapper also removed its second `hive run` for a markerless promoted
+  plan and its `depends_on: null` normalization; no queued test proves the baked
+  Hive/runtime combination makes those compatibility paths unnecessary.
 - **Gate curation is still the biggest lever** — v2 runs a no-op gate; the objective floor
   returns only when tasks carry curated verbose gates. Corpus is now 6 accepted tasks
   (2026-07-01 extraction round); PRs #623/#624/#625 ship unit tests → best F2P candidates.
@@ -58,10 +81,15 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   coverage. A fresh paid campaign using campaign-declared Fable + Sol `ultra`,
   three samples, undersample repair, candidate-plan judging, and adversarial
   deliberation has not yet completed end to end.
-- **Mixed follow-up live validation** — stage-specific Sol/Terra Codex pins,
-  the combined Sol+Grok runner selection, and sole Sol `ce-code-review` policy
-  are unit/smoke-pinned but have not yet completed a paid cell. The serialized
-  follow-up campaign is the intended live proof.
+- **Mixed follow-up live validation** — the original three stage-specific
+  Sol/Terra/Grok profiles are unit/smoke-pinned but have not yet completed a paid
+  cell. The four new profiles add Grok-owned review, a Sol+Grok panel, and fixed
+  Sol+Opus panels for Opus-vs-Fable planning; the queued commits contain profile
+  definitions but no test changes or paid evidence for them.
+- **Configured main wiki unavailable during refresh** —
+  `.llm-wiki/config.json` points to `/home/asterio/wikis/master/wiki`, which did
+  not exist in this worktree environment on 2026-08-25. Cross-project Hive
+  runtime/default assumptions in this refresh could not be checked there.
 
 ## Finish-the-board queue (2026-07-04)
 
@@ -76,9 +104,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   fewer max_tokens" (402 variant) isn't in AgentLimit; a plan stage stuck at
   `:agent_working` after an instant agent death classifies as execute_failed
   rather than a limit when the balance is the cause.
-- **Recompute open-cell telemetry at merge time** — cells generated before the
-  pi camelCase fix carry zero tokens; the stream logs persist, so a merge-time
-  backfill can price them.
+- ~~**Recompute retained GLM telemetry**~~ — DONE on 2026-08-16 from final Pi
+  events. Kimi/mixed totals whose streams are not committed remain unknown. Do
+  not replace the corrected GLM values with totals from the regressed installed
+  snapshot described above.
 
 ## Known open questions
 

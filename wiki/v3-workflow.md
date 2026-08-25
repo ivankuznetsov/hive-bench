@@ -117,7 +117,11 @@ contract, not prose for an agent to reimplement.
   a zero-new-cell retry. Its second round explicitly makes each judge argue the
   strongest evidence-based case that its own initial score was wrong before
   choosing a final diagnostic score. Deliberated scores never replace the
-  independent leaderboard scores. Both commands search the per-cell run
+  independent leaderboard scores. A failed judge in either round also emits a
+  `HIVE_BENCH_JUDGE_FAILURE` JSON line keyed by task, candidate, and judge;
+  `limits_reached` is true only for a trusted `ProviderLimitError`. This lets the
+  `JudgeSlate` consumers use cell-scoped quota evidence rather than unrelated
+  stderr. Both commands search the per-cell run
   directories (`runs/<campaign_id>/*--*`) for artifacts. Validation requires
   every non-excluded matrix cell, the campaign's exact judge slate by name,
   the requested sample count and reasoning effort on every non-`empty_diff`
@@ -152,15 +156,26 @@ parallel, subject to Hive's global and per-project limits. For quota sharing,
 set the Hive per-project cap to two rather than adding shell-level fan-out.
 Never run two tasks against the same `campaign_id`/result root concurrently.
 
-The follow-up workflow slate includes `sol-plan->terra-exec-sol-review`,
+The follow-up workflow slate retains `sol-plan->terra-exec-sol-review`,
 `fable-plan->grok-exec-sol-review`, and
-`sol-plan->grok-exec-sol-review`. Each uses exactly one Sol xhigh Codex
-`ce-code-review` reviewer. Stage-specific Codex model/effort pins select Sol or
-Terra even when both stages resolve through Hive's `codex` agent profile. A
-cell that touches GPT-5.6 selects `hive-bench-runner:sol`; that image also
-contains Grok, so mixed Sol/Grok cells do not fall back to the older Grok-only
-runner. A single campaign task remains one daemon slot and walks these cells
-one at a time.
+`sol-plan->grok-exec-sol-review`, each with one Sol xhigh Codex reviewer. It now
+also exposes four production-shaped comparisons:
+
+- `sol-plan->terra-exec-grok-review` — Grok owns open-pr/review and is the sole
+  reviewer.
+- `sol-plan@xhigh->exec@high+grok-review` — Sol owns review with independent Sol
+  and Grok reviewers.
+- `opus-5-plan@xhigh->sol-exec@high+sol-opus-review` and
+  `fable-5-plan@xhigh->sol-exec@high+sol-opus-review` — planner-only comparison
+  with Sol execution/review and a fixed Sol+Opus 5 reviewer panel.
+
+Stage-specific model/effort pins now flow through Hive's native `models:` map
+even when multiple stages share the `codex` agent profile; explicit reviewer
+specs retain their own model/effort. The previous Pi/OpenCode Ox Alpha profiles
+are no longer in `Candidates.all`. A cell that touches GPT-5.6 selects
+`hive-bench-runner:sol`; that image also contains Grok, so mixed Sol/Grok cells
+do not fall back to the older Grok-only runner. A single campaign task remains
+one daemon slot and walks these cells one at a time.
 
 Every stage failure is durable and idempotent, while already-bought candidate
 patches, judge scores, and deliberations are reused on the next dispatch.

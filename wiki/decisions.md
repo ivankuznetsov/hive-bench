@@ -37,14 +37,24 @@ keeps review quality part of the candidate's measured workflow rather than a
 free claude post-processor. The bench deviation is still deliberate:
 `github_publish` is disabled and the PR lives on a local origin.
 
-## 2026-07-09 — explicit model pins for CLIs without hive model fields
+The 2026-08-25 slate keeps that principle but adds explicit production-shaped
+panels. Sol/Terra execution can be reviewed solely by Grok; the flagship Sol
+workflow uses independent Sol and Grok reviewers; and the Opus/Fable planner
+comparison holds Sol+Opus review constant. Reviewer model/effort is stored on
+each reviewer spec, so changing the planner does not silently change a peer
+reviewer. Review auto-commit now inherits Hive's normal scope check rather than
+disabling it for benchmark clones.
 
-hive has no native pi or grok model field and codex effort is a CLI config
-setting, so the benchmark owns those pins at the container boundary:
-`HB_PI_MODEL_<STAGE>` for glm/kimi and mixed open-model pairs,
-`HB_GROK_MODEL`/`HB_GROK_EFFORT` for grok, and generated per-cell codex
-`config.toml` for plugin registration plus xhigh effort. Operator-local CLI
-configuration is not used as benchmark configuration.
+## 2026-08-25 — provider-neutral model routing supersedes container shims
+
+The 2026-07-09 harness-owned Pi/Grok/Codex shim decision is superseded. Candidate
+profiles now declare provider-neutral model/effort per stage in Hive's
+`models:` map, and Hive's shared Agent CLI runtime alone compiles native CLI
+flags. Generated Codex config remains only for plugin registration and worktree
+trust; Pi's wrapper remains only for GLM tool streaming. Operator-local CLI
+configuration is still not benchmark configuration. The separate Pi and
+OpenCode Ox Alpha profiles and their benchmark-specific runtime machinery were
+removed from the installed slate.
 
 ## 2026-07-10 — freeze a campaign once paid work starts
 

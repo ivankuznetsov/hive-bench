@@ -9,11 +9,12 @@ for results, [[decisions]] for the methodology choices, `HANDOFF.md` for run com
 for each corpus task T, for each candidate C:
   1. clone target repo, `checkout -B main T.base_commit`, remove origin
   2. seed .hive-state/stages/2-brainstorm/<slug>/ with the FROZEN brainstorm + idea + assets
-  3. write .hive-state/config.yml from C (agent-per-stage, claude.model, …); git init .hive-state
+  3. write .hive-state/config.yml from C (agent-per-stage plus native `models:` routes); git init .hive-state
   4. container: hive plan (/ce-plan) -> force-complete if WAITING -> hive develop (execute)
   5. capture working-tree diff (base..worktree, vendored-excluded) -> candidate.patch
-  6. parse token telemetry from .hive-state/logs/<slug>/*.log (Pi counts each
-     assistant `message_end`; update/turn-end copies are non-billable)
+  6. parse token telemetry from .hive-state/logs/<slug>/*.log. The installed
+     2026-08-25 snapshot currently sums every usage-bearing event; for Pi this
+     includes repeated update/end/turn-end usage and is a known regression in [[gaps]].
   7. dual-judge (fable-5 + gpt-5.5-pro; was opus-4.8 in early passes) vs reference.patch (reference-PROVIDED)
 ```
 
@@ -24,15 +25,21 @@ for each corpus task T, for each candidate C:
 - **`lib/hive_stages.sh`** — runs INSIDE the container (step 4 + capture): plan, force-complete
   a WAITING plan (no human Q&A), develop, capture the working-tree diff. Force-completion
   commits only `plan.md`; transient Hive lock churn is deliberately left outside that
-  bookkeeping commit.
+  bookkeeping commit. The installed snapshot records one `hive plan` attempt,
+  locates any resulting `plan.md`, and develops only when that path resolves. It
+  no longer follows a markerless `ready_to_run` state with a second `hive run`,
+  or rewrites `depends_on: null`/`~`; final classification still requires the
+  original plan stage to have returned rc=0.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
 - **`profiles/candidates.rb`** — the v2/v3 slate. A *candidate* is a
   model-per-stage config: `all-opus-4.8`, `all-codex`,
-  `opus-plan→codex-exec`, or one of the Sol/Terra/Grok follow-up workflows.
+  `opus-plan→codex-exec`, or one of the Sol/Terra/Grok/Opus follow-up workflows.
   `claude_model` / `claude_effort` pin Claude. `codex_models` /
   `codex_efforts` and `pi_models` select models per plan/execute/review stage
-  through container shims, which is how one Codex-backed cell can use Sol to
-  plan/review and Terra to execute.
+  through Hive's provider-neutral `models:` map; the shared Agent CLI runtime
+  compiles the provider-specific flags. The 2026-08-25 installed slate has 17
+  profiles: it removes the Pi/OpenCode Ox Alpha pair and adds four
+  production-shaped review comparisons described below.
 - **`hive_run.rb`** — the CLI: corpus × candidates via `RunAll`, judged vs the gold
   (`withhold_reference: false`), no-op gate (the corpus is mostly uncurated).
   `--seeds N` controls judge samples per judge (default 1; ≥3 for published cells —
@@ -41,6 +48,16 @@ for each corpus task T, for each candidate C:
   `same_family` judge flag + cross-family aggregate, and the versioned usual-tier
   price table (canonical `cost_usd` = tokens × table; the CLI's self-reported
   figure is kept as `cost_usd_reported`).
+
+`HiveConfig` emits exact routes for `plan`, `execute`, `open_pr`, `review_ci`,
+`review_triage`, and `review_fix`. Explicit reviewer specs retain their own
+provider model/effort; `models.review_reviewers` carries a shared field only
+when doing so preserves every non-linter reviewer, with `effort: inherit` as a
+no-flag activation route when appropriate. The top-level legacy `claude`
+model/effort remains as a fallback for heterogeneous reviewer panels. The
+installed snapshot no longer overrides Hive's attempt launch/first-heartbeat
+timeouts, `plan_review`, or review auto-commit scope checking, so those behaviors
+come from the Hive runtime baked into the selected runner image.
 
 ## Full cycle (2026-07-01)
 
@@ -51,9 +68,14 @@ agent, ci.max_attempts 3, max_passes 2) with the candidate's agent substituted
 everywhere; `github_publish` is disabled and open-pr lands on a bench-local
 bare origin with a minimal `gh` shim on PATH (`hive_stages.sh` writes both).
 The pr-review-toolkit reviewer runs only for derived Claude reviewer sets. A
-candidate may instead pre-register an explicit reviewer list; the three
-Sol/Terra/Grok follow-up profiles use only Sol xhigh through Codex
-`ce-code-review`, keeping review policy controlled while planner/executor vary.
+candidate may instead pre-register an explicit reviewer list. The original
+three Sol/Terra/Grok follow-ups retain a sole Sol xhigh Codex reviewer. Four new
+profiles add: Sol-plan/Terra-execute with Grok owning open-pr/review and a sole
+Grok reviewer; Sol xhigh plan/Sol high execute with Sol owning review and a
+Sol+Grok panel; and Opus 5 or Fable 5 xhigh planning with Sol high execution,
+Sol-owned review, and the same Sol+Opus 5 panel. Reviewer-level pins keep a
+Fable planner from changing the Opus reviewer identity.
+
 TWO diffs are captured: `candidate-execute.patch` (post-execute) and
 `candidate.patch` (final, post-review — the scored one; falls back to the
 execute diff when review fails). Telemetry gains `open_pr_ok`, `review_ok`,
@@ -81,7 +103,9 @@ and are classified as execution failures instead of trusting a stale patch.
   `HB_GEN_NETWORK` (generation can't run `--network none` — the agent needs its
   model API).
 - The stage command appends `HB_EXIT rc=$?`: rc=124 classifies as **`timed_out`**
-  (a slow candidate), no longer misread as `plan_failed`.
+  (a slow candidate), no longer misread as `plan_failed`. The installed snapshot
+  always classifies rc=124 this way; it does not promote a saved execute patch
+  into a generated cell when review overruns the outer timeout.
 - `HB_NOTE plan_forced_complete` is surfaced into cell telemetry
   (`plan_forced_complete: true`) — the covariate of the `/ce-plan` scope-fork
   variance.
@@ -100,14 +124,23 @@ and are classified as execution failures instead of trusting a stale patch.
   `judges` map and also parks it in `pending`/`failed`, allowing `rejudge.rb` to
   backfill without rebuying the run. A completed artifact with mismatched
   provenance fails closed without deleting anything; replacing it requires the
-  explicit `--no-reuse-existing-artifacts` fresh-run option.
+  explicit `--no-reuse-existing-artifacts` fresh-run option. Runtime version is
+  no longer part of this schema-v1 identity, and the driver no longer overlays
+  the host's active Hive runtime into the container.
 - **Identity-verified Codex transport failures resume in place.** When a task is
   parked at `4-execute` with the exact `implementer_failed` marker and its final
   Codex event is a model-transport disconnect (not an auth/usage limit), the
   driver preserves the worktree, reuses the committed plan, clears only that
   marker by id, and asks Hive to continue `develop`. Other incomplete artifacts
   still take the normal fresh-run path. Resumed cells record
-  `execute_resumed: true` in efficiency telemetry.
+  `execute_resumed: true` in efficiency telemetry. Pi transport/preflight
+  failures, `provider_error`, dirty-worktree residue, and failed review are no
+  longer in-place resume states.
+- **Provider-limit classification reads the current attempt's stream logs.** The
+  driver snapshots each log's device/inode/size before the container run, then
+  scans only newly appended bytes (or a replacement file from offset zero), in
+  addition to stage stdout/stderr. A stale quota line from an earlier attempt
+  therefore does not by itself classify the new attempt as `limit_hit`.
 - **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
   gem (`build_runner.sh` pins it from `git archive HEAD`). The gated corpus-submission
   workflow checks out Hive at an immutable full commit SHA and calls this same builder
@@ -125,9 +158,25 @@ and are classified as execution failures instead of trusting a stale patch.
   load path itself, so its documented standalone invocation does not depend on Rake's
   test-only `-Iharness` setup.
 
+## Judge and deliberation runtime
+
+The Codex judge's per-call ceiling is 3600 seconds because Sol at `ultra` can
+exceed 30 minutes on a large diff under parallel load. Claude judge quota
+classification still trusts the shared stderr classifier; on stdout it accepts
+only a standalone Claude usage/session reset banner, after removing an optional
+`mise ... tools: claude@...` launcher line. Other nonzero stdout remains bounded
+diagnostic text and cannot manufacture `limits_reached`.
+
+Deliberation now passes `task_id` and `agent_id` into both rounds. Every failed
+judge round emits a `HIVE_BENCH_JUDGE_FAILURE` JSON event keyed by task,
+candidate, and judge; only `ProviderLimitError` sets `limits_reached: true`.
+Round one still drops the failed judge, round two still keeps its initial verdict
+with `final: nil`, and diagnostic deliberated scores never replace leaderboard
+scores.
+
 ## Reused from v1 (unchanged)
 
-`judge.rb` (+ `judge-prompt.md`, already has `{{REFERENCE_SECTION}}`), `lib/claude_judge.rb`,
+`judge.rb` (+ `judge-prompt.md`, already has `{{REFERENCE_SECTION}}`),
 `lib/openrouter_judge.rb`, `score.rb`, `run_all.rb`, `merge_results.rb`, `lib/corpus.rb`,
 `lib/git_restore.rb`.
 
@@ -135,8 +184,11 @@ and are classified as execution failures instead of trusting a stale patch.
 
 Every one of these was needed to make real hive run headlessly with `/ce-plan`:
 
-- hive baked via **`gem install`** (not a mounted bundle — keeps hive's deps off the target
-  repo's CI). Build deps: `build-essential libsqlite3-dev pkg-config`.
+- hive baked via **`gem install`** in the runner image (not a mounted bundle —
+  keeps hive's deps off the target repo's CI). The 2026-08-25 snapshot uses the
+  image's Hive directly and no longer bind-mounts `HB_HIVE_BIN`/its gem home or
+  checks an expected runtime version at container startup. Build deps:
+  `build-essential libsqlite3-dev pkg-config`.
 - **non-root** (`runner`, uid 1000 == host uid → no git-ownership friction); claude refuses
   `--dangerously-skip-permissions` as root.
 - `HOME=/home/asterio` **and** `/home/asterio/.claude` on a **writable tmpfs**

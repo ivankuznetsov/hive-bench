@@ -76,16 +76,19 @@ Run over every existing diff (17 cells, no-network container):
 
 - **Codex needed an explicit per-cell config.** Mounting the plugin cache was
   not enough; codex had to see a generated `config.toml` that registers the CE
-  plugin and trusts `/work`. The same file carries xhigh effort pins for the
-  codex-xhigh candidates.
+  plugin and trusts `/work`. As of the 2026-08-25 installed snapshot, candidate
+  effort/model pins no longer live in that file; Hive's native `models:` routes
+  and shared Agent CLI runtime own them.
 - **Native CE skills matter for review parity.** Codex's own review logs exposed
   that the requested CE skill was not available. The driver now mounts codex's
   plugin cache and pi's CE skill tree read-only, then links them inside each
   CLI's writable home tmpfs before hive stages run.
-- **pi and grok model pins are harness-owned.** pi stage shims now inject
-  `--model` per stage, closing the earlier glm/kimi ambiguity. Grok is added as
-  `all-grok-4.5` with model and xhigh effort pinned through the same shim
-  pattern; grok reports no token usage, so cost remains unknown by design.
+- **pi and grok model pins are explicit but no longer shim-owned.** The earlier
+  stage shims closed the glm/kimi ambiguity; the 2026-08-25 snapshot moves those
+  same stage identities into Hive's provider-neutral `models:` map. The shared
+  Agent CLI runtime renders Pi/Grok/Codex flags, while Pi's remaining wrapper is
+  transport-only. Grok reports no token usage, so cost remains unknown by
+  design.
 - **Review is candidate-owned.** The generated review config now derives the
   reviewer set from the candidate's distinct agents, so single-model candidates
   review themselves and mixed claude+codex candidates get the prod-like tri-set.
@@ -142,6 +145,9 @@ signal.
   all three inflated the published GLM telemetry. Re-reading the six retained
   streams from `message_end` reduces GLM from 83.65M to 21.793M normalized
   tokens/task and from $21.97 to $5.65/task without changing any diff or score.
+  The 2026-08-25 installed snapshot removes this final-event filter and therefore
+  reintroduces the known overcount; its Pi totals must not supersede the
+  corrected figures.
 
 ## v1 findings (the imitation — still informative)
 
