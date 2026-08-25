@@ -34,44 +34,65 @@ actual hive. See [[architecture]].
   this diff accomplish the task," not "how close to the reference"). v2 runs RunAll with
   `withhold_reference: false`.
 
-## Ox Alpha: Pi versus OpenCode (2026-08-22)
+## Ox Alpha: Pi versus corrected OpenCode (2026-08-25)
 
 The same OpenRouter `stealth/ox-alpha` model ran the six-task corpus through two
 separate single-family harnesses at high reasoning. Both serialized
-`plan_review.enabled: false`; OpenCode additionally proved the mounted Compound
-Engineering plugin, `/opt/compound-engineering/skills`, and all 33 generated CE
-commands in the retained run config.
+`plan_review.enabled: false`. The corrected OpenCode r3 campaign additionally
+required successful execution and proved the mounted Compound Engineering
+plugin, `/opt/compound-engineering/skills`, and all 33 generated CE commands.
 
-| task | Pi Sol | OpenCode Sol | Pi Fable | OpenCode Fable |
+The original OpenCode r2 rows all had `execute_failed`. Their later judgments
+were therefore invalid and are superseded; the old 3.000 Sol mean must not be
+used. Fresh campaign `v3-opencode-ox-alpha-high-20260825-r3` produced six real,
+non-empty post-review diffs and retained three samples from each configured
+judge on every row.
+
+| task | Pi Sol | corrected OpenCode Sol | OpenCode Fable | OpenCode dual |
 |---|---:|---:|---:|---:|
-| add-i-key | 6.000 | 4.167 | 6.833 | — |
-| web-install | 3.767 | 2.167 | 6.000 | — |
-| install | 2.167 | 2.000 | — | 3.500 |
-| fix-tmux | 5.500 | 3.833 | — | — |
-| fix-review | 2.333 | 3.000 | 3.167 | 6.000 |
-| daemon | 3.000 | 2.833 | — | — |
-| **mean** | **3.794** | **3.000** | **5.333 (3/6)** | **4.750 (2/6)** |
+| add-i-key | 6.000 | 3.167 | 3.000 | 3.084 |
+| web-install | 3.767 | 1.333 | 3.833 | 2.583 |
+| install | 2.167 | 2.000 | 4.667 | 3.334 |
+| fix-tmux | 5.500 | 3.500 | 5.667 | 4.584 |
+| fix-review | 2.333 | 2.600 | 5.833 | 4.217 |
+| daemon | 3.000 | 2.333 | 6.000 | 4.167 |
+| **mean** | **3.794** | **2.489** | **4.833** | **3.661** |
 
-All Sol values are three-sample means at explicit `ultra` judge effort. Pi led
-five of six tasks and by 0.794 points overall; OpenCode led only fix-review.
-The Fable columns are incomplete and must not be treated as a six-task harness
-comparison: an earlier Claude session cap left seven rows without Fable scores,
-although later calls succeeded after the allowance reset.
+All displayed Sol values are three-sample means at explicit `ultra` effort.
+Pi leads five of six tasks and by 1.305 Sol points overall; corrected OpenCode
+leads only fix-review. Pi's Fable evidence remains partial (three of six cells),
+so there is no complete dual-judge Pi/OpenCode comparison.
+
+For directional context, the corrected OpenCode dual mean sits last among the
+complete six-task families in `v2-ce`:
+
+| rank | family | dual mean |
+|---:|---|---:|
+| 1 | all-codex-5.6-sol-xhigh | 6.550 |
+| 2 | opus-plan→codex-exec-xhigh | 5.475 |
+| 3 | all-grok-4.5 | 5.275 |
+| 4 | all-opus-4.8 | 5.167 |
+| 5 | all-codex-xhigh | 4.267 |
+| 6 | all-glm-5.2 | 4.225 |
+| 7 | Ox Alpha / OpenCode r3 | 3.661 |
+
+This ordering is directional rather than a strict league table: `v2-ce` used
+one sample per judge and Sol `xhigh`, while Ox Alpha r3 used three samples and
+Sol `ultra`. Ox Alpha is 13.3% below the next row and 44.1% below the leader on
+these raw dual means.
+
+Independent scores remain the leaderboard evidence. In the completed six-cell
+adversarial deliberation, Fable revised by -1.583 points on average and Sol by
+-0.417, shrinking mean judge spread from 2.750 to 1.250. That diagnostic layer
+supports the low ranking: cross-examination exposed broken tests and correctness
+gaps behind several generous initial Fable scores.
 
 The canonical local artifacts are
-`runs/v3-ox-alpha-high-20260821-final/results.json` (Pi),
-`runs/v3-opencode-ox-alpha-high-20260821-final/results.json` (OpenCode), and
-`runs/v3-ox-alpha-high-20260821-combined-final/results.json` (12 rows). The
-combined result validates as 12 distinct generated cells, zero pending, zero
-failed, and 12/12 Sol judges at three samples.
-
-This campaign also exercised recovery rather than hiding it. The original Pi
-fix-review artifact was lost by the pre-fix timeout path and had to be freshly
-regenerated. The subsequent harness fix preserved completed candidate patches
-across post-develop timeouts, and the Pi daemon and web-install rows were then
-recovered without buying generation again. Hive fixes separately closed stale
-dynamic OpenCode routing and the false `dirty_worktree` terminal marker left
-after safe execute-residue auto-commit.
+`runs/v3-ox-alpha-high-20260821-final/results.json` (Pi) and
+`runs/v3-opencode-ox-alpha-high-20260825-r3/results.json` plus
+`deliberation.json` (corrected OpenCode). The corrected Hive task completed
+generation, independent judging, deliberation, validation, local publication,
+and archival at `6-done` with zero pending or failed cells.
 
 ## Full-cycle smoke (2026-07-02, fix-claude-tmux-ready-detector, fable-5 judge)
 

@@ -1,5 +1,10 @@
 # Complete the Ox Alpha Pi and OpenCode comparison
 
+> Correction (2026-08-25): every OpenCode row described below had
+> `execute_failed`. Its judgments and 3.000 Sol mean are superseded and are not
+> benchmark evidence. See the fresh strict r3 campaign in
+> `20260825T191344Z-complete-strict-opencode-ox-alpha-r3.md`.
+
 - Finished all six Pi and all six OpenCode cells using OpenRouter
   `stealth/ox-alpha` at high reasoning with plan review disabled in both
   harnesses.
