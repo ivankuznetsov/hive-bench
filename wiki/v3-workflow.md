@@ -87,7 +87,11 @@ contract, not prose for an agent to reimplement.
   Completion is stricter than the re-buy guard: every per-cell result must be
   terminal with both `pending[]` and `failed[]` empty. Harness commands run
   under non-login `bash -c`; bounded stderr tails are folded into a WAITING
-  status when commands fail. Once the matrix is clean, the stage merges an
+  status when commands fail. If the outer Hive timeout fires after develop has
+  completed, the harness atomically promotes `candidate-execute.patch` over any
+  partial review diff, records `review_status: timed_out`, and treats the paid
+  generation as scoreable; a provenance-matched rerun recovers the same snapshot
+  without replacing the target. Once the matrix is clean, the stage merges an
   existing campaign-root result first and the per-cell results second, which
   preserves root-only rejudge scores while keeping per-cell run/gate data
   authoritative. It writes `runs/<campaign_id>/results.json.next` and renames
@@ -100,9 +104,14 @@ contract, not prose for an agent to reimplement.
   key. It checks `pending[]`/`failed[]` before rejudging because rejudge output
   does not carry those keys. Rejudge writes `results.json.next` and renames it
   over the campaign root only on success; backfilled scores exist only in that
-  root file. `--only-missing` also treats legacy or undersampled judge records
-  as incomplete, so a three-sample campaign cannot complete with a one-sample
-  score. Every judge record persists the individual scores, reasons,
+  root file. `--only-missing` also treats legacy, undersampled, or
+  wrong-reasoning-effort judge records as incomplete, so a three-sample
+  `ultra` campaign cannot complete with a one-sample or `xhigh` score. Effort
+  map keys are normalized for CLI and library callers. Fresh replacements take
+  the invocation's effort before merging with untouched incumbents;
+  document-wide annotation does not relabel skipped judges, and legacy records
+  gain only missing provenance keys from repository defaults. Every judge
+  record persists the individual scores, reasons,
   `sample_count`, interval, model family, and reasoning-effort provenance.
   Judges grade the candidate-generated plan rather than silently substituting
   the frozen reference plan.

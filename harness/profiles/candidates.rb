@@ -15,6 +15,7 @@ module HiveBench
     module_function
 
     Candidate = Data.define(:id, :plan, :execute, :review, :claude_model, :claude_effort, :pi_models,
+                            :opencode_models, :opencode_effort,
                             :codex_effort, :codex_model, :codex_models, :codex_efforts,
                             :grok_model, :grok_effort, :model_version,
                             :review_max_passes, :review_wall_clock_sec, :reviewers, :ci_command)
@@ -25,13 +26,16 @@ module HiveBench
     FABLE = "claude-fable-5"
     SOL = "gpt-5.6-sol"
     TERRA = "gpt-5.6-terra"
+    PI_OX_ALPHA = "openrouter/stealth/ox-alpha:high"
+    OPENCODE_OX_ALPHA = "openrouter/stealth/ox-alpha"
 
     def all
       [all_opus, all_codex, opus_plan_codex_exec,
        all_glm, all_kimi, glm_plan_kimi_exec,
        all_codex_xhigh, opus_plan_codex_exec_xhigh, all_grok,
        all_codex_sol_xhigh, sol_plan_terra_exec_sol_review,
-       fable_plan_grok_exec_sol_review, sol_plan_grok_exec_sol_review].freeze
+       fable_plan_grok_exec_sol_review, sol_plan_grok_exec_sol_review,
+       all_ox_alpha_high, all_ox_alpha_opencode_high].freeze
     end
 
     def by_id(id)
@@ -39,10 +43,12 @@ module HiveBench
     end
 
     def base(id, plan:, execute:, review:, model_version:, claude_model: nil, claude_effort: nil,
-             pi_models: nil, codex_effort: nil, codex_model: nil, codex_models: nil,
+             pi_models: nil, opencode_models: nil, opencode_effort: nil,
+             codex_effort: nil, codex_model: nil, codex_models: nil,
              codex_efforts: nil, grok_model: nil, grok_effort: nil, reviewers: [])
       Candidate.new(id: id, plan: plan, execute: execute, review: review,
                     claude_model: claude_model, claude_effort: claude_effort, pi_models: pi_models,
+                    opencode_models: opencode_models, opencode_effort: opencode_effort,
                     codex_effort: codex_effort, codex_model: codex_model,
                     codex_models: codex_models, codex_efforts: codex_efforts,
                     grok_model: grok_model, grok_effort: grok_effort,
@@ -162,6 +168,32 @@ module HiveBench
                                              grok_model: "grok-4.5", grok_effort: "xhigh",
                                              reviewers: sole_codex_ce_reviewer,
                                              model_version: "sol-xhigh-plan/grok-4.5-xhigh-exec/sol-xhigh-review")
+    end
+
+    # Ox Alpha defaults to max reasoning at the provider. Pin high on all three
+    # Pi stages so the benchmark identity is stable and directly comparable to
+    # the OpenCode cell below.
+    def all_ox_alpha_high
+      base("all-ox-alpha@high", plan: "pi", execute: "pi", review: "pi",
+                                pi_models: {
+                                  "plan" => PI_OX_ALPHA,
+                                  "execute" => PI_OX_ALPHA,
+                                  "review" => PI_OX_ALPHA
+                                },
+                                model_version: "ox-alpha-high")
+    end
+
+    # Same model and reasoning tier through Hive's OpenCode profile. The
+    # separate id keeps every generated and judged artifact independent.
+    def all_ox_alpha_opencode_high
+      base("all-ox-alpha-opencode@high",
+           plan: "opencode", execute: "opencode", review: "opencode",
+           opencode_models: {
+             "plan" => OPENCODE_OX_ALPHA,
+             "execute" => OPENCODE_OX_ALPHA,
+             "review" => OPENCODE_OX_ALPHA
+           },
+           opencode_effort: "high", model_version: "ox-alpha-high")
     end
   end
 end

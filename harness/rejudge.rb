@@ -47,14 +47,15 @@ module HiveBench
       records = cells.map do |old|
         rejudge_cell(old, bases, search_dirs, judges, scorer, restorer,
                      withhold_reference: withhold_reference, only_missing: only_missing_judges,
-                     plan_source: plan_source, minimum_samples: minimum_samples)
+                     plan_source: plan_source, minimum_samples: minimum_samples,
+                     judge_efforts: judge_efforts)
       end
-      result = scorer.results(records: records, corpus_version: "v2", generated_at: Time.now.utc.iso8601)
-      JudgeProvenance.annotate_document!(result, efforts: judge_efforts)
+      scorer.results(records: records, corpus_version: "v2", generated_at: Time.now.utc.iso8601)
     end
 
     def rejudge_cell(old, bases, search_dirs, judges, scorer, restorer, withhold_reference:, only_missing:,
-                     plan_source: :frozen, minimum_samples: 1)
+                     plan_source: :frozen, minimum_samples: 1, judge_efforts: {})
+      judge_efforts = normalize_judge_efforts(judge_efforts)
       info = bases.fetch(old["task_id"])
       diff = recover_diff(search_dirs, old, info[:base], restorer)
       # Task contract (external review, threat #4): v2 graded every cell against
@@ -65,7 +66,8 @@ module HiveBench
       reference = withhold_reference ? nil : read_reference(info[:entry])
       wanted = if only_missing
                  judges.reject do |name, _|
-                   judge_satisfied?((old["judges"] || {})[name], minimum_samples: minimum_samples)
+                   judge_satisfied?((old["judges"] || {})[name], minimum_samples: minimum_samples,
+                                                                 expected_effort: judge_efforts[name])
                  end
                else
                  judges
@@ -74,8 +76,49 @@ module HiveBench
       warn "  judged #{old["agent_id"]} #{old["task_id"]} (#{diff.lines.size} diff lines): #{judged.transform_values(&:mean).inspect}"
       rec = scorer.cell_record(cell: cell_meta(old), gate: NO_GATE, judges: judged)
       # Keep the cell's existing judge scores; the fresh ones fill the gaps.
-      rec["judges"] = (old["judges"] || {}).merge(rec["judges"] || {})
+      rec["judges"] = merge_judge_records(old["judges"], rec["judges"], judge_efforts)
       rec
+    end
+
+    def merge_judge_records(existing, fresh, judge_efforts)
+      judge_efforts = normalize_judge_efforts(judge_efforts)
+      annotate_fresh_judges!(fresh, judge_efforts)
+      merged = (existing || {}).merge(fresh || {}).transform_values do |record|
+        record.is_a?(Hash) ? record.dup : record
+      end
+      annotate_missing_provenance!(merged)
+      merged
+    end
+
+    # Score records carry the repository-wide default provenance. A rejudge can
+    # pin a different effort, so stamp only records produced by this invocation
+    # before merging them with untouched incumbent judges. Applying the pin to
+    # the whole document would falsely relabel judges that were skipped.
+    def annotate_fresh_judges!(records, judge_efforts)
+      (records || {}).each do |judge_name, record|
+        next unless record.is_a?(Hash)
+
+        JudgeProvenance.metadata(judge_name, efforts: judge_efforts).each do |key, value|
+          record[key] = value
+        end
+      end
+    end
+
+    # Legacy incumbents can predate provenance fields. Fill only absent keys
+    # from the repository defaults; never apply this invocation's effort pin to
+    # a skipped or failed replacement, because that would relabel old evidence.
+    def annotate_missing_provenance!(records)
+      (records || {}).each do |judge_name, record|
+        next unless record.is_a?(Hash)
+
+        JudgeProvenance.metadata(judge_name).each do |key, value|
+          record[key] = value unless record.key?(key)
+        end
+      end
+    end
+
+    def normalize_judge_efforts(judge_efforts)
+      (judge_efforts || {}).transform_keys(&:to_s)
     end
 
     # Fail soft per judge: a flaky/limited judge (e.g. an OpenRouter key-limit 403)
@@ -89,12 +132,15 @@ module HiveBench
       end
     end
 
-    def judge_satisfied?(record, minimum_samples:)
+    def judge_satisfied?(record, minimum_samples:, expected_effort: nil)
       return false unless record
 
       stored_samples = record["sample_count"] || Array(record["scores"]).size
       stored_samples = 1 if stored_samples.to_i.zero? && record.key?("mean")
-      stored_samples.to_i >= minimum_samples
+      return false if stored_samples.to_i < minimum_samples
+      return true unless expected_effort
+
+      record.fetch("reasoning_effort", "unspecified") == expected_effort
     end
 
     def read_reference(entry)

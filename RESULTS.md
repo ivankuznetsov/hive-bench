@@ -43,8 +43,9 @@ none and rank on flagged means):
    top-tying fix-tmux (8.0/8.5). Its column was gated by
    subscription limit windows for days — the benchmark's most practical finding:
    per-token models can always be re-run for money; subscription models cannot.
-2. **glm-5.2 is the efficiency frontier**: reliable 6/6 full-cycle, the board's
-   best dual-judged cell (8.0/9.0 fix-tmux), ~$13/task fully metered.
+2. **glm-5.2 is the open-model reliability frontier**: reliable 6/6 full-cycle
+   and the board's best dual-judged cell (8.0/9.0 fix-tmux). Its original cost
+   claim was invalidated by the Pi accounting correction below.
 3. **codex is the reliability frontier**: 6/6, zero walls, zero stage failures,
    best complete-column cross-family mean (5.2) — but 2.0-floors the hard tasks.
 4. **kimi-k2.7-code is bimodal**: 8.0/8.5 on fix-tmux, floor (1.0/1.0) on daemon,
@@ -68,13 +69,15 @@ none and rank on flagged means):
 
 ## Costs (API-equivalent, usual tier — per-model attribution from stream logs)
 
-Per task, generation only: **codex $8.78 (11M tokens — cheapest and most
-token-efficient)**, glm-5.2 $15.64 (65M), kimi $18.91 (86M), pair $18.39 (91M),
-opus $22.78 (39M). The open models are cheap per token but burn 6–8× codex's
-tokens. (An earlier codex figure was overstated: its cached input had been
-priced at the full rate.) Campaign generation spend per model: opus $171,
-kimi $140, glm $104, gpt $78, haiku (claude CLI utility calls) $4. Judging
-~$1–3/cell; campaign OpenRouter total ~$360.
+The original Pi-backed totals in this board are invalid. The old parser summed
+repeated `message_update`, `message_end`, and `turn_end` copies of the same
+response. Reconstructing the six retained GLM cells from assistant
+`message_end` events yields **21.793M normalized tokens and $5.65 per task**, not
+65M and $15.64. The matching Kimi and GLM->Kimi streams are not committed, so
+their old 86M/91M token totals, costs, and campaign-spend figures cannot be
+corrected and should be read as unknown. The Codex and Opus rows use different
+telemetry paths; this correction therefore does not establish a complete
+cross-provider token-efficiency ordering for the historical board.
 
 ## Caveats
 

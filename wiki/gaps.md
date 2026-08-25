@@ -7,9 +7,17 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **open models (glm/kimi via pi)** — hive has **no `--model` flag for pi**; the model comes
-  from pi's provider config. To vary glm vs kimi, configure `~/.pi/agent` per run or add an
-  `agents.pi.args` passthrough. UNVERIFIED.
+- ~~**OpenCode/Ox Alpha generation and judging evidence**~~ — SOLVED by fresh
+  strict r3 evidence: 6/6 real successful executions, zero pending or failed,
+  and three Fable plus three Sol `ultra` samples on every row. The retained
+  config proves the separate image, hermetic model declaration, exact 33-command
+  CE inventory, and no-plan-review parity. Six-cell deliberation, validation,
+  local publication, and native archival at `6-done` also completed. The earlier
+  r2 OpenCode judgments are invalid because every candidate execution failed.
+- **Ox Alpha cross-campaign comparability** — the corrected OpenCode ranking is
+  directional against `v2-ce`, whose cells used one sample per judge and Sol
+  `xhigh` rather than three samples and Sol `ultra`. Pi still has only three of
+  six Fable rows, so a complete dual-judge Pi/OpenCode comparison remains open.
 - **codex usage shape** — codex's stream reports input tokens with no cache split, so the
   token-priced cost is likely overstated (4.2M input at full rate in the smoke). Verify how
   codex reports cached tokens before publishing cost columns.
@@ -45,8 +53,13 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   inventing a duration. Persist start/end timestamps if recovered cells must enter
   time comparisons. Pre-identity artifacts also cannot prove their external model
   pins; their explicit recovery path marks `artifact_provenance: legacy-unverified`.
+- **Active Hive runtime portability** — generation now records and mounts an
+  exact Hive source/runtime plus the matching host gem home. This removes image
+  drift but makes a complete local Hive checkout and compatible gem home an
+  explicit prerequisite; a portable immutable runtime bundle remains future
+  work.
 - **Execute-resume crash window and CLI drift** — transport recovery fails closed
-  if Codex changes its terminal event/message shape. Also, a host/container crash
+  if Codex or Pi changes its terminal event/message shape. Also, a host/container crash
   after the exact error marker is cleared but before `hive develop` starts can
   leave the preserved task markerless; a durable resume-intent journal would
   close that narrow window.

@@ -40,11 +40,11 @@
         }
       },
       "efficiency": {
-        "input_tokens": 1456447,
-        "output_tokens": 470493,
-        "cached_tokens": 38938790,
+        "input_tokens": 351009,
+        "output_tokens": 110691,
+        "cached_tokens": 10022251,
         "wall_clock_sec": 5482.21,
-        "cost_usd": 9.8041,
+        "cost_usd": 2.4695,
         "plan_forced_complete": true,
         "open_pr_ok": true,
         "review_ok": true,
@@ -76,7 +76,7 @@
         }
       },
       "efficiency": {
-        "total_cost_usd": 9.8041,
+        "total_cost_usd": 2.4695,
         "mean_wall_clock_sec": null,
         "wall_clock_sample": 0
       },

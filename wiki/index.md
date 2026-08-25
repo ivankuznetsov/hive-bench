@@ -24,7 +24,7 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 - [[gaps]] — what's unverified / left to build
 - [[log]] — work log
 
-## Status (2026-07-13)
+## Status (2026-08-25)
 
 v2 is **published** as a real-hive benchmark: plan, execute, open-pr, and
 review run in the container by default, then the final post-review diff is
@@ -34,14 +34,24 @@ Codex 5.5 xhigh, GPT-5.6 Sol xhigh, GLM 5.2, Grok 4.5, and Opus-plan → Codex
 xhigh. It uses one Fable 5 and one Sol xhigh score per non-empty cell; the
 three-sample Sol `ultra` follow-up remains a separate campaign.
 
+The paid Ox Alpha comparison now has a corrected strict OpenCode campaign. The
+Pi campaign and fresh OpenCode r3 campaign each generated all six tasks using
+OpenRouter `stealth/ox-alpha` at high reasoning with plan review disabled. r3
+required successful execution, exposed all 33 Compound Engineering commands,
+and retained three Fable 5 plus three Sol `ultra` samples for every cell: 36
+independent judgments, zero pending, and zero failed. Its six-task dual mean is
+3.661. The earlier OpenCode r2 judgments are superseded because every r2 cell
+had `execute_failed`; they are not benchmark evidence. See [[findings]].
+
 v3 adds campaign orchestration, stronger runtime gates, replication, and
 calibrated judge presentation. The native `bench` Hive workflow has guarded,
 idempotent stages and full no-cost fixture paths through
 extract/generate/judge/publish. Hive installs its versioned harness snapshot in
 the benchmark project's `.hive-state/bench-runtime`, so local users do not need
 to clone this repository merely to run the named workflow. Its maintained defaults are Fable plus Sol
-`ultra`, three samples, candidate-plan judging, and adversarial deliberation;
-the first paid campaign with that complete contract has not yet run end to end.
+`ultra`, three samples, candidate-plan judging, and adversarial deliberation.
+The corrected OpenCode Ox Alpha task completed the native workflow through
+six-cell deliberation, validation, local publication, and archived `6-done`.
 See [[gaps]] and [[v3-workflow]].
 
 ## Query protocol

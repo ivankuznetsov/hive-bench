@@ -122,7 +122,7 @@ of `.hive-state/bench-runtime/campaign.yml.example` in the task folder as
 
 For low-level harness development, a pass can also be launched directly:
 
-    HIVE_SRC=~/Dev/hive harness/build_runner.sh     # bake hive into the runner image
+    HIVE_SRC=~/Dev/hive harness/build_runner.sh     # builds Pi + OpenCode runner tags
 
     OPENROUTER_API_KEY=… HB_HIVE_TIMEOUT=14400 \
       ruby harness/hive_run.rb --source ~/Dev/hive \
