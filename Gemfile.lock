@@ -1,12 +1,17 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    agent-cli-runtime (0.1.0)
+      json (>= 2.7, < 3.0)
+      open3 (~> 0.2)
+      timeout (>= 0.4, < 1.0)
     ast (2.4.3)
     json (2.19.9)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     mini_portile2 (2.8.9)
     minitest (5.27.0)
+    open3 (0.2.1)
     parallel (2.1.0)
     parser (3.3.11.1)
       ast (~> 2.4.1)
@@ -38,6 +43,7 @@ GEM
     sqlite3 (2.9.6)
       mini_portile2 (~> 2.8.0)
     sqlite3 (2.9.6-x86_64-linux-gnu)
+    timeout (0.6.1)
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
@@ -47,6 +53,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  agent-cli-runtime (~> 0.1.0)
   minitest (~> 5.25)
   rake (~> 13.2)
   rubocop (~> 1.68)

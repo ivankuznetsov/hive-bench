@@ -31,6 +31,10 @@ for each corpus task T, for each candidate C:
   bookkeeping commit. A successful durable promotion that leaves plan markerless
   is continued once with Hive's native `hive run` action before capture.
 - **`lib/hive_config.rb`** — candidate → hive `config.yml`.
+- **`lib/profile.rb`** — the legacy v1 candidate invocation shape. Its local
+  binary/version/auth-configuration preflight adapts the public
+  `agent-cli-runtime` probe contract; HiveBench continues to own benchmark
+  model pins, auth mounts, containers, and live provider checks.
 - Identity-verified execute/review resumes keep candidate artifacts in place,
   but refresh the finite detached-worker launch and first-heartbeat timers to
   the current parallel-benchmark values before re-entering Hive.
