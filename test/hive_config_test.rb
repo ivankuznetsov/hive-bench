@@ -172,7 +172,7 @@ class HiveConfigTest < Minitest::Test
     refute h.dig("plan_review", "enabled")
   end
 
-  def test_ox_alpha_opencode_candidate_has_hermetic_ce_plugin_and_high_routes
+  def test_ox_alpha_opencode_candidate_has_ce_plugin_shell_permission_and_high_routes
     h = HiveBench::HiveConfig.to_h(HiveBench::Candidates.all_ox_alpha_opencode_high)
 
     assert_equal "opencode", h.dig("plan", "agent")
@@ -183,7 +183,7 @@ class HiveConfigTest < Minitest::Test
                  h.dig("permissions", "tools")
     assert_equal ["/opt/compound-engineering"], h.dig("agents", "opencode", "plugins")
     assert_equal ["OPENROUTER_API_KEY"], h.dig("agents", "opencode", "credential_env")
-    assert_equal "hermetic", h.dig("agents", "opencode", "isolation")
+    refute h.dig("agents", "opencode").key?("isolation")
     assert h.dig("agents", "opencode", "config", "provider", "openrouter", "models", "stealth/ox-alpha")
     %w[plan execute open_pr review_ci review_triage review_fix].each do |stage|
       assert_equal "openrouter/stealth/ox-alpha", h.dig("models", stage, "model")

@@ -57,8 +57,9 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - **Active Hive runtime portability** — generation now records and mounts an
   exact Hive source/runtime plus the matching host gem home. This removes image
   drift but makes a complete local Hive checkout and compatible gem home an
-  explicit prerequisite; a portable immutable runtime bundle remains future
-  work.
+  explicit prerequisite. Dogfood wrappers are resolved to their inherited,
+  commit-verified immutable deployment; a portable immutable runtime bundle
+  remains future work.
 - **Execute-resume crash window and CLI drift** — transport recovery fails closed
   if Codex or Pi changes its terminal event/message shape. Also, a host/container crash
   after the exact error marker is cleared but before `hive develop` starts can

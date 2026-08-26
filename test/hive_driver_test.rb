@@ -706,6 +706,51 @@ class HiveDriverTest < Minitest::Test
     assert_equal "0.7.2", identity.dig("hive_runtime", "version")
   end
 
+  def test_active_runtime_resolves_the_immutable_inherited_dogfood_deployment
+    state_root = File.join(@root, "state", "hive")
+    staging = File.join(state_root, "deployments", "staging")
+    gem_home = File.join(@root, "gem-home")
+    wrapper_dir = File.join(@root, "bin")
+    FileUtils.mkdir_p([File.join(staging, "bin"), File.join(staging, "lib"), gem_home, wrapper_dir])
+    File.write(File.join(staging, "bin", "hive"), "#!/bin/sh\nprintf '0.7.2\\n'\n")
+    FileUtils.chmod(0o755, File.join(staging, "bin", "hive"))
+    File.write(File.join(staging, "lib", "hive.rb"), "# complete runtime\n")
+    File.write(File.join(wrapper_dir, "hive"), "#!/bin/sh\nexit 1\n")
+    FileUtils.chmod(0o755, File.join(wrapper_dir, "hive"))
+    sh!("git", "init", "-q", "-b", "main", chdir: staging)
+    sh!("git", "config", "user.email", "bench@example.com", chdir: staging)
+    sh!("git", "config", "user.name", "Bench Test", chdir: staging)
+    sh!("git", "add", ".", chdir: staging)
+    sh!("git", "commit", "-qm", "dogfood runtime", chdir: staging)
+    build_sha = Open3.capture2("git", "rev-parse", "HEAD", chdir: staging).first.strip
+    deployment_id = "hive-dogfood-#{build_sha[0, 9]}"
+    deployment = File.join(state_root, "deployments", deployment_id)
+    FileUtils.mv(staging, deployment)
+
+    script = <<~'RUBY'
+      require "json"
+      require "lib/hive_driver"
+      puts JSON.generate(HiveBench::HiveDriver.allocate.send(:active_hive_runtime))
+    RUBY
+    env = {
+      "PATH" => "#{wrapper_dir}:#{ENV.fetch("PATH")}",
+      "HB_HIVE_BIN" => nil,
+      "HB_HIVE_GEM_HOME" => gem_home,
+      "HIVE_RUNTIME_CHANNEL" => "dogfood",
+      "HIVE_RUNTIME_DEPLOYMENT_ID" => deployment_id,
+      "HIVE_RUNTIME_BUILD_SHA" => build_sha,
+      "HIVE_DOGFOOD_STATE_ROOT" => state_root
+    }
+    out, err, status = Open3.capture3(env, RbConfig.ruby, "-I#{File.expand_path("../harness", __dir__)}",
+                                      "-e", script)
+
+    assert status.success?, out + err
+    runtime = JSON.parse(out)
+    assert_equal deployment, runtime.fetch("root")
+    assert_equal gem_home, runtime.fetch("gem_home")
+    assert_equal "0.7.2", runtime.fetch("version")
+  end
+
   def test_opencode_candidate_uses_its_runner_ce_preflight_and_openrouter_credential
     previous = ENV["OPENROUTER_API_KEY"]
     ENV["OPENROUTER_API_KEY"] = "test-only"
