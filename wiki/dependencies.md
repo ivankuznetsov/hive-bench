@@ -102,12 +102,11 @@ uses those OpenCode rows when the raw log scan has no token evidence. Database
 cache-read values take precedence over the legacy `cached` alias so one session
 cannot be counted twice.
 
-The exact Hive runtime mount also puts that checkout's
-`components/agent-cli-runtime/lib` and `lib` directories first on `RUBYLIB`.
-Invoking the mounted `bin/hive` directly would otherwise resolve the
-host-installed component gem, silently bypassing component changes in the
-selected checkout even though Hive's own source came from the mount.
-When Hive was launched through its dogfood wrapper, the driver resolves the
-immutable deployment named by the inherited deployment id and build SHA,
-verifies that commit, and mounts it directly. This avoids mistaking the wrapper
-for a complete runtime or following a later `dogfood-current` cutover.
+For sealed campaigns, `build_runner.sh` archives the exact selected dogfood
+commit and labels the resulting image with its full SHA. Hive and its component
+gem live in `/opt/hb/control-bundle`, which is unreadable by uid 1000. A second
+candidate bundle contains the ordinary Ruby dependencies but removes every
+`hive-cli` gem/spec/cache/executable path. The driver resolves and verifies the
+immutable deployment named by the inherited dogfood id/build SHA, then refuses
+to start a model unless the runner label matches it exactly. The host deployment
+and host gem home are not mounted into a sealed cell.

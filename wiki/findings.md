@@ -34,17 +34,26 @@ actual hive. See [[architecture]].
   this diff accomplish the task," not "how close to the reference"). v2 runs RunAll with
   `withhold_reference: false`.
 
-## Ox Alpha: Pi versus corrected OpenCode (2026-08-25)
+## Ox Alpha: superseded Pi/OpenCode comparison (audit 2026-08-26)
+
+The scores in this section are retained only to explain the anomaly; they are
+not current benchmark evidence. The audit found no log or patch-similarity
+evidence that either model copied a reference solution, but the runner allowed
+that possibility: current Hive source and a bundled `hive-cli` source tree were
+readable, older clones retained future Git objects, and ordinary egress could
+reach GitHub. OpenCode's redacted tool payloads also prevent a complete
+negative access audit. Replacement scores require the sealed runtime,
+base-only shallow history, and provider-only egress.
 
 The same OpenRouter `stealth/ox-alpha` model ran the six-task corpus through two
 separate single-family harnesses at high reasoning. Both serialized
-`plan_review.enabled: false`. The corrected OpenCode r3 campaign additionally
+`plan_review.enabled: false`. The OpenCode r3 campaign additionally
 required successful execution and proved the mounted Compound Engineering
 plugin, `/opt/compound-engineering/skills`, and all 33 generated CE commands.
 
 The original OpenCode r2 rows all had `execute_failed`. Their later judgments
 were therefore invalid and are superseded; the old 3.000 Sol mean must not be
-used. Fresh campaign `v3-opencode-ox-alpha-high-20260825-r3` produced six real,
+used. Campaign `v3-opencode-ox-alpha-high-20260825-r3` produced six real,
 non-empty post-review diffs and retained three samples from each configured
 judge on every row.
 
@@ -58,12 +67,12 @@ judge on every row.
 | daemon | 3.000 | 2.333 | 6.000 | 4.167 |
 | **mean** | **3.794** | **2.489** | **4.833** | **3.661** |
 
-All displayed Sol values are three-sample means at explicit `ultra` effort.
+These historical Sol values are three-sample means at explicit `ultra` effort.
 Pi leads five of six tasks and by 1.305 Sol points overall; corrected OpenCode
 leads only fix-review. Pi's Fable evidence remains partial (three of six cells),
 so there is no complete dual-judge Pi/OpenCode comparison.
 
-For directional context, the corrected OpenCode dual mean sits last among the
+Before the containment audit, the OpenCode dual mean sat last among the
 complete six-task families in `v2-ce`:
 
 | rank | family | dual mean |
@@ -81,18 +90,19 @@ one sample per judge and Sol `xhigh`, while Ox Alpha r3 used three samples and
 Sol `ultra`. Ox Alpha is 13.3% below the next row and 44.1% below the leader on
 these raw dual means.
 
-Independent scores remain the leaderboard evidence. In the completed six-cell
+These independent scores are now superseded. In the completed six-cell
 adversarial deliberation, Fable revised by -1.583 points on average and Sol by
 -0.417, shrinking mean judge spread from 2.750 to 1.250. That diagnostic layer
 supports the low ranking: cross-examination exposed broken tests and correctness
 gaps behind several generous initial Fable scores.
 
-The canonical local artifacts are
+The superseded local artifacts are
 `runs/v3-ox-alpha-high-20260821-final/results.json` (Pi) and
 `runs/v3-opencode-ox-alpha-high-20260825-r3/results.json` plus
 `deliberation.json` (corrected OpenCode). The corrected Hive task completed
 generation, independent judging, deliberation, validation, local publication,
-and archival at `6-done` with zero pending or failed cells.
+and archival at `6-done` with zero pending or failed cells; completion did not
+detect the later containment flaw.
 
 ## Full-cycle smoke (2026-07-02, fix-claude-tmux-ready-detector, fable-5 judge)
 

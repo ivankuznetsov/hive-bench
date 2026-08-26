@@ -7,14 +7,15 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- **OpenCode/Ox Alpha replacement evidence** — the strict r3 campaign reached
+- **OpenCode/Ox Alpha replacement evidence** — the r3 campaign reached
   6/6 successful executions and a complete judge slate, but a later fairness
   audit found that its OpenCode policy allowed read/write/edit while denying
   shell commands. The model could not run tests or normal repository
   diagnostics, unlike Pi. That score is superseded. The runtime now grants
-  qualified `Bash(*)`; a clean six-cell generation, judgment, deliberation,
+  qualified `Bash(*)`; a sealed six-cell generation, judgment, deliberation,
   validation, and publication cycle must replace r3. The earlier r2 judgments
-  remain invalid because every candidate execution failed.
+  remain invalid because every candidate execution failed. The old Pi rows are
+  also superseded by the containment audit described below.
 - **Ox Alpha cross-campaign comparability** — the corrected OpenCode ranking is
   directional against `v2-ce`, whose cells used one sample per judge and Sol
   `xhigh` rather than three samples and Sol `ultra`. Pi still has only three of
@@ -40,9 +41,9 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 
 ## Integrity round leftovers (2026-07-01)
 
-- **Egress allowlist proxy for generation** — `HB_GEN_NETWORK` accepts a proxied docker
-  network, but nothing builds one yet. Until then answer-key leakage is detected
-  (`answer_key_access_suspect` scan), not prevented.
+- ~~**Egress allowlist proxy for generation**~~ — SOLVED for strict campaigns:
+  `provider_egress_proxy.rb` is the only dual-homed peer on a Docker internal
+  network and allows only configured model-provider CONNECT destinations.
 - **Mixed-family cost attribution** — `opus-plan→codex-exec` tokens span two price rows;
   needs per-stage token attribution (stage → agent from the log filename) before
   `cost_usd` can be estimated for mixed candidates. Currently nil by design.
@@ -54,12 +55,10 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   inventing a duration. Persist start/end timestamps if recovered cells must enter
   time comparisons. Pre-identity artifacts also cannot prove their external model
   pins; their explicit recovery path marks `artifact_provenance: legacy-unverified`.
-- **Active Hive runtime portability** — generation now records and mounts an
-  exact Hive source/runtime plus the matching host gem home. This removes image
-  drift but makes a complete local Hive checkout and compatible gem home an
-  explicit prerequisite. Dogfood wrappers are resolved to their inherited,
-  commit-verified immutable deployment; a portable immutable runtime bundle
-  remains future work.
+- ~~**Active Hive runtime portability**~~ — SOLVED for Pi/OpenCode sealed rows:
+  the exact commit-labelled Hive control bundle is baked into the runner and
+  hidden from the unprivileged model process. Other agent harnesses still need
+  equivalent privilege-dropping launchers before they can use sealed mode.
 - **Execute-resume crash window and CLI drift** — transport recovery fails closed
   if Codex or Pi changes its terminal event/message shape. Also, a host/container crash
   after the exact error marker is cleared but before `hive develop` starts can
@@ -88,6 +87,12 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   solutions, but OpenCode's redacted tool events prevent the same negative
   audit. Replacement campaigns must use the depth-one exact-base checkout and
   provider-only proxy before their results are accepted as clean.
+- **Current Hive source exposure** — the first replacement attempt removed
+  future Git history and blocked GitHub, but still bind-mounted the active Hive
+  checkout and a bundle containing `hive-cli` where uid 1000 could read them.
+  Logs show no model command opening the active checkout, but that negative
+  evidence cannot make the run valid. The sealed replacement must be generated
+  after the root-only control-bundle image is dogfooded.
 
 ## Finish-the-board queue (2026-07-04)
 
