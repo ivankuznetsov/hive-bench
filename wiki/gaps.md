@@ -7,13 +7,14 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
   killed the CLI at startup, same as `.claude`). all-codex and opus-plan→codex-exec
   ran the full cycle in the smoke.
-- ~~**OpenCode/Ox Alpha generation and judging evidence**~~ — SOLVED by fresh
-  strict r3 evidence: 6/6 real successful executions, zero pending or failed,
-  and three Fable plus three Sol `ultra` samples on every row. The retained
-  config proves the separate image, hermetic model declaration, exact 33-command
-  CE inventory, and no-plan-review parity. Six-cell deliberation, validation,
-  local publication, and native archival at `6-done` also completed. The earlier
-  r2 OpenCode judgments are invalid because every candidate execution failed.
+- **OpenCode/Ox Alpha replacement evidence** — the strict r3 campaign reached
+  6/6 successful executions and a complete judge slate, but a later fairness
+  audit found that its OpenCode policy allowed read/write/edit while denying
+  shell commands. The model could not run tests or normal repository
+  diagnostics, unlike Pi. That score is superseded. The runtime now grants
+  qualified `Bash(*)`; a clean six-cell generation, judgment, deliberation,
+  validation, and publication cycle must replace r3. The earlier r2 judgments
+  remain invalid because every candidate execution failed.
 - **Ox Alpha cross-campaign comparability** — the corrected OpenCode ranking is
   directional against `v2-ce`, whose cells used one sample per judge and Sol
   `xhigh` rather than three samples and Sol `ultra`. Pi still has only three of
@@ -75,6 +76,17 @@ What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
   the combined Sol+Grok runner selection, and sole Sol `ce-code-review` policy
   are unit/smoke-pinned but have not yet completed a paid cell. The serialized
   follow-up campaign is the intended live proof.
+- **Ox Alpha max live evidence** — the Pi-only `all-ox-alpha@max` route is
+  explicit and unit-pinned with plan review disabled. Its six parallel cells,
+  dual three-sample judging, deliberation, and publication remain pending until
+  the current campaign completes.
+- **Old Ox Alpha checkout provenance** — the published high campaigns cloned a
+  current Hive checkout and reset it to the historical base, leaving newer Git
+  objects and refs visible. Pi logs contain no confirmed access to its task's
+  answer key or GitHub fetch, and patch similarity does not indicate copied
+  solutions, but OpenCode's redacted tool events prevent the same negative
+  audit. Replacement campaigns must use the depth-one exact-base checkout and
+  provider-only proxy before their results are accepted as clean.
 
 ## Finish-the-board queue (2026-07-04)
 

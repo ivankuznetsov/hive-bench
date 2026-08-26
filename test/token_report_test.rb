@@ -3,6 +3,7 @@
 require "minitest/autorun"
 require "tmpdir"
 require "fileutils"
+require "sqlite3"
 require "lib/token_report"
 
 class TokenReportTest < Minitest::Test
@@ -12,6 +13,38 @@ class TokenReportTest < Minitest::Test
     d = File.join(dir, ".hive-state", "logs", "task-x")
     FileUtils.mkdir_p(d)
     File.write(File.join(d, name), lines.join("\n"))
+  end
+
+  def write_usage_db(dir, rows)
+    path = File.join(dir, ".hb", "hive-home", "usage.db")
+    FileUtils.mkdir_p(File.dirname(path))
+    SQLite3::Database.new(path) do |db|
+      db.execute <<~SQL
+        CREATE TABLE token_usage (
+          agent TEXT NOT NULL,
+          model TEXT,
+          actual_backend TEXT,
+          actual_model TEXT,
+          stage TEXT,
+          input INTEGER NOT NULL DEFAULT 0,
+          output INTEGER NOT NULL DEFAULT 0,
+          cached INTEGER NOT NULL DEFAULT 0,
+          cache_read INTEGER,
+          cache_write INTEGER,
+          input_available INTEGER NOT NULL DEFAULT 1,
+          output_available INTEGER NOT NULL DEFAULT 1,
+          cached_available INTEGER NOT NULL DEFAULT 1,
+          cache_read_available INTEGER NOT NULL DEFAULT 0,
+          cache_write_available INTEGER NOT NULL DEFAULT 0
+        )
+      SQL
+      rows.each do |row|
+        db.execute(
+          "INSERT INTO token_usage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          row
+        )
+      end
+    end
   end
 
   def test_attributes_claude_events_by_message_model
@@ -63,6 +96,29 @@ class TokenReportTest < Minitest::Test
 
       assert_equal 10, r["claude-opus-4-8"]["input"]
       assert_equal 20, r["gpt-5.5"]["input"]
+    end
+  end
+
+  def test_opencode_uses_hive_usage_db_when_stream_events_are_redacted
+    Dir.mktmpdir do |dir|
+      write_log(dir, "plan-1.log", ["[opencode event omitted type=step_finish]"])
+      write_usage_db(
+        dir,
+        [
+          ["opencode", "openrouter/stealth/ox-alpha", "openrouter", "stealth/ox-alpha",
+           "3-plan", 2_392, 130, 13_440, 13_440, 0, 1, 1, 1, 1, 1],
+          ["opencode", "openrouter/stealth/ox-alpha", "openrouter", "stealth/ox-alpha",
+           "4-execute", 4_100, 500, 0, nil, nil, 1, 1, 1, 0, 0]
+        ]
+      )
+
+      result = T.scan_cell(dir)
+
+      assert_equal(
+        { "input" => 6_492, "output" => 630, "cache_read" => 13_440,
+          "cache_write" => 0 },
+        result["openrouter/stealth/ox-alpha"]
+      )
     end
   end
 
