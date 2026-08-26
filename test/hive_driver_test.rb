@@ -50,12 +50,12 @@ class HiveDriverTest < Minitest::Test
 
   def candidate = HiveBench::Candidates.by_id("all-opus-4.8")
 
-  def fake_hive_runtime
-    { root: @source, gem_home: @root, version: "0.7.2" }
+  def fake_hive_runtime(build_sha: nil)
+    { root: @source, gem_home: @root, version: "0.7.2", build_sha: }.compact
   end
 
-  def hive_driver(**kwargs)
-    HiveBench::HiveDriver.new(hive_runtime: fake_hive_runtime, **kwargs)
+  def hive_driver(hive_runtime: fake_hive_runtime, **kwargs)
+    HiveBench::HiveDriver.new(hive_runtime:, **kwargs)
   end
 
   OK_STDOUT = "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
@@ -85,7 +85,7 @@ class HiveDriverTest < Minitest::Test
   end
 
   # A runner seam that fabricates the container's side effects, then returns stdout.
-  def driver(stdout: OK_STDOUT, patch: "diff --git a/app.rb b/app.rb\n", log_lines: [])
+  def driver(stdout: OK_STDOUT, patch: "diff --git a/app.rb b/app.rb\n", log_lines: [], **options)
     seen = @seen_cmd = []
     work = @work
     runner = lambda do |cmd|
@@ -102,7 +102,7 @@ class HiveDriverTest < Minitest::Test
       stdout
     end
     hive_driver(
-      runner: runner, reuse_existing: false, reuse_unverified: false,
+      runner: runner, reuse_existing: false, reuse_unverified: false, **options
     )
   end
 
@@ -129,6 +129,23 @@ class HiveDriverTest < Minitest::Test
     name = Open3.capture2("git", "-C", @work, "config", "--local", "user.name").first.strip
     assert_equal "bench@hive-bench", email
     assert_equal "hive-bench", name
+  end
+
+  def test_target_clone_contains_only_the_exact_historical_base
+    File.write(File.join(@source, "future.rb"), "gold descendant\n")
+    sh!("git", "add", ".", chdir: @source)
+    sh!("git", "commit", "-qm", "future reference", chdir: @source)
+    future = Open3.capture2("git", "rev-parse", "HEAD", chdir: @source).first.strip
+
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    commits = Open3.capture2("git", "-C", @work, "rev-list", "--all").first.lines.map(&:strip)
+    _out, _err, future_status = Open3.capture3("git", "-C", @work, "cat-file", "-e", future)
+    remotes = Open3.capture2("git", "-C", @work, "remote").first
+
+    assert_equal [@base], commits
+    refute_predicate future_status, :success?
+    assert_empty remotes
   end
 
   def test_pi_telemetry_counts_only_final_assistant_message_usage
@@ -706,6 +723,72 @@ class HiveDriverTest < Minitest::Test
     assert_equal "0.7.2", identity.dig("hive_runtime", "version")
   end
 
+  def test_sealed_pi_runtime_uses_matching_image_without_exposing_host_hive
+    build_sha = "a" * 40
+    labels = {
+      "io.hive.bench.hive-build-sha" => build_sha,
+      "io.hive.bench.runtime-visibility" => HiveBench::HiveDriver::SEALED_RUNTIME_VISIBILITY
+    }
+    previous = ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"]
+    ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"] = "1"
+
+    driver(hive_runtime: fake_hive_runtime(build_sha:), image_inspector: ->(_image) { labels }).call(
+      entry: entry,
+      candidate: HiveBench::Candidates.by_id("all-ox-alpha@max"),
+      out_dir: @out
+    )
+
+    assert_includes @seen_cmd.each_cons(2).to_a, ["--user", "0:0"]
+    assert_includes @seen_cmd.each_cons(2).to_a, ["--security-opt", "no-new-privileges:true"]
+    assert_includes @seen_cmd, "GEM_HOME=/opt/hb/control-bundle"
+    assert_includes @seen_cmd, "HB_HIVE_BUILD_SHA=#{build_sha}"
+    assert_includes @seen_cmd, "HB_SEALED_AGENT_RUNTIME=1"
+    refute_includes @seen_cmd, "#{@source}:/opt/hb/hive-current:ro"
+    refute_includes @seen_cmd, "#{@root}:/usr/local/bundle:ro"
+    identity = JSON.parse(File.read(File.join(@work, ".hb", "generation-identity.json")))
+    assert_equal build_sha, identity.dig("hive_runtime", "build_sha")
+    assert_equal "sealed-control-bundle-v1", identity.dig("isolation", "runtime_visibility")
+  ensure
+    ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"] = previous
+  end
+
+  def test_sealed_runtime_rejects_a_stale_or_unlabelled_image_before_model_execution
+    build_sha = "a" * 40
+    previous = ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"]
+    ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"] = "1"
+    no_model = hive_driver(
+      hive_runtime: fake_hive_runtime(build_sha:),
+      image_inspector: ->(_image) { {} },
+      runner: ->(_cmd) { flunk "mismatched sealed image must not start" },
+      reuse_existing: false,
+      reuse_unverified: false
+    )
+
+    error = assert_raises(RuntimeError) do
+      no_model.call(entry: entry, candidate: HiveBench::Candidates.by_id("all-ox-alpha@max"), out_dir: @out)
+    end
+
+    assert_match(/is not the sealed Hive build/, error.message)
+  ensure
+    ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"] = previous
+  end
+
+  def test_provider_only_generation_egress_is_recorded_and_forwarded
+    previous = %w[HB_REQUIRE_EGRESS_ALLOWLIST HB_GEN_NETWORK HB_GEN_HTTPS_PROXY].to_h { |key| [key, ENV[key]] }
+    ENV["HB_REQUIRE_EGRESS_ALLOWLIST"] = "1"
+    ENV["HB_GEN_NETWORK"] = "bench-provider-only"
+    ENV["HB_GEN_HTTPS_PROXY"] = "http://bench-proxy:3128"
+
+    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+
+    assert_includes @seen_cmd.each_cons(2).to_a, ["--network", "bench-provider-only"]
+    assert_includes @seen_cmd, "HTTPS_PROXY=http://bench-proxy:3128"
+    identity = JSON.parse(File.read(File.join(@work, ".hb", "generation-identity.json")))
+    assert_equal "provider-allowlist", identity.dig("isolation", "generation_egress")
+  ensure
+    previous&.each { |key, value| ENV[key] = value }
+  end
+
   def test_active_runtime_resolves_the_immutable_inherited_dogfood_deployment
     state_root = File.join(@root, "state", "hive")
     staging = File.join(state_root, "deployments", "staging")
@@ -761,6 +844,9 @@ class HiveDriverTest < Minitest::Test
     assert_includes @seen_cmd, HiveBench::HiveDriver::OPENCODE_IMAGE
     assert_includes @seen_cmd,
                     "#{HiveBench::HiveDriver::OPENCODE_BENCH_RUNTIME}:/opt/hb/opencode_bench_runtime.rb:ro"
+    assert_includes @seen_cmd,
+                    "#{HiveBench::HiveDriver::OPENCODE_BENCH_LAUNCHER}:/opt/hb/opencode-bench-launcher:ro"
+    assert_includes @seen_cmd, "HIVE_OPENCODE_BIN=/opt/hb/opencode-bench-launcher"
     assert_includes @seen_cmd, "HB_OPENCODE_CE_PREFLIGHT=1"
     assert_includes @seen_cmd, "HB_OPENCODE_PROBE_TIMEOUT_SEC=300"
     assert_includes @seen_cmd, "OPENROUTER_API_KEY"

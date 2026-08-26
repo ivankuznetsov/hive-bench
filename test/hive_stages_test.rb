@@ -55,6 +55,16 @@ class HiveStagesTest < Minitest::Test
     assert_includes source, "missing CE skill path"
     assert_includes source, "incomplete CE skill corpus"
     assert_includes source, 'HB_NOTE opencode_ce_skills enabled count=33'
+    assert_includes source, '"${HIVE_OPENCODE_BIN:-opencode}" debug config'
+  end
+
+  def test_sealed_runtime_is_root_only_and_build_identified
+    source = File.read(SCRIPT)
+
+    assert_includes source, "HIVE_RUNTIME_BIN=/opt/hb/control-bundle/bin"
+    assert_includes source, "HB_ERROR hive_runtime_build_missing"
+    assert_includes source, "HB_ERROR hive_runtime_visible_to_candidate"
+    assert_includes source, "HB_NOTE hive_runtime_visibility sealed"
   end
 
   def test_grok_auth_preflight_fails_when_credential_disappears

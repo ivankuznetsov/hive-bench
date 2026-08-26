@@ -34,6 +34,7 @@ module HiveBench
     STAGES_SH = File.expand_path("hive_stages.sh", __dir__)
     RESUME_EXECUTE_SH = File.expand_path("hive_resume_execute.sh", __dir__)
     OPENCODE_BENCH_RUNTIME = File.expand_path("opencode_bench_runtime.rb", __dir__)
+    OPENCODE_BENCH_LAUNCHER = File.expand_path("opencode_bench_launcher.sh", __dir__)
     PI_BENCH_LAUNCHER = File.expand_path("pi_bench_launcher.sh", __dir__)
     PI_TOOL_STREAM = File.expand_path("pi_tool_stream.ts", __dir__)
     PI_OPENROUTER_MODELS = File.expand_path("../profiles/pi_openrouter_models.json", __dir__)
@@ -41,6 +42,9 @@ module HiveBench
     HOME = "/home/asterio"
     HIVE_RUNTIME_CONTAINER_ROOT = "/opt/hb/hive-current"
     HIVE_GEM_HOME_CONTAINER_ROOT = "/usr/local/bundle"
+    HIVE_CONTROL_GEM_HOME = "/opt/hb/control-bundle"
+    CANDIDATE_GEM_HOME = "/usr/local/bundle"
+    SEALED_RUNTIME_VISIBILITY = "sealed-control-bundle-v1"
     HIVE_RUNTIME_RUBYLIB = [
       "#{HIVE_RUNTIME_CONTAINER_ROOT}/components/agent-cli-runtime/lib",
       "#{HIVE_RUNTIME_CONTAINER_ROOT}/lib"
@@ -67,10 +71,11 @@ module HiveBench
     PLAN_TIMEOUT = Integer(ENV.fetch("HB_HIVE_TIMEOUT", "5400")) # per container run, sec
 
     def initialize(reuse_existing:, reuse_unverified:, clock: -> { Time.now.utc }, runner: nil,
-                   hive_runtime: nil)
+                   hive_runtime: nil, image_inspector: nil)
       @clock = clock
       @runner = runner # injectable container runner for tests; default shells docker
       @hive_runtime = hive_runtime
+      @image_inspector = image_inspector
       @reuse_existing = reuse_existing
       @reuse_unverified = reuse_unverified
     end
@@ -242,12 +247,20 @@ module HiveBench
     end
 
     def generation_identity(entry, candidate, base, hive_runtime: resolved_hive_runtime)
+      egress = generation_egress
+      runtime = { "version" => hive_runtime.fetch(:version) }
+      runtime["build_sha"] = hive_runtime[:build_sha] if hive_runtime[:build_sha]
       JSON.parse(JSON.generate(
                    "schema" => "hive-bench-generation-identity",
-                   "schema_version" => 1,
+                   "schema_version" => 3,
                    "task_id" => entry.fetch("task_id"),
                    "base_commit" => base,
-                   "hive_runtime" => { "version" => hive_runtime.fetch(:version) },
+                   "hive_runtime" => runtime,
+                   "isolation" => {
+                     "source_history" => "base-only-shallow",
+                     "generation_egress" => egress.fetch(:mode),
+                     "runtime_visibility" => sealed_agent_runtime? ? SEALED_RUNTIME_VISIBILITY : "host-mounted"
+                   },
                    "candidate" => candidate.to_h
                  ))
     end
@@ -313,13 +326,19 @@ module HiveBench
       status.success? && head.strip == base && File.file?(config) && File.read(config) == HiveConfig.to_yaml(candidate)
     end
 
-    # Clone the target, reset local main to the task's base_commit, drop origin so
-    # the execute worktree branches off base_commit (not origin/main).
+    # Fetch only the exact historical base into a depth-one repository. Cloning a
+    # current source checkout and then resetting it leaves newer objects/refs in
+    # .git; a candidate can recover the public gold with `git log --all`, reflogs,
+    # or object enumeration even when origin is removed. A depth-one SHA fetch
+    # contains the base tree and no descendants, so the reference solution is not
+    # merely hidden by refs: it is absent from the candidate filesystem.
     def setup_repo(source, base, work)
       FileUtils.rm_rf(work)
-      git("clone", "--quiet", "--no-local", source, work)
-      git("-C", work, "checkout", "-q", "-B", "main", base)
-      git("-C", work, "remote", "remove", "origin")
+      FileUtils.mkdir_p(work)
+      git("-C", work, "init", "-q", "-b", "main")
+      git("-C", work, "-c", "protocol.file.allow=always", "fetch", "--quiet",
+          "--depth=1", "--no-tags", source, base)
+      git("-C", work, "checkout", "-q", "-B", "main", "FETCH_HEAD")
       git("-C", work, "config", "user.email", "bench@hive-bench")
       git("-C", work, "config", "user.name", "hive-bench")
     end
@@ -355,6 +374,7 @@ module HiveBench
     def run_container(slug, base, work, candidate, out_dir, resume_marker_id: nil,
                       resume_review: false,
                       hive_runtime: resolved_hive_runtime)
+      verify_sealed_runtime!(candidate, hive_runtime) if sealed_agent_runtime?
       cmd = ["docker", "run", "--rm",
              "-e", "HOME=#{HOME}",
              "-e", "HIVE_HOME=#{HIVE_HOME}",
@@ -369,6 +389,7 @@ module HiveBench
              "--cpus", ENV.fetch("HB_CPUS", "4"),
              "--memory", ENV.fetch("HB_MEMORY", "8g"),
              "--pids-limit", ENV.fetch("HB_PIDS", "4096"),
+             *(sealed_agent_runtime? ? ["--user", "0:0", "--security-opt", "no-new-privileges:true"] : []),
              *network_args,
              "--tmpfs", "#{HOME}:exec,mode=1777",
              # .claude must be WRITABLE (claude's Bash tool mkdir's session-env
@@ -378,7 +399,7 @@ module HiveBench
              "-v", "#{STAGES_SH}:/hive_stages.sh:ro",
              "-v", "#{RESUME_EXECUTE_SH}:/hive_resume_execute.sh:ro",
              "-v", "#{work}:/work",
-             *hive_runtime_mounts(hive_runtime),
+             *hive_runtime_args(hive_runtime),
              *opencode_runtime_args(candidate),
              *auth_mounts(candidate, out_dir),
              *env_args(candidate),
@@ -391,9 +412,22 @@ module HiveBench
       (@runner || method(:capture)).call(cmd)
     end
 
-    # The image owns the OS and toolchain. Mount the selected host Hive runtime
-    # so a cell cannot silently execute an older gem baked into the image.
-    def hive_runtime_mounts(runtime = resolved_hive_runtime)
+    # Legacy campaigns mount the active runtime. Strict campaigns instead use a
+    # commit-labelled, root-only bundle baked into the image: the controller can
+    # run Hive, while the uid-1000 model processes cannot read its implementation.
+    def hive_runtime_args(runtime = resolved_hive_runtime)
+      if sealed_agent_runtime?
+        build_sha = runtime.fetch(:build_sha)
+        return [
+          "-e", "GEM_HOME=#{HIVE_CONTROL_GEM_HOME}",
+          "-e", "GEM_PATH=#{HIVE_CONTROL_GEM_HOME}:#{CANDIDATE_GEM_HOME}:/usr/local/lib/ruby/gems/3.4.0",
+          "-e", "HB_HIVE_VERSION=#{runtime.fetch(:version)}",
+          "-e", "HB_HIVE_BUILD_SHA=#{build_sha}",
+          "-e", "HB_SEALED_AGENT_RUNTIME=1",
+          "-e", "HIVE_BENCH_ALLOW_DISABLED_PLAN_REVIEW=1"
+        ]
+      end
+
       [
         "-v", "#{runtime.fetch(:root)}:#{HIVE_RUNTIME_CONTAINER_ROOT}:ro",
         "-v", "#{runtime.fetch(:gem_home)}:#{HIVE_GEM_HOME_CONTAINER_ROOT}:ro",
@@ -426,7 +460,8 @@ module HiveBench
         raise "cannot identify active hive runtime version: #{detail}"
       end
 
-      { root:, gem_home:, version: }.freeze
+      build_sha = runtime_build_sha(root)
+      { root:, gem_home:, version:, build_sha: }.compact.freeze
     rescue Errno::ENOENT, Errno::EACCES => e
       raise "active hive runtime is unavailable: #{e.message}"
     end
@@ -494,14 +529,84 @@ module HiveBench
       raise "active hive executable is not on PATH (set HB_HIVE_BIN)"
     end
 
-    # Generation needs model-API egress, so `--network none` is impossible here —
-    # but the default bridge leaves the answer key (the public reference PR)
-    # fetchable. HB_GEN_NETWORK names a docker network (e.g. one behind an egress
-    # allowlist proxy) to attach instead; until that's standing, the post-run
-    # answer-key scan (`answer_key_suspect?`) is the detection layer.
+    def runtime_build_sha(root)
+      out, _err, status = Open3.capture3("git", "-C", root, "rev-parse", "--verify", "HEAD^{commit}")
+      sha = out.strip
+      status.success? && sha.match?(/\A[0-9a-f]{40}\z/) ? sha : nil
+    end
+
+    def sealed_agent_runtime?
+      ENV["HB_REQUIRE_SEALED_AGENT_RUNTIME"] == "1"
+    end
+
+    def verify_sealed_runtime!(candidate, runtime)
+      build_sha = runtime[:build_sha].to_s
+      unless build_sha.match?(/\A[0-9a-f]{40}\z/)
+        raise "sealed benchmark runtime requires an exact 40-character Hive build SHA"
+      end
+
+      unsupported = agent_ids(candidate) - %w[pi opencode]
+      unless unsupported.empty?
+        raise "sealed benchmark runtime does not yet support candidate agent(s): #{unsupported.join(", ")}"
+      end
+
+      image = runner_image(candidate)
+      labels = inspect_image_labels(image)
+      actual_sha = labels["io.hive.bench.hive-build-sha"].to_s
+      visibility = labels["io.hive.bench.runtime-visibility"].to_s
+      unless actual_sha == build_sha && visibility == SEALED_RUNTIME_VISIBILITY
+        raise "runner image #{image} is not the sealed Hive build #{build_sha}: " \
+              "build_sha=#{actual_sha.inspect} runtime_visibility=#{visibility.inspect}"
+      end
+    end
+
+    def inspect_image_labels(image)
+      return @image_inspector.call(image) if @image_inspector
+
+      out, err, status = Open3.capture3(
+        "docker", "image", "inspect", "--format", "{{json .Config.Labels}}", image
+      )
+      raise "cannot inspect benchmark runner image #{image}: #{err.strip}" unless status.success?
+
+      labels = JSON.parse(out)
+      raise "benchmark runner image #{image} has no labels" unless labels.is_a?(Hash)
+
+      labels
+    rescue JSON::ParserError => e
+      raise "cannot parse benchmark runner image labels for #{image}: #{e.message}"
+    end
+
+    # Generation needs model-API egress, so `--network none` is impossible. A
+    # strict campaign attaches the cell to an internal Docker network whose only
+    # dual-homed peer is an allowlisting CONNECT proxy. The proxy variables make
+    # Node/Pi use that peer; the internal network prevents bypass by unsetting
+    # them. Partial configuration fails closed because a proxy on the ordinary
+    # bridge, or an internal network with no proxy, is not the claimed boundary.
     def network_args
-      net = ENV.fetch("HB_GEN_NETWORK", nil)
-      net ? ["--network", net] : []
+      network = generation_egress.fetch(:network)
+      network ? ["--network", network] : []
+    end
+
+    def generation_egress
+      network = ENV["HB_GEN_NETWORK"].to_s.strip
+      proxy = ENV["HB_GEN_HTTPS_PROXY"].to_s.strip
+      required = ENV["HB_REQUIRE_EGRESS_ALLOWLIST"] == "1"
+      if network.empty? && proxy.empty?
+        raise "benchmark requires provider-only generation egress" if required
+
+        return { mode: "unrestricted", network: nil, proxy: nil }.freeze
+      end
+      if network.empty? || proxy.empty?
+        raise "HB_GEN_NETWORK and HB_GEN_HTTPS_PROXY must be set together"
+      end
+      unless network.match?(/\A[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}\z/)
+        raise "HB_GEN_NETWORK is not a safe Docker network name"
+      end
+      unless proxy.match?(%r{\Ahttp://[a-zA-Z0-9][a-zA-Z0-9.-]{0,126}:[1-9]\d{0,4}\z})
+        raise "HB_GEN_HTTPS_PROXY must be a credential-free internal http://host:port URL"
+      end
+
+      { mode: "provider-allowlist", network:, proxy: }.freeze
     end
 
     # Mount the auth each used agent needs. claude: creds+settings+plugins at the
@@ -643,6 +748,12 @@ module HiveBench
     # `models:` config and compiled by its Agent CLI runtime.
     def env_args(candidate)
       args = []
+      egress = generation_egress
+      if egress.fetch(:proxy)
+        proxy = egress.fetch(:proxy)
+        args += ["-e", "HTTPS_PROXY=#{proxy}", "-e", "HTTP_PROXY=#{proxy}",
+                 "-e", "ALL_PROXY=#{proxy}", "-e", "NODE_USE_ENV_PROXY=1"]
+      end
       if uses?(candidate, "pi") || uses?(candidate, "opencode")
         args += ENV["OPENROUTER_API_KEY"] ? ["-e", "OPENROUTER_API_KEY"] : []
       end
@@ -661,6 +772,8 @@ module HiveBench
 
       [
         "-v", "#{OPENCODE_BENCH_RUNTIME}:/opt/hb/opencode_bench_runtime.rb:ro",
+        "-v", "#{OPENCODE_BENCH_LAUNCHER}:/opt/hb/opencode-bench-launcher:ro",
+        "-e", "HIVE_OPENCODE_BIN=/opt/hb/opencode-bench-launcher",
         "-e", "HB_OPENCODE_CE_PREFLIGHT=1",
         "-e", "HB_OPENCODE_PROBE_TIMEOUT_SEC=300",
         "-e", "RUBYOPT=-r/opt/hb/opencode_bench_runtime"
@@ -668,11 +781,15 @@ module HiveBench
     end
 
     def uses?(candidate, agent)
+      agent_ids(candidate).include?(agent)
+    end
+
+    def agent_ids(candidate)
       stage_agents = [candidate.plan, candidate.execute, candidate.review]
       reviewer_agents = Array(candidate.reviewers).filter_map do |reviewer|
         reviewer.is_a?(Hash) ? (reviewer["agent"] || reviewer[:agent]) : nil
       end
-      (stage_agents + reviewer_agents).include?(agent)
+      (stage_agents + reviewer_agents).compact.map(&:to_s).uniq
     end
 
     # Candidate model and effort live in Hive's stage routes, not the operator's

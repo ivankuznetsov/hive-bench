@@ -45,6 +45,15 @@ class PiBenchLauncherTest < Minitest::Test
     assert_empty err
   end
 
+  def test_sealed_invocations_drop_privileges_and_use_only_candidate_gems
+    source = File.read(LAUNCHER)
+
+    assert_includes source, 'setpriv --reuid="$candidate_uid" --regid="$candidate_gid"'
+    assert_includes source, "--bounding-set=-all --inh-caps=-all --ambient-caps=-all"
+    assert_includes source, "GEM_HOME=/usr/local/bundle"
+    assert_includes source, "PATH=/usr/local/bin:/usr/bin:/bin"
+  end
+
   private
 
   def run_launcher(*arguments)

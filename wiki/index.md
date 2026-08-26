@@ -34,14 +34,15 @@ Codex 5.5 xhigh, GPT-5.6 Sol xhigh, GLM 5.2, Grok 4.5, and Opus-plan → Codex
 xhigh. It uses one Fable 5 and one Sol xhigh score per non-empty cell; the
 three-sample Sol `ultra` follow-up remains a separate campaign.
 
-The paid Ox Alpha comparison now has a corrected strict OpenCode campaign. The
-Pi campaign and fresh OpenCode r3 campaign each generated all six tasks using
-OpenRouter `stealth/ox-alpha` at high reasoning with plan review disabled. r3
-required successful execution, exposed all 33 Compound Engineering commands,
-and retained three Fable 5 plus three Sol `ultra` samples for every cell: 36
-independent judgments, zero pending, and zero failed. Its six-task dual mean is
-3.661. The earlier OpenCode r2 judgments are superseded because every r2 cell
-had `execute_failed`; they are not benchmark evidence. See [[findings]].
+The previously published Ox Alpha Pi/OpenCode rows are superseded. An audit
+found no evidence that either model copied a reference patch, but the old
+runner left future Git objects, public GitHub egress, and the current Hive
+runtime source readable in the candidate container. OpenCode also lacked shell
+access in its r3 run, making the low harness comparison unfair. Replacement
+campaigns use base-only shallow history, provider-only egress, Bash parity, and
+a commit-labelled root-only Hive control bundle that Pi/OpenCode cannot read.
+No replacement score is publishable until those sealed campaigns finish. See
+[[findings]] and [[architecture]].
 
 v3 adds campaign orchestration, stronger runtime gates, replication, and
 calibrated judge presentation. The native `bench` Hive workflow has guarded,

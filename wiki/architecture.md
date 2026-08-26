@@ -7,10 +7,10 @@ for results, [[decisions]] for the methodology choices, `HANDOFF.md` for run com
 
 ```
 for each corpus task T, for each candidate C:
-  1. clone target repo, `checkout -B main T.base_commit`, remove origin
+  1. initialize an empty target repo and depth-one fetch only `T.base_commit`
   2. seed .hive-state/stages/2-brainstorm/<slug>/ with the FROZEN brainstorm + idea + assets
   3. write .hive-state/config.yml from C (agent/model/effort per stage, plan review disabled); git init .hive-state
-  4. container: exact mounted Hive runtime -> hive plan (/ce-plan) -> run a markerless promoted plan when required -> force-complete if WAITING -> hive develop (execute)
+  4. sealed container: root-only, commit-labelled Hive control bundle -> hive plan (/ce-plan) -> drop each Pi/OpenCode model process to uid 1000 -> force-complete if WAITING -> hive develop (execute)
   5. capture working-tree diff (base..worktree, vendored-excluded) -> candidate.patch
   6. parse token telemetry from .hive-state/logs/<slug>/*.log (Pi counts each
      assistant `message_end`; update/turn-end copies are non-billable); when
@@ -23,8 +23,9 @@ for each corpus task T, for each candidate C:
 
 - **`lib/hive_driver.rb`** — host orchestrator (steps 1–3, 5–6 + the docker run); returns a
   `Run::Cell`-shaped result so it flows into the existing `RunAll`/`Score`. It
-  mounts one selected host Hive runtime, records that version in generation
-  identity, and seeds a per-cell `HIVE_HOME` registry containing only `/work`.
+  verifies that the sealed image label matches the selected Hive build SHA,
+  records the runtime visibility and egress posture in generation identity,
+  and seeds a per-cell `HIVE_HOME` registry containing only `/work`.
 - **`lib/hive_stages.sh`** — runs INSIDE the container (step 4 + capture): plan, force-complete
   a WAITING plan (no human Q&A), develop, capture the working-tree diff. Force-completion
   commits only `plan.md`; transient Hive lock churn is deliberately left outside that
@@ -100,9 +101,9 @@ and are classified as execution failures instead of trusting a stale patch.
 ## Driver hardening (2026-07-01)
 
 - The gen container is **resource-capped** (`HB_CPUS`/`HB_MEMORY`/`HB_PIDS`,
-  default 4 / 8g / 4096) and can attach an egress-allowlisted docker network via
-  `HB_GEN_NETWORK` (generation can't run `--network none` — the agent needs its
-  model API).
+  default 4 / 8g / 4096). Publication campaigns attach it to a Docker internal
+  network whose only outbound peer is `provider_egress_proxy.rb`; that CONNECT
+  proxy permits the model provider and denies GitHub/arbitrary destinations.
 - The stage command appends `HB_EXIT rc=$?`: rc=124 classifies as **`timed_out`**
   (a slow candidate), no longer misread as `plan_failed`.
 - `HB_NOTE plan_forced_complete` is surfaced into cell telemetry
@@ -112,7 +113,8 @@ and are classified as execution failures instead of trusting a stale patch.
   URL or `gh pr view/diff/checkout <n>` in the agent stream logs); a hit lands in
   telemetry as `answer_key_access_suspect` and warns loudly.
 - **Completed artifacts survive result/judge failures.** Before generation, the
-  driver persists the task, base commit, exact Hive runtime version, and full candidate definition in
+  driver persists the task, base commit, exact Hive version/build SHA, source-history,
+  egress, runtime-visibility posture, and full candidate definition in
   `.hb/generation-identity.json`. On retry it reuses `target/candidate.patch`
   only when that identity matches and Hive's `.hb/stages.out` transcript still
   classifies it as generated. `--no-reuse-existing-artifacts` forces a fresh
@@ -170,9 +172,12 @@ and are classified as execution failures instead of trusting a stale patch.
   seconds. This keeps an admitted plan/execute attempt alive while a heavily
   loaded benchmark container starts, without changing the model timeout or
   making worker startup unbounded.
-- **`Dockerfile.runner`** + **`build_runner.sh`** — image with the hive tool baked in as a
-  gem (`build_runner.sh` pins it from `git archive HEAD` and applies the default Pi and
-  explicit OpenCode runner tags). The gated corpus-submission
+- **`Dockerfile.runner`** + **`build_runner.sh`** — image with Hive baked into a
+  root-only control bundle and its exact Git SHA in an OCI label. The candidate
+  gem tree retains test dependencies but removes `hive-cli`; Pi and OpenCode
+  launchers chown `/work`, drop to uid 1000, clear Linux capabilities, and use
+  only that candidate gem tree. The builder applies the default Pi and explicit
+  OpenCode runner tags in one build. The gated corpus-submission
   workflow checks out Hive at an immutable full commit SHA and calls this same builder
   from an immutable checkout of the PR's trusted base SHA; validator, harness, and
   Dockerfile code never come from the submitted head. Only the submitted `corpus/**`
@@ -198,14 +203,17 @@ and are classified as execution failures instead of trusting a stale patch.
 
 Every one of these was needed to make real hive run headlessly with `/ce-plan`:
 
-- the image retains a baked Hive fallback, but generation mounts the exact
-  selected host Hive source and matching gem home read-only. The stage script
-  verifies `HB_HIVE_VERSION` before any provider call.
+- sealed generation runs the controller as root from `/opt/hb/control-bundle`,
+  verifies the image's build-SHA label and `HB_HIVE_VERSION`, and never mounts
+  the host Hive source or gem home. The control directory is mode-protected;
+  each model runs as uid 1000 with no capabilities and a Hive-free candidate
+  gem tree. Legacy unsealed campaigns retain the older host-mount path.
 - Pi `0.84.2`, OpenCode `1.18.18`, and Compound Engineering `3.22.4` are pinned.
   OpenCode gets a distinct image tag and a local `/opt/compound-engineering`
   plugin; launch fails closed unless all 33 CE workflows are discoverable.
-- **non-root** (`runner`, uid 1000 == host uid → no git-ownership friction); claude refuses
-  `--dangerously-skip-permissions` as root.
+- the sealed Hive controller is root, while Pi/OpenCode model processes are
+  explicitly dropped to `runner` (uid 1000) with no capabilities. Other agent
+  harnesses fail closed in sealed mode until they have equivalent launchers.
 - `HOME=/home/asterio` **and** `/home/asterio/.claude` on a **writable tmpfs**
   (`--tmpfs …:exec,mode=1777`). The `.claude` tmpfs is what keeps claude's Bash tool alive
   (it `mkdir`s `session-env` there). Bind the claude creds/settings/**plugins** ro at that
@@ -218,7 +226,8 @@ Every one of these was needed to make real hive run headlessly with `/ce-plan`:
   real `~/.grok` refresh-token chain. The in-container stage shim links
   `~/.grok/auth.json` to that canonical path inside the tmpfs solely for Hive
   0.3.6's hard-coded agent preflight; Grok itself still uses `GROK_AUTH_PATH`.
-- target clone: **drop `origin`** so the execute worktree branches off local `main`=base_commit.
+- target clone: fetch only the exact historical base at depth one, with no
+  remote retained and no descendant/reference objects present.
   `.hive-state` is **its own git repo** (`git init`). Resolve the task by **path** (not slug).
 - each cell has an isolated `HIVE_HOME` with one registered project (`/work`),
   and the explicit benchmark grant is required for `plan_review.enabled: false`.
