@@ -44,6 +44,10 @@ a commit-labelled root-only Hive control bundle that Pi/OpenCode cannot read.
 No replacement score is publishable until those sealed campaigns finish. See
 [[findings]] and [[architecture]].
 
+OpenRouter disclosed Ox Alpha as Z.ai GLM 5.3 Flash on 2026-08-26 and retired
+the `stealth/ox-alpha` inference route. Replacement campaigns use the official
+`z-ai/glm-5.3-flash` id while retaining Ox Alpha lineage in candidate names.
+
 v3 adds campaign orchestration, stronger runtime gates, replication, and
 calibrated judge presentation. The native `bench` Hive workflow has guarded,
 idempotent stages and full no-cost fixture paths through

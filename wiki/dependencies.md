@@ -67,16 +67,18 @@ arguments.
 
 ## Ox Alpha through Pi and OpenCode
 
-The single-family `all-ox-alpha@high` candidate routes plan, execute, and
-review through Pi as `openrouter/stealth/ox-alpha:high`. A separate
-`all-ox-alpha@max` row pins `openrouter/stealth/ox-alpha:max` across those same
+OpenRouter disclosed Ox Alpha as Z.ai GLM 5.3 Flash and retired the stealth
+route on 2026-08-26. The single-family `all-ox-alpha@high` candidate now routes
+plan, execute, and review through Pi as
+`openrouter/z-ai/glm-5.3-flash:high`. A separate `all-ox-alpha@max` row pins
+`openrouter/z-ai/glm-5.3-flash:max` across those same
 three stages. The explicit suffixes are part of each candidate identity rather
 than relying on the provider default. The runner mounts a minimal Pi OpenRouter
 catalog and writes the existing `OPENROUTER_API_KEY` into Pi's ephemeral native
 auth store without persisting or printing it.
 
 `all-ox-alpha-opencode@high` runs the same three stages as
-`openrouter/stealth/ox-alpha` with OpenCode variant `high`. It uses the separate
+`openrouter/z-ai/glm-5.3-flash` with OpenCode variant `high`. It uses the separate
 `hive-bench-runner:opencode` image with OpenCode `1.18.18` and Compound
 Engineering `3.22.4` at `/opt/compound-engineering`. Before Hive starts, the
 stage script verifies the local plugin config, the required plan/work/review

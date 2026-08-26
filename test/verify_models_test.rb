@@ -44,7 +44,7 @@ class VerifyModelsTest < Minitest::Test
 
   def test_ox_alpha_max_claim_accepts_the_observed_provider_model
     Dir.mktmpdir do |root|
-      write_log(root, "all_ox_alpha_max", "plan.log", ["stealth/ox-alpha"])
+      write_log(root, "all_ox_alpha_max", "plan.log", ["z-ai/glm-5.3-flash"])
 
       findings, checked = HiveBench::VerifyModels.scan([root])
 
