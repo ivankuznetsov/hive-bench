@@ -147,13 +147,13 @@ class HiveConfigTest < Minitest::Test
     assert_equal "pi", h.dig("plan", "agent")
     assert_equal "pi", h.dig("execute", "agent")
     assert_equal "pi", h.dig("review", "agent")
-    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "plan", "model")
-    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "execute", "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash:high", h.dig("models", "plan", "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash:high", h.dig("models", "execute", "model")
     %w[open_pr review_ci review_triage review_fix].each do |stage|
-      assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", stage, "model")
+      assert_equal "openrouter/z-ai/glm-5.3-flash:high", h.dig("models", stage, "model")
     end
-    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("review", "reviewers", 0, "model")
-    assert_equal "openrouter/stealth/ox-alpha:high", h.dig("models", "review_reviewers", "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash:high", h.dig("review", "reviewers", 0, "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash:high", h.dig("models", "review_reviewers", "model")
   end
 
   def test_ox_alpha_pi_max_candidate_is_a_separate_explicit_route
@@ -163,12 +163,12 @@ class HiveConfigTest < Minitest::Test
 
     h = HiveBench::HiveConfig.to_h(candidate)
 
-    assert_equal "ox-alpha-max", candidate.model_version
+    assert_equal "glm-5.3-flash-max", candidate.model_version
     assert_equal %w[pi pi pi], [candidate.plan, candidate.execute, candidate.review]
     %w[plan execute open_pr review_ci review_triage review_fix].each do |stage|
-      assert_equal "openrouter/stealth/ox-alpha:max", h.dig("models", stage, "model")
+      assert_equal "openrouter/z-ai/glm-5.3-flash:max", h.dig("models", stage, "model")
     end
-    assert_equal "openrouter/stealth/ox-alpha:max", h.dig("review", "reviewers", 0, "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash:max", h.dig("review", "reviewers", 0, "model")
     refute h.dig("plan_review", "enabled")
   end
 
@@ -184,12 +184,12 @@ class HiveConfigTest < Minitest::Test
     assert_equal ["/opt/compound-engineering"], h.dig("agents", "opencode", "plugins")
     assert_equal ["OPENROUTER_API_KEY"], h.dig("agents", "opencode", "credential_env")
     refute h.dig("agents", "opencode").key?("isolation")
-    assert h.dig("agents", "opencode", "config", "provider", "openrouter", "models", "stealth/ox-alpha")
+    assert h.dig("agents", "opencode", "config", "provider", "openrouter", "models", "z-ai/glm-5.3-flash")
     %w[plan execute open_pr review_ci review_triage review_fix].each do |stage|
-      assert_equal "openrouter/stealth/ox-alpha", h.dig("models", stage, "model")
+      assert_equal "openrouter/z-ai/glm-5.3-flash", h.dig("models", stage, "model")
       assert_equal "high", h.dig("models", stage, "effort")
     end
-    assert_equal "openrouter/stealth/ox-alpha", h.dig("review", "reviewers", 0, "model")
+    assert_equal "openrouter/z-ai/glm-5.3-flash", h.dig("review", "reviewers", 0, "model")
     assert_equal "high", h.dig("review", "reviewers", 0, "effort")
     assert_equal "high", h.dig("models", "review_reviewers", "effort")
     assert_nil h.dig("models", "review_reviewers", "model")
