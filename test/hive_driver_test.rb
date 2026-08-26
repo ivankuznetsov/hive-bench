@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "tmpdir"
 require "fileutils"
 require "open3"
+require "sqlite3"
 require "lib/hive_driver"
 require "profiles/candidates"
 
@@ -152,6 +153,44 @@ class HiveDriverTest < Minitest::Test
     assert_equal 12, cell.telemetry["output_tokens"]
     assert_equal 300, cell.telemetry["cached_tokens"]
     assert_equal 4, cell.telemetry["cache_creation_tokens"]
+  end
+
+  def test_opencode_telemetry_uses_the_hive_usage_database
+    opencode = HiveBench::Candidates.by_id("all-ox-alpha-opencode@high")
+    runner = lambda do |_cmd|
+      File.write(File.join(@work, "candidate.patch"), "diff --git a/app.rb b/app.rb\n")
+      log_dir = File.join(@work, ".hive-state", "logs", "add-i-key")
+      FileUtils.mkdir_p(log_dir)
+      File.write(File.join(log_dir, "plan-1.log"), "[opencode event omitted type=step_finish]\n")
+      db_path = File.join(@work, ".hb", "hive-home", "usage.db")
+      FileUtils.mkdir_p(File.dirname(db_path))
+      SQLite3::Database.new(db_path) do |db|
+        db.execute <<~SQL
+          CREATE TABLE token_usage (
+            agent TEXT NOT NULL, model TEXT, actual_backend TEXT, actual_model TEXT,
+            stage TEXT, input INTEGER, output INTEGER, cached INTEGER,
+            cache_read INTEGER, cache_write INTEGER,
+            input_available INTEGER, output_available INTEGER, cached_available INTEGER,
+            cache_read_available INTEGER, cache_write_available INTEGER
+          )
+        SQL
+        db.execute(
+          "INSERT INTO token_usage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          ["opencode", "openrouter/stealth/ox-alpha", "openrouter", "stealth/ox-alpha",
+           "3-plan", 2_392, 130, 13_440, 13_440, 0, 1, 1, 1, 1, 1]
+        )
+      end
+      OK_STDOUT
+    end
+
+    cell = hive_driver(runner:, reuse_existing: false, reuse_unverified: false).call(
+      entry: entry, candidate: opencode, out_dir: @out
+    )
+
+    assert_equal 2_392, cell.telemetry["input_tokens"]
+    assert_equal 130, cell.telemetry["output_tokens"]
+    assert_equal 13_440, cell.telemetry["cached_tokens"]
+    assert_equal 0, cell.telemetry["cache_creation_tokens"]
   end
 
   def test_no_token_telemetry_means_no_cost_not_zero_cost

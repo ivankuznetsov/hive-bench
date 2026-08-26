@@ -42,8 +42,14 @@ module HiveBench
       "status" => "active",
       "variants" => { "high" => { "reasoning" => { "effort" => "high" } } }
     }.freeze
+    # OpenCode enforces scoped permissions while Pi relies on the surrounding
+    # benchmark container. Give both harnesses the same coding capability: the
+    # disposable container + provider-only network remain the security
+    # boundary, while OpenCode may run the repository diagnostics and tests a
+    # coding benchmark requires. Without Bash the model can edit blindly, which
+    # measures a capability handicap rather than the harness.
     OPENCODE_PERMISSIONS = {
-      "preset" => "scoped", "tools" => %w[Read Write Edit]
+      "preset" => "scoped", "tools" => [ "Read", "Write", "Edit", "Bash(*)" ]
     }.freeze
 
     # candidate: responds to plan, execute, review (agent names: "claude"/"codex"/

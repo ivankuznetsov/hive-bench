@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "sqlite3"
 require "lib/pricing"
 
 module HiveBench
@@ -11,7 +12,7 @@ module HiveBench
   # usage but no model id). This is what makes mixed candidates priceable:
   # attribution is per event, not per cell.
   #
-  # Three stream schemas:
+  # Three stream schemas plus Hive's structured usage database:
   #   claude: input_tokens / output_tokens / cache_read_input_tokens /
   #           cache_creation_input_tokens; model at message.model.
   #           input_tokens EXCLUDES cache reads.
@@ -20,6 +21,8 @@ module HiveBench
   #   codex:  input_tokens / cached_input_tokens / output_tokens
   #           (+ reasoning_output_tokens as a detail of output); NO model id.
   #           input_tokens INCLUDES cached_input_tokens (OpenAI convention).
+  #   OpenCode: raw events are deliberately redacted from Hive logs; the
+  #             normalized per-session values live in .hb/hive-home/usage.db.
   module TokenReport
     module_function
 
@@ -63,8 +66,65 @@ module HiveBench
           add_usage(per_model[model], usage)
         end
       end
+      # The database is authoritative for OpenCode because Hive intentionally
+      # omits the provider event payloads from persisted logs. Replace a bucket
+      # with the DB aggregate instead of adding it, so a future unredacted log
+      # cannot double-count the same OpenCode sessions.
+      scan_usage_db(target_dir).each { |model, usage| per_model[model] = usage }
       per_model
     end
+
+    def scan_usage_db(target_dir)
+      path = File.join(target_dir, ".hb", "hive-home", "usage.db")
+      return {} unless File.file?(path)
+
+      database = SQLite3::Database.new(path)
+      database.results_as_hash = true
+      columns = database.execute("PRAGMA table_info(token_usage)").map { |row| row["name"] }
+      return {} unless %w[agent model input output cached].all? { |name| columns.include?(name) }
+
+      rows = database.execute("SELECT * FROM token_usage WHERE agent = ?", "opencode")
+      per_model = Hash.new { |hash, model| hash[model] = Hash.new(0) }
+      rows.each do |row|
+        model = usage_model(row)
+        acc = per_model[model]
+        acc["input"] += available_value(row, "input")
+        acc["output"] += available_value(row, "output")
+        acc["cache_read"] += if available?(row, "cache_read")
+                               row["cache_read"].to_i
+                             else
+                               available_value(row, "cached")
+                             end
+        acc["cache_write"] += available_value(row, "cache_write")
+      end
+      per_model
+    rescue SQLite3::Exception
+      {}
+    ensure
+      database&.close
+    end
+
+    def usage_model(row)
+      model = row["model"].to_s
+      return model unless model.empty?
+
+      backend = row["actual_backend"].to_s
+      actual = row["actual_model"].to_s
+      route = [backend, actual].reject(&:empty?).join("/")
+      route.empty? ? "unknown" : route
+    end
+    private_class_method :usage_model
+
+    def available?(row, bucket)
+      availability = "#{bucket}_available"
+      !row.key?(availability) || row[availability].to_i == 1
+    end
+    private_class_method :available?
+
+    def available_value(row, bucket)
+      available?(row, bucket) ? row[bucket].to_i : 0
+    end
+    private_class_method :available_value
 
     def add_usage(acc, usage)
       if usage.key?("cacheRead") || usage.key?("input") # pi

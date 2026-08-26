@@ -27,6 +27,7 @@ module HiveBench
     SOL = "gpt-5.6-sol"
     TERRA = "gpt-5.6-terra"
     PI_OX_ALPHA = "openrouter/stealth/ox-alpha:high"
+    PI_OX_ALPHA_MAX = "openrouter/stealth/ox-alpha:max"
     OPENCODE_OX_ALPHA = "openrouter/stealth/ox-alpha"
 
     def all
@@ -35,7 +36,7 @@ module HiveBench
        all_codex_xhigh, opus_plan_codex_exec_xhigh, all_grok,
        all_codex_sol_xhigh, sol_plan_terra_exec_sol_review,
        fable_plan_grok_exec_sol_review, sol_plan_grok_exec_sol_review,
-       all_ox_alpha_high, all_ox_alpha_opencode_high].freeze
+       all_ox_alpha_high, all_ox_alpha_max, all_ox_alpha_opencode_high].freeze
     end
 
     def by_id(id)
@@ -181,6 +182,19 @@ module HiveBench
                                   "review" => PI_OX_ALPHA
                                 },
                                 model_version: "ox-alpha-high")
+    end
+
+    # A separate Pi-only row at Ox Alpha's maximum reasoning tier. Keeping the
+    # effort in the route string makes the provider selection explicit rather
+    # than relying on OpenRouter's mutable default.
+    def all_ox_alpha_max
+      base("all-ox-alpha@max", plan: "pi", execute: "pi", review: "pi",
+                               pi_models: {
+                                 "plan" => PI_OX_ALPHA_MAX,
+                                 "execute" => PI_OX_ALPHA_MAX,
+                                 "review" => PI_OX_ALPHA_MAX
+                               },
+                               model_version: "ox-alpha-max")
     end
 
     # Same model and reasoning tier through Hive's OpenCode profile. The
