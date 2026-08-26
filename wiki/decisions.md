@@ -37,6 +37,13 @@ keeps review quality part of the candidate's measured workflow rather than a
 free claude post-processor. The bench deviation is still deliberate:
 `github_publish` is disabled and the PR lives on a local origin.
 
+An August 26 audit adds tool parity to that contract. OpenCode receives scoped
+`Read`, `Write`, `Edit`, and qualified `Bash(*)`, because denying shell while Pi
+can run tests measures an accidental harness handicap. The disposable
+container, exact-base source checkout, and provider-only proxy own containment;
+candidate tool policy must not remove ordinary coding and verification
+capabilities from only one compared harness.
+
 ## 2026-07-09 — explicit model pins for CLIs without hive model fields
 
 hive has no native pi or grok model field and codex effort is a CLI config

@@ -4,6 +4,10 @@ source "https://rubygems.org"
 
 ruby "~> 3.4"
 
+# Hive persists structured agent usage in SQLite. The benchmark reads that
+# canonical store when a harness (notably OpenCode) redacts raw stream events.
+gem "sqlite3", "~> 2.0"
+
 # Stdlib-first by design — the harness shells out to git/agent CLIs and uses
 # YAML/JSON from the standard library. Dev/test tooling only.
 group :development, :test do

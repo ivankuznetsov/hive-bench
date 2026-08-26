@@ -42,6 +42,17 @@ class VerifyModelsTest < Minitest::Test
     end
   end
 
+  def test_ox_alpha_max_claim_accepts_the_observed_provider_model
+    Dir.mktmpdir do |root|
+      write_log(root, "all_ox_alpha_max", "plan.log", ["stealth/ox-alpha"])
+
+      findings, checked = HiveBench::VerifyModels.scan([root])
+
+      assert_equal 1, checked
+      assert_empty findings
+    end
+  end
+
   def test_utility_only_logs_are_skipped_not_counted
     Dir.mktmpdir do |root|
       write_log(root, "all_opus_4_8", "probe.log", %w[claude-haiku-4-5-20251001])

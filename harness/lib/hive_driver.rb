@@ -7,6 +7,7 @@ require "open3"
 require "lib/hive_config"
 require "lib/agent_limit"
 require "lib/pricing"
+require "lib/token_report"
 
 module HiveBench
   # Drives REAL hive (plan -> execute) for one (task x candidate) in the
@@ -821,9 +822,28 @@ module HiveBench
           cost += obj["total_cost_usd"].to_f if obj["type"] == "result"
         end
       end
-      { "input_tokens" => input, "output_tokens" => output, "cached_tokens" => cached,
-        "cache_creation_tokens" => cache_creation,
-        "cost_usd" => cost.round(6) }.reject { |_, v| v.zero? }
+      telemetry = { "input_tokens" => input, "output_tokens" => output,
+                    "cached_tokens" => cached,
+                    "cache_creation_tokens" => cache_creation,
+                    "cost_usd" => cost.round(6) }.reject { |_, v| v.zero? }
+      return telemetry if telemetry.keys.any? { |key| key.end_with?("_tokens") }
+
+      # OpenCode events are intentionally redacted from Hive's stage logs. Hive
+      # still records their normalized usage in its per-cell SQLite database, so
+      # use that canonical store when no stream-token evidence exists.
+      database_usage = TokenReport.scan_usage_db(work)
+      return telemetry if database_usage.empty?
+
+      totals = Hash.new(0)
+      database_usage.each_value do |usage|
+        TokenReport::BUCKETS.each { |bucket| totals[bucket] += usage[bucket] }
+      end
+      telemetry.merge(
+        "input_tokens" => totals["input"],
+        "output_tokens" => totals["output"],
+        "cached_tokens" => totals["cache_read"],
+        "cache_creation_tokens" => totals["cache_write"]
+      )
     end
 
     # Extract the JSON object from a `[stream] <ts> {json}` log line (or a bare

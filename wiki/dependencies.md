@@ -68,11 +68,12 @@ arguments.
 ## Ox Alpha through Pi and OpenCode
 
 The single-family `all-ox-alpha@high` candidate routes plan, execute, and
-review through Pi as `openrouter/stealth/ox-alpha:high`. The explicit suffix is
-part of the candidate identity: Ox Alpha's provider default is higher than the
-requested benchmark tier. The runner mounts a minimal Pi OpenRouter catalog
-and writes the existing `OPENROUTER_API_KEY` into Pi's ephemeral native auth
-store without persisting or printing it.
+review through Pi as `openrouter/stealth/ox-alpha:high`. A separate
+`all-ox-alpha@max` row pins `openrouter/stealth/ox-alpha:max` across those same
+three stages. The explicit suffixes are part of each candidate identity rather
+than relying on the provider default. The runner mounts a minimal Pi OpenRouter
+catalog and writes the existing `OPENROUTER_API_KEY` into Pi's ephemeral native
+auth store without persisting or printing it.
 
 `all-ox-alpha-opencode@high` runs the same three stages as
 `openrouter/stealth/ox-alpha` with OpenCode variant `high`. It uses the separate
@@ -81,13 +82,24 @@ Engineering `3.22.4` at `/opt/compound-engineering`. Before Hive starts, the
 stage script verifies the local plugin config, the required plan/work/review
 commands, and an exact 33-workflow CE inventory. The OpenCode profile is
 hermetic, declares the Ox Alpha capability locally, and receives only the named
-`OPENROUTER_API_KEY` credential.
+`OPENROUTER_API_KEY` credential. Its scoped tool policy grants read, write,
+edit, and explicitly qualified `Bash(*)`, matching Pi's ability to run tests
+and repository diagnostics inside the disposable candidate container. The
+exact-base checkout and provider-only egress proxy, not an OpenCode shell
+handicap, enforce benchmark containment.
 
 Both candidates serialize `plan_review.enabled: false` and require the
 process-local `HIVE_BENCH_ALLOW_DISABLED_PLAN_REVIEW=1` grant. No critique
 model is inserted before execution, keeping Pi and OpenCode on the same
 historical benchmark contract. Fable and Sol are judges only and run after a
 candidate patch is generated.
+
+Hive intentionally redacts OpenCode provider events from stage logs, but writes
+normalized per-session usage into the cell-local SQLite store at
+`.hb/hive-home/usage.db`. The benchmark has a direct `sqlite3` dependency and
+uses those OpenCode rows when the raw log scan has no token evidence. Database
+cache-read values take precedence over the legacy `cached` alias so one session
+cannot be counted twice.
 
 The exact Hive runtime mount also puts that checkout's
 `components/agent-cli-runtime/lib` and `lib` directories first on `RUBYLIB`.
