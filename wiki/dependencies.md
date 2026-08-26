@@ -81,12 +81,13 @@ auth store without persisting or printing it.
 Engineering `3.22.4` at `/opt/compound-engineering`. Before Hive starts, the
 stage script verifies the local plugin config, the required plan/work/review
 commands, and an exact 33-workflow CE inventory. The OpenCode profile is
-hermetic, declares the Ox Alpha capability locally, and receives only the named
-`OPENROUTER_API_KEY` credential. Its scoped tool policy grants read, write,
-edit, and explicitly qualified `Bash(*)`, matching Pi's ability to run tests
-and repository diagnostics inside the disposable candidate container. The
-exact-base checkout and provider-only egress proxy, not an OpenCode shell
-handicap, enforce benchmark containment.
+limited to Hive-supported override keys, declares the Ox Alpha capability
+locally, and receives only the named `OPENROUTER_API_KEY` credential. Its scoped
+tool policy grants read, write, edit, and explicitly qualified `Bash(*)`,
+matching Pi's ability to run tests and repository diagnostics inside the
+disposable candidate container. The runner container, exact-base checkout, and
+provider-only egress proxy enforce benchmark containment; the removed
+`agents.opencode.isolation` key was not a valid Hive setting.
 
 Both candidates serialize `plan_review.enabled: false` and require the
 process-local `HIVE_BENCH_ALLOW_DISABLED_PLAN_REVIEW=1` grant. No critique
@@ -106,3 +107,7 @@ The exact Hive runtime mount also puts that checkout's
 Invoking the mounted `bin/hive` directly would otherwise resolve the
 host-installed component gem, silently bypassing component changes in the
 selected checkout even though Hive's own source came from the mount.
+When Hive was launched through its dogfood wrapper, the driver resolves the
+immutable deployment named by the inherited deployment id and build SHA,
+verifies that commit, and mounts it directly. This avoids mistaking the wrapper
+for a complete runtime or following a later `dogfood-current` cutover.
