@@ -161,8 +161,8 @@ class IsolationExecTest < Minitest::Test
     env = IE.gen_env(codex)
 
     assert_equal File.expand_path("~/.codex/auth.json"), env["HB_CODEX_AUTH"]
-    refute env.key?("HB_CLAUDE_AUTH")
-    refute IE.gen_env(pi_profile).key?("HB_CODEX_AUTH")
+    assert_nil env.fetch("HB_CLAUDE_AUTH")
+    assert_nil IE.gen_env(pi_profile).fetch("HB_CODEX_AUTH")
   end
 
   def test_parse_claude_result_surfaces_an_error_for_limit_detection
@@ -180,7 +180,7 @@ class IsolationExecTest < Minitest::Test
 
     assert_equal "1", env["HB_ALLOW_EGRESS"]
     assert_equal File.expand_path("~/.claude/.credentials.json"), env["HB_CLAUDE_AUTH"]
-    refute IE.gen_env(pi_profile).key?("HB_CLAUDE_AUTH"), "pi cells never mount claude creds"
+    assert_nil IE.gen_env(pi_profile).fetch("HB_CLAUDE_AUTH"), "pi cells remove inherited claude creds"
   end
 
   def test_isolation_script_rejects_missing_claude_auth_before_docker_run
@@ -193,13 +193,16 @@ class IsolationExecTest < Minitest::Test
     env = {
       "PATH" => "#{bin}:#{ENV.fetch("PATH")}",
       "HB_ALLOW_EGRESS" => "1",
+      "HB_API_KEYS" => "",
+      "HB_CODEX_AUTH" => nil,
       "HB_CLAUDE_AUTH" => missing_auth
     }
 
     _out, err, status = Open3.capture3(env, "bash", IE::SCRIPT, "gen", @dir, "true")
 
     assert_equal IE::FAIL_ISOLATION, status.exitstatus
-    assert_match(/claude auth path is missing or not a file/, err)
+    assert_equal "hive-bench: gen credentials require one API variable without OAuth, or exactly one regular OAuth file — failing closed\n",
+                 err
     refute_path_exists missing_auth, "missing bind-mount source must not be created"
   end
 
