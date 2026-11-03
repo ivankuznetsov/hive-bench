@@ -235,3 +235,11 @@ Every one of these was needed to make real hive run headlessly with `/ce-plan`:
 
 These are mirrored in the code comments and [[findings]] (the Bash-tool bug). The fully
 worked-out recipe also lives in the project memory `hive-bench-v2-real-hive.md`.
+
+## Ranked evidence admission
+
+Result schema version 2 retains `judged` and `gated` with admissible-only
+populations. Execution must have status `generated` or `empty_diff`; judge
+and gate evidence must bind the current generation, artifacts and evaluation
+context. Raw unsuccessful scores remain diagnostic. Attempted, eligible and
+evaluated coverage and available operational costs are reported separately.

@@ -69,7 +69,7 @@ module HiveBench
       end
 
       results = @scorer.results(records: records, corpus_version: corpus_version,
-                                generated_at: @clock.call.iso8601)
+                                generated_at: @clock.call.iso8601, pending: pending, failed: failed)
       results["pending"] = pending
       results["failed"] = failed
       Outcome.new(results: results, pending: pending, failed: failed)
@@ -87,30 +87,32 @@ module HiveBench
       cell = @runner.call(entry: entry, profile: profile, out_dir: out_dir)
 
       if cell.status == "limit_hit"
-        pending << park(entry, profile, cell.reason)
+        pending << park(entry, profile, cell.reason, cell)
         return
       end
 
       scored = score_cell(entry, profile, cell, out_dir)
       records << scored.record
-      park_judge_failure(scored.judge_failure, entry, profile, pending, failed) if scored.judge_failure
+      park_judge_failure(scored.judge_failure, entry, profile, pending, failed, cell) if scored.judge_failure
     rescue StandardError => e
       reason = "#{e.class}: #{e.message}"
       warn "hive-bench: parked failed — #{profile.id} #{entry["task_id"]}: #{redact(reason)}"
-      failed << park(entry, profile, reason)
+      failed << park(entry, profile, reason, cell)
     end
 
-    def park(entry, profile, reason)
-      { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => redact(reason) }
+    def park(entry, profile, reason, cell = nil)
+      { "task_id" => entry["task_id"], "agent_id" => profile.id, "reason" => redact(reason),
+        "generation_id" => cell.respond_to?(:generation_id) ? cell.generation_id : nil,
+        "run_status" => cell&.status, "mode" => cell&.mode, "efficiency" => cell&.telemetry || {} }
     end
 
     # The diff generated fine but no judge could score it. A provider limit
     # (drained balance, 429) is transient; anything else is a hard judge failure.
     # In both cases the generated record is already preserved for rejudge.
-    def park_judge_failure(error, entry, profile, pending, failed)
+    def park_judge_failure(error, entry, profile, pending, failed, cell)
       bucket, label = error.limit ? [pending, "pending (judge limit)"] : [failed, "failed (all judges)"]
       warn "hive-bench: #{label} — #{profile.id} #{entry["task_id"]}: #{redact(error.message)}"
-      bucket << park(entry, profile, error.message)
+      bucket << park(entry, profile, error.message, cell)
     end
 
     # Strip provider-secret shapes from any text persisted into results.json —
@@ -220,7 +222,7 @@ module HiveBench
 
       outcome = build(opts).call(entries: entries, profiles: profiles,
                                  out_root: opts[:out], corpus_version: opts[:corpus_version])
-      JudgeProvenance.annotate_document!(outcome.results, efforts: judge_efforts(opts))
+      JudgeProvenance.annotate_document!(outcome.results, efforts: judge_efforts(opts), routes: judge_routes(opts))
       write_and_report(outcome, opts)
     end
 
@@ -230,6 +232,7 @@ module HiveBench
                claude_judge: true, judge_bin: "claude", judge_model: nil,
                codex_judge: false, codex_judge_model: CodexJudge::DEFAULT_MODEL,
                codex_judge_effort: CodexJudge::DEFAULT_EFFORT,
+               codex_judge_provider: CodexJudge::DEFAULT_PROVIDER, codex_judge_provider_model: nil,
                openrouter_judge: true, openrouter_judge_model: "openai/gpt-5.5-pro" }
       OptionParser.new do |o|
         o.banner = "Usage: OPENROUTER_API_KEY=… ruby harness/run_all.rb --source <clone> [opts]"
@@ -246,6 +249,8 @@ module HiveBench
         o.on("--[no-]codex-judge", "score through the Codex CLI") { |v| opts[:codex_judge] = v }
         o.on("--codex-judge-model M") { |v| opts[:codex_judge_model] = v }
         o.on("--codex-judge-effort LEVEL") { |v| opts[:codex_judge_effort] = v }
+        o.on("--codex-judge-provider PROVIDER", CodexJudge::PROVIDERS) { |v| opts[:codex_judge_provider] = v }
+        o.on("--codex-judge-provider-model M") { |v| opts[:codex_judge_provider_model] = v }
         o.on("--[no-]openrouter-judge", "score with the OpenRouter judge (default: on)") { |v| opts[:openrouter_judge] = v }
         o.on("--openrouter-judge-model M", "default: openai/gpt-5.5-pro") { |v| opts[:openrouter_judge_model] = v }
         o.separator ""
@@ -286,7 +291,8 @@ module HiveBench
     # The independent judges, keyed by the name recorded in results.json. The
     # dual-judge slate (maintainer decision 2026-07-09, superseding 2026-07-01):
     # fable-5 (local claude CLI, anthropic-family) + gpt-5.6-sol@xhigh (codex
-    # CLI, openai-family) — both subscription, so judging costs no API balance.
+    # CLI, openai-family). Codex uses subscription auth by default; campaigns
+    # may explicitly route the same logical judge through OpenRouter.
     # gpt-5.5-pro via OpenRouter remains available behind --openrouter-judge
     # (off by default). Two judges is the slate; no third. Keys DERIVE from the
     # pinned judge model so results.json never claims a model that didn't judge.
@@ -300,7 +306,12 @@ module HiveBench
       if opts[:codex_judge]
         model = opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL
         effort = opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT
-        j[model] = Judge.new(judge_fn: CodexJudge.judge_fn(model: model, effort: effort), seeds: opts[:seeds])
+        j[model] = Judge.new(
+          judge_fn: CodexJudge.judge_fn(model: model, effort: effort,
+                                        provider: opts[:codex_judge_provider],
+                                        provider_model: opts[:codex_judge_provider_model]),
+          seeds: opts[:seeds]
+        )
       end
       if opts[:openrouter_judge]
         j[opts[:openrouter_judge_model].split("/").last] =
@@ -315,6 +326,16 @@ module HiveBench
 
       { opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL =>
           opts[:codex_judge_effort] || CodexJudge::DEFAULT_EFFORT }
+    end
+
+    def judge_routes(opts)
+      return {} unless opts[:codex_judge]
+
+      model = opts[:codex_judge_model] || CodexJudge::DEFAULT_MODEL
+      { model => {
+        provider: opts[:codex_judge_provider],
+        provider_model: opts[:codex_judge_provider_model] || model
+      } }
     end
 
     def write_and_report(outcome, opts)

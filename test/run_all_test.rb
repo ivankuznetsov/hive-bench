@@ -135,7 +135,7 @@ class RunAllTest < Minitest::Test
     assert_in_delta 7.5, cell.dig("judges", "j", "mean")
     a = out.results["agents"]["claude@opus-4.8"]
 
-    assert_in_delta 1.0, a.dig("gated", "pass_rate"), 0.001
+    assert_nil a.dig("gated", "pass_rate"), "unbound legacy runner evidence remains diagnostic"
   end
 
   def test_limit_hit_cell_becomes_pending_not_scored
@@ -144,7 +144,7 @@ class RunAllTest < Minitest::Test
     assert_equal 2, out.results["cells"].size, "only the non-limited agent's 2 cells are scored"
     assert_equal 2, out.pending.size, "the limited agent's 2 cells are pending"
     assert(out.pending.all? { |p| p["agent_id"] == "pi@glm-5.2" })
-    refute(out.results["agents"].key?("pi@glm-5.2"), "a fully-limited agent has no scored rows")
+    assert_equal 0, out.results.dig("agents", "pi@glm-5.2", "judged", "scored_cells")
   end
 
   def test_results_round_trip_to_json
@@ -174,7 +174,7 @@ class RunAllTest < Minitest::Test
     assert_equal 2, out.failed.size, "both of the un-isolated agent's cells are parked as failed"
     assert(out.failed.all? { |f| f["agent_id"] == "pi@glm-5.2" })
     assert_equal 2, out.results["cells"].size, "the other agent's cells are still scored"
-    refute out.results["agents"].key?("pi@glm-5.2"), "an un-isolated agent is never scored"
+    assert_equal 0, out.results.dig("agents", "pi@glm-5.2", "judged", "scored_cells")
   end
 
   def test_unwired_harness_is_parked_not_raised
@@ -183,7 +183,7 @@ class RunAllTest < Minitest::Test
 
     assert_equal 2, out.failed.size
     assert(out.failed.all? { |f| f["reason"].include?("codex not wired") })
-    assert_equal %w[pi@glm-5.2], out.results["agents"].keys
+    assert_equal 0, out.results.dig("agents", "claude@opus-4.8", "judged", "scored_cells")
   end
 
   # Any error from the scoring path (a flaky judge, a git/restore failure, …) must

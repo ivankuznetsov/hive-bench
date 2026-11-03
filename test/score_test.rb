@@ -22,7 +22,11 @@ class ScoreTest < Minitest::Test
   end
 
   def cell(agent:, mode: "fresh", cost: 0.10, wall: 30.0, run_status: "generated")
-    { task_id: "t#{rand(1000)}", agent_id: agent, mode: mode, model_version: "m",
+    task = "t#{rand(1000000)}"
+    { generation_id: task, record_kind: "generation",
+      artifact_binding: { "task_id" => task, "base_commit" => "base", "patch_sha256" => "a" * 64, "plan_sha256" => "b" * 64 },
+      evaluation_context: { "plan_sha256" => "b" * 64, "reference_mode" => "withheld" },
+      task_id: task, agent_id: agent, mode: mode, model_version: "m",
       run_status: run_status, telemetry: { "cost_usd" => cost, "wall_clock_sec" => wall } }
   end
 
