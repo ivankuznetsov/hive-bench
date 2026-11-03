@@ -24,6 +24,7 @@ BENCH_INSTRUCTIONS="$(ruby -e '
   puts dirs.fetch(0)
 ')"
 readonly BENCH_INSTRUCTIONS
+export HIVE_SRC
 
 # Extract a stage instruction's script by its named marker — never "the first
 # ```bash block", which silently grabs doc examples added above the script.
@@ -42,7 +43,11 @@ extract_stage_script() {
 # Marker + message assertions against a stage state file.
 assert_state() {
   local file="$1" marker="$2" needle="$3"
-  if ! tail -n 1 "$file" | grep -qx "$marker"; then
+  # Generate uses the canonical marker writer, which may insert the quota
+  # marker before status prose. Judge explicitly requests EOF placement.
+  if [ "$marker" = "$LIMITS_REACHED_MARKER" ]; then
+    grep -q "$marker" "$file" || { echo "FAIL: $file missing quota marker" >&2; cat "$file" >&2; exit 1; }
+  elif ! tail -n 1 "$file" | grep -qx "$marker"; then
     echo "FAIL: $file does not end with $marker" >&2
     tail -n 5 "$file" >&2
     exit 1
@@ -54,7 +59,7 @@ assert_state() {
   fi
 }
 
-LIMITS_REACHED_MARKER='<!-- ERROR reason=limits_reached message="benchmark candidate or judge hit provider quota" retry_after="[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z" -->'
+LIMITS_REACHED_MARKER='<!-- ERROR .*reason=limits_reached.* -->'
 
 assert_absent() {
   local file="$1" needle="$2"
@@ -86,6 +91,21 @@ EX_CAND="$(ruby -ryaml -e 'puts YAML.safe_load_file("campaign.yml.example").fetc
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
+export HIVE_HOME="$WORKDIR/hive-home"
+mkdir -p "$HIVE_HOME"
+ruby -rhive/runtime_control_plane/installation -e 'Hive::RuntimeControlPlane::Installation.setup(state_home: ENV.fetch("HIVE_HOME"))'
+
+# Only network metadata is inspected by these stage fixtures; generation and
+# judging are stubs. Keep the no-container smoke independent of the host daemon.
+SMOKE_BIN="$WORKDIR/bin"
+mkdir -p "$SMOKE_BIN"
+cat >"$SMOKE_BIN/docker" <<'SH'
+#!/bin/sh
+[ "$1 $2" = "network inspect" ] || exit 2
+printf '%s\n' '[{"Internal":true,"Containers":{"proxy":{"Name":"hive-bench-egress-proxy"}}}]'
+SH
+chmod +x "$SMOKE_BIN/docker"
+export PATH="$SMOKE_BIN:$PATH"
 
 # --- fresh-machine installation: selecting the packaged workflow must bind the
 # project and create a bench task without any project-local workflow copy. -----
@@ -194,6 +214,12 @@ RUBY
 # backfilling nothing — the fixtures below
 # control which judges each cell carries.
 cat >"$PROJECT/harness/rejudge.rb" <<'RUBY'
+$LOAD_PATH.unshift(__dir__)
+require "lib/codex_judge"
+module HiveBench::Rejudge
+  FAILURE_EVENT_VERSION = 1
+end
+if $PROGRAM_NAME == __FILE__
 require "json"
 require "fileutils"
 def arg(flag) = ARGV.include?(flag) ? ARGV[ARGV.index(flag) + 1] : nil
@@ -202,6 +228,7 @@ out = arg("--out")
 FileUtils.mkdir_p(File.dirname(out))
 File.write(out, JSON.pretty_generate(results) + "\n")
 warn "stub rejudge: wrote #{results.fetch("cells", []).size} cell(s) to #{out}"
+end
 RUBY
 
 # Stub deliberate.rb: transcribes every dual-judged cell not already covered by
@@ -240,7 +267,8 @@ RUBY
 # score.rb and lib/ load from the real repo too). lib/ itself is symlinked for
 # extract's real HiveBench::Corpus load over the stub manifests.
 ln -s "$ROOT/harness/merge_results.rb" "$PROJECT/harness/merge_results.rb"
-ln -s "$ROOT/harness/lib" "$PROJECT/harness/lib"
+cp -R "$ROOT/harness/lib" "$PROJECT/harness/lib"
+cp "$ROOT/harness/judge.rb" "$PROJECT/harness/judge.rb"
 
 # Stub candidate profiles + corpus manifests mirroring campaign.yml.example
 # (plus Grok and Sol-flavoured candidates so both HB_RUNNER_IMAGE branches are
@@ -253,7 +281,7 @@ ruby -ryaml -rfileutils -e '
   stub = <<~RUBY
     module HiveBench
       module Candidates
-        Candidate = Struct.new(:id, :grok_model, :pi_models, :codex_model, :codex_models)
+        Candidate = Struct.new(:id, :grok_model, :pi_models, :codex_model, :codex_models, :opencode_models)
         def self.all
           #{ids.inspect}.map do |id|
             Candidate.new(id, id.include?("grok") ? "grok-stub" : nil, nil,
@@ -277,6 +305,7 @@ write_campaign() {
   ruby -ryaml -e '
     data = YAML.safe_load_file("campaign.yml.example")
     data["campaign_id"] = ARGV.fetch(0)
+    data["source"] = ENV.fetch("HIVE_SRC")
     data["candidates"] = [ARGV[2]] if ARGV[2] && !ARGV[2].empty?
     File.write(ARGV.fetch(1), data.to_yaml)
   ' "$id" "$dest" "$extra_candidate"
@@ -353,6 +382,7 @@ git -C "$STATE" config user.email smoke@example.invalid
 git -C "$STATE" config user.name "Bench Smoke"
 git -C "$STATE" add .
 git -C "$STATE" commit -qm "seed bench smoke"
+ruby -rhive/config -e 'Hive::Config.register_project(name: "bench-smoke", path: ARGV.fetch(0))' "$PROJECT"
 
 ruby -e '
   require "hive"
@@ -381,17 +411,9 @@ extract_stage_script "$BENCH_INSTRUCTIONS/generate.md" "$WORKDIR/generate.sh"
 extract_stage_script "$BENCH_INSTRUCTIONS/judge.md" "$WORKDIR/judge.sh"
 extract_stage_script "$BENCH_INSTRUCTIONS/publish.md" "$WORKDIR/publish.sh"
 
-# --- campaign_id slug validation is duplicated across three stage scripts:
-# assert the copies have not drifted.
-for stage in judge publish; do
-  for needle in 'campaign_id must be a slug' 'v3-example is the unedited example id'; do
-    if ! diff <(grep -F "$needle" "$WORKDIR/generate.sh" | sed 's/^[[:space:]]*//' | sort -u) \
-              <(grep -F "$needle" "$WORKDIR/$stage.sh" | sed 's/^[[:space:]]*//' | sort -u) >/dev/null; then
-      echo "FAIL: campaign_id validation drifted between generate.sh and $stage.sh (needle: $needle)" >&2
-      exit 1
-    fi
-  done
-done
+# CampaignContract now owns generate/judge validation. The malformed campaign
+# scenarios below exercise its messages and publish validation behavior; source
+# text comparisons against the former inline validators no longer apply.
 
 # --- generate gate: missing campaign.yml -------------------------------------
 GATE_DIR="$STATE/stages/3-generate/$SLUG-gate"
@@ -477,7 +499,7 @@ assert_state "$JUDGE_DIR/judge.md" '<!-- WAITING -->' 'Missing runs/bench-smoke-
 # --- judge: malformed campaign.yml parks WAITING via the guarded extraction ----
 JUDGE_BAD_DIR="$STATE/stages/4-judge/$SLUG-badyaml"
 mkdir -p "$JUDGE_BAD_DIR"
-printf 'campaign_id: BAD_Slug\nsource: /tmp/x\nseeds: 3\n' >"$JUDGE_BAD_DIR/campaign.yml"
+write_campaign BAD_Slug "$JUDGE_BAD_DIR/campaign.yml"
 (cd "$JUDGE_BAD_DIR" && HOME="$FAKE_HOME" bash "$WORKDIR/judge.sh")
 assert_state "$JUDGE_BAD_DIR/judge.md" '<!-- WAITING -->' 'campaign_id must be a slug'
 assert_no_scratch "$JUDGE_BAD_DIR" .judge-
@@ -712,6 +734,7 @@ assert_no_scratch "$EXTRACT_OK_DIR" .extract-
 ANCHOR="$WORKDIR/realroot"
 mkdir -p "$ANCHOR/harness"
 ln -s "$ROOT/harness/profiles" "$ANCHOR/harness/profiles"
+ln -s "$ROOT/harness/lib" "$ANCHOR/harness/lib"
 ln -s "$ROOT/harness/merge_results.rb" "$ANCHOR/harness/merge_results.rb"
 ln -s "$ROOT/corpus" "$ANCHOR/corpus"
 cat >"$ANCHOR/harness/hive_run.rb" <<'RUBY'

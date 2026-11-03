@@ -133,6 +133,13 @@ Judge backfill: `harness/rejudge.rb --only-missing`. Requirements: Docker,
 Ruby 3.4, agent CLIs authenticated on the host (`claude`, `codex`; pi models
 run via `OPENROUTER_API_KEY`).
 
+Current writers use [result schema version 2](docs/result-schema.md): only
+eligible executions with current-generation judge/gate bindings enter the
+retained `judged`/`gated` aggregates. Partial scores remain diagnostic. Merge
+generation snapshots in explicit oldest-to-newest argv order; replacements
+clear older evidence even for identical patch bytes. Legacy backfill requires
+selecting and binding the current artifact, without regeneration.
+
 ## Status
 
 v2 **published** (2026-07). v1 (a reimplemented-pipeline imitation) is retired —

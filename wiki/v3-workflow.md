@@ -244,3 +244,14 @@ real-root-shaped fixture, and scratch cleanup is checked for every stage.
 
 This remains fixture coverage: it does not run a paid campaign. Set
 `HIVE_SRC` to the Hive checkout whose packaged workflow should be tested.
+
+## Current-generation result evidence
+
+`docs/result-schema.md` defines schema-v2 admissible-only `judged`/`gated`
+populations, attempted/eligible/evaluated coverage, diagnostic costs, explicit
+snapshot ordering and legacy rejudging. A fresh attempt rotates identity even
+for identical patch bytes. Hive's packaged stages preserve unchanged root
+backfill and keep retired per-cell snapshots out of active generation selection.
+Deliberation binds its transcript and skip keys to the evaluated generation.
+The external site source is unavailable here; there is no in-tree site assembly
+consumer to update. Installed Hive runtimes remain snapshots until refreshed.

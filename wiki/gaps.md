@@ -149,3 +149,9 @@ Full review: reviews/external-design-review-gpt-2026-07-09.md. Not fixed in v2:
   Native descriptor-level cell fan-out/join is not available. Use separate
   campaign tasks under the daemon's per-project cap; do not point concurrent
   tasks at the same campaign id.
+
+- Result schema version 2 narrows retained `judged`/`gated` aggregates. The external
+  hivecli.sh/bench site and unknown downstream sources were inaccessible; readers
+  ignoring version metadata can observe silently narrowed populations. No live
+  campaigns or historical results were rewritten. The configured cross-project
+  main wiki was unavailable. See `docs/result-schema.md` for the contract.
