@@ -96,9 +96,9 @@ class RejudgeTest < Minitest::Test
         judge_efforts: { "gpt-5.6-sol": "ultra" }
       )
 
-      assert_equal 0, calls["fable-5"]
+      assert_equal 1, calls["fable-5"]
       assert_equal 1, calls["gpt-5.6-sol"]
-      assert_equal old.dig("judges", "fable-5"), rejudged.dig("judges", "fable-5")
+      assert_in_delta 8.0, rejudged.dig("judges", "fable-5", "mean")
       assert_in_delta 8.0, rejudged.dig("judges", "gpt-5.6-sol", "mean")
       assert_equal "ultra", rejudged.dig("judges", "gpt-5.6-sol", "reasoning_effort")
     end

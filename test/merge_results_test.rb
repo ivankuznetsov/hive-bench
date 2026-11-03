@@ -7,10 +7,20 @@ require "merge_results"
 # cells unioned, per-agent summaries re-aggregated, pending/failed unioned.
 class MergeResultsTest < Minitest::Test
   def cell(agent:, task:, mode: "fresh", run_status: "generated", judge_mean: 7.0)
-    { "task_id" => task, "agent_id" => agent, "mode" => mode, "run_status" => run_status,
+    record = { "task_id" => task, "agent_id" => agent, "mode" => mode, "run_status" => run_status,
       "subset" => "judged", "gate" => { "status" => "no_gate" },
       "judges" => { "opus-4.8" => { "mean" => judge_mean, "interval" => [judge_mean, judge_mean] } },
       "efficiency" => { "cost_usd" => 0.5, "wall_clock_sec" => 100.0 } }
+    bind(record)
+  end
+
+  def bind(record)
+    task = record.fetch("task_id")
+    record.merge!("generation_id" => "#{record.fetch('agent_id')}/#{task}", "record_kind" => "generation",
+                  "artifact_binding" => { "task_id" => task, "base_commit" => "base", "patch_sha256" => "a" * 64, "plan_sha256" => "b" * 64 },
+                  "evaluation_context" => { "plan_sha256" => "b" * 64, "reference_mode" => "withheld" })
+    record.fetch("judges", {}).each_value { |judge| judge["evidence_binding"] = HiveBench::ResultEvidence.binding(record) }
+    record
   end
 
   def file(cells, pending: [], failed: [])
@@ -53,6 +63,7 @@ class MergeResultsTest < Minitest::Test
                           "run_status" => "generated",
                           "judges" => { "gpt-5.5-pro" => { "mean" => 4.0, "interval" => [4.0, 4.0] } },
                           "efficiency" => {} }] }
+    gpt["cells"].each { |record| bind(record); record["record_kind"] = "judge_only" }
     out = HiveBench::Merge.combine([inline, gpt], corpus_version: "v1", generated_at: "t")
 
     assert_equal 1, out["cells"].size, "the split cell is unioned, not duplicated"
@@ -69,6 +80,7 @@ class MergeResultsTest < Minitest::Test
                                "run_status" => "generated",
                                "judges" => { "gpt-5.5-pro" => { "mean" => 3.0, "interval" => [3.0, 3.0] } },
                                "efficiency" => {} }] }
+    backfill["cells"].each { |record| bind(record); record["record_kind"] = "judge_only" }
     out = HiveBench::Merge.combine([run, backfill], corpus_version: "v1", generated_at: "t")
     cell = out["cells"].first
 
