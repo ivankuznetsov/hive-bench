@@ -80,6 +80,6 @@ class DriverTest < Minitest::Test
     assert_match(/1 scored cell.*1 pending.*1 failed/, err)
     assert_match(/pending  pi@glm-5.2  t2  \(402 credits\)/, err)
     assert_match(/FAILED   codex@gpt-5.5-xhigh  t3  \(not wired\)/, err)
-    assert_match(/judged  pi@glm-5.2  t1  gen=generated  gate=no_gate  judge\[opus-4.8=7.5\]/, err)
+    assert_match(/judged  pi@glm-5.2  t1  gen=generated  ranked_gate=n\/a  judge\[n\/a\] diagnostic_judges=1/, err)
   end
 end

@@ -11,6 +11,7 @@
 $LOAD_PATH.unshift(__dir__) unless $LOAD_PATH.include?(__dir__)
 
 require "json"
+require "set"
 require "optparse"
 require "fileutils"
 require "lib/deliberation"
@@ -27,41 +28,53 @@ module HiveBench
     module_function
 
     def run(cells:, search_dirs:, source:, corpus_root:, judge_fns:, withhold_reference: false,
-            plan_source: :frozen, judge_efforts: {})
+            plan_source: :frozen, judge_efforts: {}, judge_routes: {})
       bases = Corpus.load(root: corpus_root, checkout_source: source)
                     .to_h { |e| [e["task_id"], { base: e.dig("source", "base_commit"), entry: e }] }
       restorer = GitRestore.new
       delib = Deliberation.new(judge_fns: judge_fns)
       transcripts = cells.filter_map do |cell|
         info = bases[cell["task_id"]] or next
-        diff = Rejudge.recover_diff(search_dirs, cell, info[:base], restorer)
+        next unless ResultEvidence.evaluation_key(cell)
+
+        bundle = Rejudge.artifact_bundle(search_dirs, cell, info, restorer, plan_source: plan_source)
+        diff = bundle.fetch(:diff)
         next if diff.strip.empty?
 
-        plan = if plan_source == :candidate
-                 Rejudge.candidate_plan(search_dirs, cell) || Rejudge.read_plan(info[:entry])
-               else
-                 Rejudge.read_plan(info[:entry])
-               end
+        plan = bundle.fetch(:plan)
         reference = withhold_reference ? nil : Rejudge.read_reference(info[:entry])
-        verdicts = delib.call(plan: plan, candidate_diff: diff, reference: reference)
+        context = GenerationProvenance.context(plan: plan, reference: reference, withheld: withhold_reference)
+        unless cell["evaluation_context"] == context && cell["artifact_binding"] == bundle[:manifest]["artifact_binding"]
+          raise GenerationProvenance::Mismatch, "deliberation context differs from current judged artifact"
+        end
+        verdicts = delib.call(
+          plan: plan,
+          candidate_diff: diff,
+          reference: reference,
+          task_id: cell["task_id"],
+          agent_id: cell["agent_id"]
+        )
         next if verdicts.empty?
 
         warn "  deliberated #{cell["agent_id"]} #{cell["task_id"]}: " +
              verdicts.map { |n, v| "#{n} #{v.initial}->#{v.final || "?"}" }.join("  ")
-        transcript(cell, verdicts, judge_efforts: judge_efforts)
+        transcript(cell, verdicts, judge_efforts: judge_efforts, judge_routes: judge_routes)
+      rescue GenerationProvenance::Mismatch => error
+        warn "deliberation artifact recovery required: #{cell['agent_id']} #{cell['task_id']}: #{error.message}"
+        nil
       end
       { "schema" => "hive-bench-deliberation", "schema_version" => 1,
         "cells" => transcripts, "summary" => summary(transcripts) }
     end
 
-    def transcript(cell, verdicts, judge_efforts: {})
-      { "task_id" => cell["task_id"], "agent_id" => cell["agent_id"],
+    def transcript(cell, verdicts, judge_efforts: {}, judge_routes: {})
+      cell.slice("task_id", "agent_id", "generation_id", "record_kind", "artifact_binding", "evaluation_context").merge(
         "judges" => verdicts.to_h do |name, v|
           record = { "initial" => v.initial, "initial_reason" => v.initial_reason,
                      "final" => v.final, "final_reason" => v.final_reason,
                      "discussion" => v.discussion, "revised" => v.revised?, "delta" => v.delta }
-          [name, record.merge(JudgeProvenance.metadata(name, efforts: judge_efforts))]
-        end }
+          [name, record.merge(JudgeProvenance.metadata(name, efforts: judge_efforts, routes: judge_routes))]
+        end )
     end
 
     # Aggregate movement: how far each judge moved, and whether discussion
@@ -96,6 +109,8 @@ if $PROGRAM_NAME == __FILE__
            out: "runs/v2-merged/deliberation.json", claude_judge: true, judge_model: nil,
            codex_judge: false, codex_judge_model: HiveBench::CodexJudge::DEFAULT_MODEL,
            codex_judge_effort: HiveBench::CodexJudge::DEFAULT_EFFORT,
+           codex_judge_provider: HiveBench::CodexJudge::DEFAULT_PROVIDER,
+           codex_judge_provider_model: nil,
            openrouter_judge: true,
            openrouter_model: "openai/gpt-5.5-pro", max_tokens: 16_384,
            agent: nil, task: nil, withhold_reference: false,
@@ -114,6 +129,10 @@ if $PROGRAM_NAME == __FILE__
     o.on("--[no-]codex-judge") { |v| opts[:codex_judge] = v }
     o.on("--codex-judge-model M") { |v| opts[:codex_judge_model] = v }
     o.on("--codex-judge-effort LEVEL") { |v| opts[:codex_judge_effort] = v }
+    o.on("--codex-judge-provider PROVIDER", HiveBench::CodexJudge::PROVIDERS) do |v|
+      opts[:codex_judge_provider] = v
+    end
+    o.on("--codex-judge-provider-model M") { |v| opts[:codex_judge_provider_model] = v }
     o.on("--[no-]openrouter-judge") { |v| opts[:openrouter_judge] = v }
     o.on("--openrouter-model M") { |v| opts[:openrouter_model] = v }
     o.on("--[no-]withhold-reference") { |v| opts[:withhold_reference] = v }
@@ -128,11 +147,18 @@ if $PROGRAM_NAME == __FILE__
   claude_model = opts[:judge_model] || "claude-fable-5"
   judge_fns = {}
   judge_efforts = {}
+  judge_routes = {}
   judge_fns[claude_model.sub(/\Aclaude-/, "")] = HiveBench::ClaudeJudge.judge_fn(model: claude_model) if opts[:claude_judge]
   if opts[:codex_judge]
     judge_fns[opts[:codex_judge_model]] =
-      HiveBench::CodexJudge.judge_fn(model: opts[:codex_judge_model], effort: opts[:codex_judge_effort])
+      HiveBench::CodexJudge.judge_fn(model: opts[:codex_judge_model], effort: opts[:codex_judge_effort],
+                                    provider: opts[:codex_judge_provider],
+                                    provider_model: opts[:codex_judge_provider_model])
     judge_efforts[opts[:codex_judge_model]] = opts[:codex_judge_effort]
+    judge_routes[opts[:codex_judge_model]] = {
+      provider: opts[:codex_judge_provider],
+      provider_model: opts[:codex_judge_provider_model] || opts[:codex_judge_model]
+    }
   end
   if opts[:openrouter_judge]
     judge_fns[opts[:openrouter_model].split("/").last] =
@@ -146,24 +172,30 @@ if $PROGRAM_NAME == __FILE__
   # Deliberation only makes sense where both judges already scored the cell —
   # and only pays for itself where they DISAGREE (the pilot showed agreeing
   # judges simply hold their scores; discussing agreement is wasted tokens).
-  cells = cells.select { |c| (c["judges"] || {}).size >= 2 }
+  cells = cells.select { |c| HiveBench::ResultEvidence.bound_judges(c).size >= 2 }
   if opts[:min_disagreement].positive?
     cells = cells.select do |c|
-      means = c["judges"].values.filter_map { |j| j["mean"] }
+      means = HiveBench::ResultEvidence.bound_judges(c).values.filter_map { |j| j["mean"] }
       means.size >= 2 && (means.max - means.min) >= opts[:min_disagreement]
     end
   end
   if opts[:skip_done] && File.file?(opts[:skip_done])
-    seen = JSON.parse(File.read(opts[:skip_done]))["cells"].to_a
-               .to_set { |t| [t["task_id"], t["agent_id"]] }
-    cells = cells.reject { |c| seen.include?([c["task_id"], c["agent_id"]]) }
+    seen = JSON.parse(File.read(opts[:skip_done]))["cells"].to_a.filter_map do |transcript|
+      complete = judge_fns.keys.all? do |name|
+        final = transcript.dig("judges", name, "final")
+        final.is_a?(Numeric) && final.between?(0, 10)
+      end
+      HiveBench::ResultEvidence.evaluation_key(transcript) if complete
+    end.to_set
+    cells = cells.reject { |c| seen.include?(HiveBench::ResultEvidence.evaluation_key(c)) }
   end
   warn "deliberating #{cells.size} cell(s) (min_disagreement=#{opts[:min_disagreement]})"
 
   out = HiveBench::DeliberateCli.run(cells: cells, search_dirs: ARGV, source: opts[:source],
                                      corpus_root: opts[:corpus], judge_fns: judge_fns,
                                      withhold_reference: opts[:withhold_reference],
-                                     plan_source: opts[:plan_source], judge_efforts: judge_efforts)
+                                     plan_source: opts[:plan_source], judge_efforts: judge_efforts,
+                                     judge_routes: judge_routes)
   FileUtils.mkdir_p(File.dirname(opts[:out]))
   File.write(opts[:out], "#{JSON.pretty_generate(out)}\n")
   warn "wrote #{opts[:out]}: #{out["cells"].size} deliberated cell(s); summary=#{out["summary"].inspect}"

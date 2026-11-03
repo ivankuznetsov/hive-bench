@@ -144,6 +144,8 @@ printf 'smoke-test-key\n' >"$FAKE_HOME/.openrouter_key"
 cat >"$PROJECT/harness/hive_run.rb" <<'RUBY'
 require "json"
 require "fileutils"
+require "securerandom"
+require_relative "lib/result_evidence"
 out = ARGV[ARGV.index("--out") + 1]
 candidate = ARGV[ARGV.index("--candidate") + 1]
 task = ARGV[ARGV.index("--task") + 1]
@@ -177,21 +179,25 @@ results =
                       "reason" => "stub provider wall (limit_hit); #{env_note}" }],
       "failed" => [] }
   end
+results.fetch("cells", []).each do |cell|
+  cell.merge!("generation_id" => SecureRandom.uuid, "record_kind" => "generation",
+    "artifact_binding" => { "task_id" => cell["task_id"], "base_commit" => "stub", "patch_sha256" => "a" * 64, "plan_sha256" => "b" * 64 },
+    "evaluation_context" => { "plan_sha256" => "b" * 64, "reference_mode" => "withheld" })
+  cell.fetch("judges", {}).each_value { |judge| judge["evidence_binding"] = HiveBench::ResultEvidence.binding(cell) }
+end
 File.write(File.join(out, "results.json"), JSON.pretty_generate(results) + "\n")
 warn "stub hive_run: #{ENV.fetch("HB_SMOKE_MODE", "wall")} #{candidate}/#{task}"
 exit(Integer(ENV.fetch("HB_SMOKE_EXIT", "0")))
 RUBY
 
-# Stub rejudge.rb: copies the merged results through --out (Score#results
-# shape: no pending/failed keys), backfilling nothing — the fixtures below
+# Stub rejudge.rb: preserves the input document through --out,
+# backfilling nothing — the fixtures below
 # control which judges each cell carries.
 cat >"$PROJECT/harness/rejudge.rb" <<'RUBY'
 require "json"
 require "fileutils"
 def arg(flag) = ARGV.include?(flag) ? ARGV[ARGV.index(flag) + 1] : nil
 results = JSON.parse(File.read(arg("--results")))
-results.delete("pending")
-results.delete("failed")
 out = arg("--out")
 FileUtils.mkdir_p(File.dirname(out))
 File.write(out, JSON.pretty_generate(results) + "\n")
@@ -204,20 +210,21 @@ cat >"$PROJECT/harness/deliberate.rb" <<'RUBY'
 require "json"
 require "fileutils"
 def arg(flag) = ARGV.include?(flag) ? ARGV[ARGV.index(flag) + 1] : nil
+require_relative "lib/result_evidence"
 results = JSON.parse(File.read(arg("--results")))
 skip = arg("--skip-done")
-seen = skip && File.file?(skip) ? JSON.parse(File.read(skip)).fetch("cells", []).map { |t| [t["task_id"], t["agent_id"]] } : []
+seen = skip && File.file?(skip) ? JSON.parse(File.read(skip)).fetch("cells", []).filter_map { |t| HiveBench::ResultEvidence.evaluation_key(t) } : []
 cells = results.fetch("cells", [])
-               .select { |c| (c["judges"] || {}).size >= 2 }
-               .reject { |c| seen.include?([c["task_id"], c["agent_id"]]) }
+               .select { |c| HiveBench::ResultEvidence.admitted_judges(c).size >= 2 }
+               .reject { |c| seen.include?(HiveBench::ResultEvidence.evaluation_key(c)) }
                .map do |c|
-  { "task_id" => c["task_id"], "agent_id" => c["agent_id"],
+  c.slice("task_id", "agent_id", "generation_id", "record_kind", "artifact_binding", "evaluation_context").merge(
     "judges" => {
       "fable-5" => { "initial" => 7.0, "final" => 7.0, "delta" => 0.0,
                      "reasoning_effort" => "unspecified" },
       "gpt-5.6-sol" => { "initial" => 6.0, "final" => 6.5, "delta" => 0.5,
                          "reasoning_effort" => "ultra" }
-    } }
+    } )
 end
 out = arg("--out")
 FileUtils.mkdir_p(File.dirname(out))
@@ -302,6 +309,12 @@ write_judge_fixture() {
       when "pending" then { "cells" => [cell.(cand, full)], "pending" => [{ "task_id" => task, "agent_id" => cand, "reason" => "stub wall" }], "failed" => [] }
       else abort("unknown fixture variant #{variant}")
       end
+    results.fetch("cells", []).each do |record|
+      record.merge!("generation_id" => "#{id}/#{record["agent_id"]}", "record_kind" => "generation",
+        "artifact_binding" => { "task_id" => record["task_id"], "base_commit" => "stub", "patch_sha256" => "a" * 64, "plan_sha256" => "b" * 64 },
+        "evaluation_context" => { "plan_sha256" => "b" * 64, "reference_mode" => "withheld" })
+      record.fetch("judges", {}).each_value { |judge| judge["evidence_binding"] = record.slice("generation_id", "artifact_binding", "evaluation_context") }
+    end
     dir = File.join(ENV.fetch("PROJECT"), "runs", id)
     FileUtils.mkdir_p(dir)
     File.write(File.join(dir, "results.json"), JSON.pretty_generate(results) + "\n")

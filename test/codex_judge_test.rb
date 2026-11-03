@@ -39,7 +39,7 @@ class CodexJudgeTest < Minitest::Test
     stderr = "#{"banner line\n" * 100}You've hit your usage limit. Try again later."
     fn = CJ.judge_fn(bin: fake_bin(stderr: stderr, exit_code: 1), timeout_s: 10)
 
-    error = assert_raises(HiveBench::CodexJudge::Error) { fn.call(prompt: "grade", seed: 1) }
+    error = assert_raises(HiveBench::ProviderLimitError) { fn.call(prompt: "grade", seed: 1) }
 
     assert HiveBench::AgentLimit.limit_hit?(error.message),
            "the rejudge warning truncates this message, so a stable limit marker must lead it"
