@@ -240,7 +240,7 @@ class HiveDriverTest < Minitest::Test
   end
 
   def test_completed_artifact_is_recovered_without_rerunning_hive
-    driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    original = driver.call(entry: entry, candidate: candidate, out_dir: @out)
     FileUtils.mkdir_p(File.join(@work, ".hb"))
     File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
     no_rerun = hive_driver(runner: ->(_cmd) { flunk "completed artifact must not be regenerated" },
@@ -249,15 +249,17 @@ class HiveDriverTest < Minitest::Test
     cell = no_rerun.call(entry: entry, candidate: candidate, out_dir: @out)
 
     assert_equal "generated", cell.status
+    assert_equal original.generation_id, cell.generation_id
     assert cell.telemetry["recovered_artifact"]
     assert_equal "verified", cell.telemetry["artifact_provenance"]
-    assert_nil cell.telemetry["wall_clock_sec"], "lost wall time stays unknown"
+    assert_equal 0.0, cell.telemetry["wall_clock_sec"], "persisted measured wall time survives recovery"
   end
 
   def test_legacy_artifact_requires_explicit_unverified_recovery
     driver.call(entry: entry, candidate: candidate, out_dir: @out)
     FileUtils.mkdir_p(File.join(@work, ".hb"))
     File.write(File.join(@work, ".hb", "stages.out"), OK_STDOUT)
+    FileUtils.rm_f(File.join(@out, "generation-attempt.json"))
     FileUtils.rm_f(File.join(@work, ".hb", HiveBench::HiveDriver::GENERATION_IDENTITY))
     no_rerun = hive_driver(runner: ->(_cmd) { flunk "explicit legacy recovery must reuse the artifact" },
                             reuse_existing: true, reuse_unverified: true)
@@ -266,6 +268,24 @@ class HiveDriverTest < Minitest::Test
 
     assert_equal "generated", cell.status
     assert_equal "legacy-unverified", cell.telemetry["artifact_provenance"]
+    assert_nil cell.generation_id
+  end
+
+  def test_unfinalized_attempt_recovers_and_promotes_artifacts_under_retained_identity
+    original = driver.call(entry: entry, candidate: candidate, out_dir: @out)
+    manifest = HiveBench::GenerationProvenance.load(@out)
+    manifest.delete("artifact_binding")
+    manifest["state"] = "started"
+    HiveBench::GenerationProvenance.persist(@out, manifest)
+    File.write(File.join(@work, "candidate-execute.patch"), "recovered patch")
+    FileUtils.rm_f(File.join(@work, "candidate.patch"))
+    File.write(File.join(@work, ".hb", "stages.out"),
+               "HB_STAGE plan rc=0\nHB_STAGE develop rc=0\nHB_EXIT rc=124\n")
+    cell = hive_driver(runner: ->(*) { flunk "recovery must not regenerate" }, reuse_existing: true, reuse_unverified: false)
+           .call(entry: entry, candidate: candidate, out_dir: @out)
+    assert_equal original.generation_id, cell.generation_id
+    assert_equal HiveBench::GenerationProvenance.digest("recovered patch"), cell.artifact_binding.fetch("patch_sha256")
+    assert_equal "recovery-finalized", HiveBench::GenerationProvenance.load(@out).fetch("state")
   end
 
   def test_changed_candidate_identity_refuses_to_destroy_existing_artifact
@@ -367,9 +387,11 @@ class HiveDriverTest < Minitest::Test
         "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: mixed, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["execute_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=abc123"]
@@ -410,9 +432,11 @@ class HiveDriverTest < Minitest::Test
         "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: pi, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["execute_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=pi123"]
@@ -442,9 +466,11 @@ class HiveDriverTest < Minitest::Test
         "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: pi, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["execute_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=probe123"]
   end
@@ -484,9 +510,11 @@ class HiveDriverTest < Minitest::Test
         "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: pi, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["execute_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=finish123"]
   end
@@ -506,9 +534,11 @@ class HiveDriverTest < Minitest::Test
         "HB_NOTE execute_resumed\nHB_STAGE develop rc=0\nHB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: candidate, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["execute_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_MARKER_ID=dirty123"]
   end
@@ -560,9 +590,11 @@ class HiveDriverTest < Minitest::Test
         "HB_DONE\nHB_EXIT rc=0\n"
     end, reuse_existing: true, reuse_unverified: false)
 
+    previous_id = HiveBench::GenerationProvenance.load(@out).fetch("generation_id")
     cell = resumed.call(entry: entry, candidate: opencode, out_dir: @out)
 
     assert_equal "generated", cell.status
+    refute_equal previous_id, cell.generation_id
     assert cell.telemetry["review_resumed"]
     assert_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_REVIEW=1"]
     refute_includes seen.each_cons(2).to_a, ["-e", "HB_RESUME_EXECUTE=1"]
