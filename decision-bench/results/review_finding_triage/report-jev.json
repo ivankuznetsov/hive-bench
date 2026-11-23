@@ -1,83 +1,82 @@
 {
  "point": "review_finding_triage",
  "provider": "jev",
- "rows_in_scope": 1370,
+ "rows_in_scope": 1210,
  "gold_for_decisive": "outcome",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 540,
-   "answered": 540,
+   "rows": 480,
+   "answered": 480,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 540,
-    "accuracy": 0.7241,
-    "kappa": 0.5967,
+    "n": 480,
+    "accuracy": 0.7396,
+    "kappa": 0.6229,
     "confusion(true->pred)": {
      "escalate": {
       "escalate": 10,
-      "auto_fix": 3,
-      "resolved_no_fix": 19
+      "auto_fix": 2,
+      "resolved_no_fix": 16
      },
      "deferred": {
       "deferred": 93,
       "resolved_no_fix": 20
      },
      "resolved_no_fix": {
-      "resolved_no_fix": 156,
-      "escalate": 7,
-      "auto_fix": 21,
+      "resolved_no_fix": 134,
+      "escalate": 6,
+      "auto_fix": 19,
       "deferred": 5
      },
      "auto_fix": {
-      "auto_fix": 132,
-      "escalate": 16,
-      "resolved_no_fix": 58
+      "auto_fix": 118,
+      "escalate": 13,
+      "resolved_no_fix": 44
      }
     }
    },
    "vs_outcome": {
-    "n": 295,
-    "accuracy": 0.678,
-    "kappa": 0.4081,
+    "n": 258,
+    "accuracy": 0.6977,
+    "kappa": 0.4383,
     "confusion(true->pred)": {
      "auto_fix": {
-      "escalate": 18,
-      "auto_fix": 123,
-      "resolved_no_fix": 47
+      "escalate": 15,
+      "auto_fix": 110,
+      "resolved_no_fix": 36
      },
      "resolved_no_fix": {
       "escalate": 5,
-      "resolved_no_fix": 77,
+      "resolved_no_fix": 70,
       "auto_fix": 17,
       "deferred": 4
      },
      "escalate": {
-      "auto_fix": 1,
-      "resolved_no_fix": 3
+      "resolved_no_fix": 1
      }
     }
    },
    "decA": {
-    "coverage": 0.2759,
-    "n": 149,
-    "acc_system": 0.9329,
-    "n_system": 149,
-    "acc_outcome": 0.8909,
-    "n_outcome": 55,
+    "coverage": 0.2729,
+    "n": 131,
+    "acc_system": 0.9389,
+    "n_system": 131,
+    "acc_outcome": 0.907,
+    "n_outcome": 43,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.0759,
-    "n": 41,
-    "acc_system": 0.9268,
-    "n_system": 41,
-    "acc_outcome": 0.8947,
-    "n_outcome": 19,
+    "coverage": 0.0604,
+    "n": 29,
+    "acc_system": 0.931,
+    "n_system": 29,
+    "acc_outcome": 0.9091,
+    "n_outcome": 11,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
@@ -85,32 +84,32 @@
    },
    "latency_ms": {
     "p50": 238,
-    "p95": 286,
+    "p95": 287,
     "max": 1223
    },
-   "cost_usd": 0.268285,
-   "input_tokens": 6387734,
+   "cost_usd": 0.238464,
+   "input_tokens": 5677713,
    "verdict_dist": {
-    "escalate": 33,
-    "auto_fix": 156,
-    "resolved_no_fix": 253,
+    "escalate": 29,
+    "auto_fix": 139,
+    "resolved_no_fix": 214,
     "deferred": 98
    }
   },
   "decomposed": {
-   "rows": 540,
-   "answered": 540,
+   "rows": 480,
+   "answered": 480,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 540,
-    "accuracy": 0.6833,
-    "kappa": 0.5555,
+    "n": 480,
+    "accuracy": 0.6979,
+    "kappa": 0.5749,
     "confusion(true->pred)": {
      "escalate": {
       "auto_fix": 11,
-      "escalate": 11,
-      "resolved_no_fix": 9,
+      "escalate": 8,
+      "resolved_no_fix": 8,
       "deferred": 1
      },
      "deferred": {
@@ -118,60 +117,59 @@
       "resolved_no_fix": 30
      },
      "resolved_no_fix": {
-      "escalate": 33,
-      "resolved_no_fix": 128,
-      "auto_fix": 23,
+      "escalate": 26,
+      "resolved_no_fix": 112,
+      "auto_fix": 21,
       "deferred": 5
      },
      "auto_fix": {
-      "auto_fix": 147,
-      "escalate": 48,
-      "resolved_no_fix": 10,
+      "auto_fix": 132,
+      "escalate": 34,
+      "resolved_no_fix": 8,
       "deferred": 1
      }
     }
    },
    "vs_outcome": {
-    "n": 295,
-    "accuracy": 0.6746,
-    "kappa": 0.4442,
+    "n": 258,
+    "accuracy": 0.686,
+    "kappa": 0.4549,
     "confusion(true->pred)": {
      "auto_fix": {
-      "auto_fix": 135,
-      "escalate": 43,
-      "resolved_no_fix": 10
+      "auto_fix": 122,
+      "resolved_no_fix": 8,
+      "escalate": 31
      },
      "resolved_no_fix": {
       "escalate": 22,
-      "resolved_no_fix": 61,
+      "resolved_no_fix": 54,
       "auto_fix": 16,
       "deferred": 4
      },
      "escalate": {
-      "escalate": 3,
-      "resolved_no_fix": 1
+      "escalate": 1
      }
     }
    },
    "decA": {
     "coverage": 1.0,
-    "n": 540,
-    "acc_system": 0.6833,
-    "n_system": 540,
-    "acc_outcome": 0.6746,
-    "n_outcome": 295,
+    "n": 480,
+    "acc_system": 0.6979,
+    "n_system": 480,
+    "acc_outcome": 0.686,
+    "n_outcome": 258,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.2296,
-    "n": 124,
-    "acc_system": 0.8306,
-    "n_system": 124,
-    "acc_outcome": 0.9375,
-    "n_outcome": 64,
+    "coverage": 0.2437,
+    "n": 117,
+    "acc_system": 0.8291,
+    "n_system": 117,
+    "acc_outcome": 0.9344,
+    "n_outcome": 61,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
@@ -182,26 +180,26 @@
     "p95": 290,
     "max": 523
    },
-   "cost_usd": 0.273433,
-   "input_tokens": 6510314,
+   "cost_usd": 0.24304,
+   "input_tokens": 5786673,
    "verdict_dist": {
-    "auto_fix": 181,
-    "escalate": 92,
-    "resolved_no_fix": 177,
+    "auto_fix": 164,
+    "escalate": 68,
+    "resolved_no_fix": 158,
     "deferred": 90
    }
   }
  },
  "dev": {
   "direct": {
-   "rows": 145,
-   "answered": 145,
+   "rows": 125,
+   "answered": 125,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 145,
-    "accuracy": 0.6966,
-    "kappa": 0.5395,
+    "n": 125,
+    "accuracy": 0.704,
+    "kappa": 0.5623,
     "confusion(true->pred)": {
      "escalate": {
       "auto_fix": 5,
@@ -212,81 +210,81 @@
       "deferred": 19
      },
      "resolved_no_fix": {
-      "resolved_no_fix": 50,
+      "resolved_no_fix": 39,
       "auto_fix": 5,
       "deferred": 1
      },
      "auto_fix": {
-      "resolved_no_fix": 21,
-      "auto_fix": 31,
-      "escalate": 4
+      "resolved_no_fix": 15,
+      "auto_fix": 29,
+      "escalate": 3
      }
     }
    },
    "vs_outcome": {
-    "n": 78,
-    "accuracy": 0.6923,
-    "kappa": 0.4238,
+    "n": 67,
+    "accuracy": 0.7313,
+    "kappa": 0.4853,
     "confusion(true->pred)": {
      "resolved_no_fix": {
       "auto_fix": 4,
-      "resolved_no_fix": 28,
+      "resolved_no_fix": 24,
       "deferred": 1
      },
      "auto_fix": {
-      "resolved_no_fix": 17,
-      "auto_fix": 26,
-      "escalate": 2
+      "resolved_no_fix": 12,
+      "auto_fix": 25,
+      "escalate": 1
      }
     }
    },
    "decA": {
-    "coverage": 0.331,
-    "n": 48,
-    "acc_system": 0.875,
-    "n_system": 48,
-    "acc_outcome": 0.8261,
-    "n_outcome": 23,
+    "coverage": 0.296,
+    "n": 37,
+    "acc_system": 0.8649,
+    "n_system": 37,
+    "acc_outcome": 0.8333,
+    "n_outcome": 18,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.0759,
-    "n": 11,
+    "coverage": 0.048,
+    "n": 6,
     "acc_system": 1.0,
-    "n_system": 11,
+    "n_system": 6,
     "acc_outcome": 1.0,
-    "n_outcome": 3,
+    "n_outcome": 2,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "latency_ms": {
-    "p50": 239,
+    "p50": 242,
     "p95": 284,
     "max": 317
    },
-   "cost_usd": 0.070936,
-   "input_tokens": 1688941,
+   "cost_usd": 0.063288,
+   "input_tokens": 1506866,
    "verdict_dist": {
-    "auto_fix": 41,
-    "resolved_no_fix": 79,
-    "escalate": 5,
+    "auto_fix": 39,
+    "resolved_no_fix": 62,
+    "escalate": 4,
     "deferred": 20
    }
   },
   "decomposed": {
-   "rows": 145,
-   "answered": 145,
+   "rows": 125,
+   "answered": 125,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 145,
-    "accuracy": 0.7103,
-    "kappa": 0.573,
+    "n": 125,
+    "accuracy": 0.688,
+    "kappa": 0.5485,
     "confusion(true->pred)": {
      "escalate": {
       "escalate": 7,
@@ -298,72 +296,72 @@
       "resolved_no_fix": 7
      },
      "resolved_no_fix": {
-      "resolved_no_fix": 43,
+      "resolved_no_fix": 32,
       "auto_fix": 9,
       "escalate": 3,
       "deferred": 1
      },
      "auto_fix": {
       "resolved_no_fix": 4,
-      "auto_fix": 41,
-      "escalate": 10,
+      "auto_fix": 35,
+      "escalate": 7,
       "deferred": 1
      }
     }
    },
    "vs_outcome": {
-    "n": 78,
-    "accuracy": 0.7436,
-    "kappa": 0.5357,
+    "n": 67,
+    "accuracy": 0.7313,
+    "kappa": 0.5104,
     "confusion(true->pred)": {
      "resolved_no_fix": {
       "escalate": 2,
-      "resolved_no_fix": 24,
+      "resolved_no_fix": 20,
       "auto_fix": 6,
       "deferred": 1
      },
      "auto_fix": {
       "resolved_no_fix": 4,
-      "auto_fix": 34,
-      "escalate": 7
+      "auto_fix": 29,
+      "escalate": 5
      }
     }
    },
    "decA": {
     "coverage": 1.0,
-    "n": 145,
-    "acc_system": 0.7103,
-    "n_system": 145,
-    "acc_outcome": 0.7436,
-    "n_outcome": 78,
+    "n": 125,
+    "acc_system": 0.688,
+    "n_system": 125,
+    "acc_outcome": 0.7313,
+    "n_outcome": 67,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.2483,
-    "n": 36,
-    "acc_system": 0.9444,
-    "n_system": 36,
-    "acc_outcome": 0.9524,
-    "n_outcome": 21,
+    "coverage": 0.248,
+    "n": 31,
+    "acc_system": 0.9355,
+    "n_system": 31,
+    "acc_outcome": 0.9444,
+    "n_outcome": 18,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "latency_ms": {
-    "p50": 236,
+    "p50": 237,
     "p95": 279,
-    "max": 334
+    "max": 328
    },
-   "cost_usd": 0.072318,
-   "input_tokens": 1721856,
+   "cost_usd": 0.06448,
+   "input_tokens": 1535241,
    "verdict_dist": {
-    "escalate": 20,
-    "resolved_no_fix": 58,
-    "auto_fix": 53,
+    "escalate": 17,
+    "resolved_no_fix": 47,
+    "auto_fix": 47,
     "deferred": 14
    }
   }
@@ -372,18 +370,18 @@
   "test": {
    "system": {
     "vs_outcome": {
-     "n": 295,
-     "accuracy": 0.9797,
-     "kappa": 0.9578
+     "n": 258,
+     "accuracy": 0.9806,
+     "kappa": 0.9598
     }
    }
   },
   "dev": {
    "system": {
     "vs_outcome": {
-     "n": 78,
-     "accuracy": 0.9872,
-     "kappa": 0.974
+     "n": 67,
+     "accuracy": 0.9851,
+     "kappa": 0.97
     }
    }
   }

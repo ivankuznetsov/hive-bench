@@ -3,8 +3,9 @@
   "claude": "labels.adjudicated (claude-adjudicated, first pass)",
   "neon": "opencode/gemini-4-neon#medium via OpenCode 2.3.2 `run --standalone`, blind (state + direct question only), batches of <=10 rows"
  },
- "selection": "every #direct row with labels.adjudicated in sanitized/decision-eval/*/dataset.jsonl, minus meta.project starting with '[PRODUCT]' (owner: product never released). No README names a gold set outside labels.adjudicated (patrol_fix_semantic_admission, plan_review_decision_triage and review_finding_triage state they have none).",
+ "selection": "every #direct row with labels.adjudicated in sanitized/decision-eval/*/dataset.jsonl, minus meta.project starting with '[PRODUCT]' (owner: product never released). No README names a gold set outside labels.adjudicated (patrol_fix_semantic_admission, plan_review_decision_triage and review_finding_triage state they have none). Also minus rows withheld from publication because they describe security findings in the owner's private products.",
  "excluded_[PRODUCT]_rows": 19,
+ "excluded_private_security_rows": 15,
  "status": "complete",
  "label_mappings": {
   "patrol_finding_dedup": "direct question is the noul `same_issue`; adjudicated `same` -> true, `different` -> false",
@@ -89,47 +90,47 @@
   },
   "patrol_finding_dedup": {
    "question": "same_issue",
-   "n_selected": 85,
+   "n_selected": 77,
    "n_pending": 0,
-   "n": 85,
+   "n": 77,
    "n_neon_error": 0,
-   "agree": 83,
+   "agree": 75,
    "disagree": 2,
-   "raw_agreement": 0.9765,
-   "cohens_kappa": 0.9296,
+   "raw_agreement": 0.974,
+   "cohens_kappa": 0.9246,
    "labels": [
     "true",
     "false"
    ],
    "confusion_matrix": [
     [
-     66,
+     59,
      0
     ],
     [
      2,
-     17
+     16
     ]
    ],
    "claude_marginals": {
-    "true": 66,
-    "false": 19
+    "true": 59,
+    "false": 18
    },
    "neon_marginals": {
-    "true": 68,
-    "false": 17
+    "true": 61,
+    "false": 16
    }
   },
   "plan_review_level": {
    "question": "review_level",
-   "n_selected": 45,
+   "n_selected": 44,
    "n_pending": 0,
-   "n": 45,
+   "n": 44,
    "n_neon_error": 0,
-   "agree": 39,
+   "agree": 38,
    "disagree": 6,
-   "raw_agreement": 0.8667,
-   "cohens_kappa": 0.7343,
+   "raw_agreement": 0.8636,
+   "cohens_kappa": 0.729,
    "labels": [
     "skip",
     "standard",
@@ -149,18 +150,18 @@
     [
      0,
      1,
-     21
+     20
     ]
    ],
    "claude_marginals": {
     "skip": 0,
     "standard": 23,
-    "mandatory": 22
+    "mandatory": 21
    },
    "neon_marginals": {
     "skip": 0,
     "standard": 19,
-    "mandatory": 26
+    "mandatory": 25
    }
   },
   "provider_failure_class": {
@@ -310,11 +311,11 @@
   },
   "recovery_same_root": {
    "question": "same_root",
-   "n_selected": 64,
+   "n_selected": 63,
    "n_pending": 0,
-   "n": 64,
+   "n": 63,
    "n_neon_error": 0,
-   "agree": 64,
+   "agree": 63,
    "disagree": 0,
    "raw_agreement": 1.0,
    "cohens_kappa": 1.0,
@@ -324,7 +325,7 @@
    ],
    "confusion_matrix": [
     [
-     31,
+     30,
      0
     ],
     [
@@ -333,11 +334,11 @@
     ]
    ],
    "claude_marginals": {
-    "true": 31,
+    "true": 30,
     "false": 33
    },
    "neon_marginals": {
-    "true": 31,
+    "true": 30,
     "false": 33
    }
   },
@@ -419,44 +420,44 @@
   },
   "visual_capture_need": {
    "question": "needs_visual_capture",
-   "n_selected": 78,
+   "n_selected": 73,
    "n_pending": 0,
-   "n": 78,
+   "n": 73,
    "n_neon_error": 0,
-   "agree": 75,
+   "agree": 70,
    "disagree": 3,
-   "raw_agreement": 0.9615,
-   "cohens_kappa": 0.9037,
+   "raw_agreement": 0.9589,
+   "cohens_kappa": 0.8914,
    "labels": [
     "true",
     "false"
    ],
    "confusion_matrix": [
     [
-     20,
+     17,
      1
     ],
     [
      2,
-     55
+     53
     ]
    ],
    "claude_marginals": {
-    "true": 21,
-    "false": 57
+    "true": 18,
+    "false": 55
    },
    "neon_marginals": {
-    "true": 22,
-    "false": 56
+    "true": 19,
+    "false": 54
    }
   }
  },
  "overall": {
-  "n": 563,
-  "agree": 499,
-  "raw_agreement": 0.8863,
-  "mean_kappa_across_points": 0.7887,
-  "gold_rows": 499,
+  "n": 548,
+  "agree": 484,
+  "raw_agreement": 0.8832,
+  "mean_kappa_across_points": 0.7859,
+  "gold_rows": 484,
   "n_neon_error": 0,
   "n_pending": 0,
   "note": "kappa is per point (label spaces differ); the overall figure is an unweighted mean of point kappas"

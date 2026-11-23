@@ -1,19 +1,19 @@
 {
  "point": "patrol_fix_semantic_admission",
  "provider": "openai",
- "rows_in_scope": 290,
+ "rows_in_scope": 280,
  "gold_for_decisive": null,
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 115,
-   "answered": 115,
+   "rows": 113,
+   "answered": 113,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 115,
-    "accuracy": 0.4609,
-    "kappa": 0.291,
+    "n": 113,
+    "accuracy": 0.4513,
+    "kappa": 0.2847,
     "confusion(true->pred)": {
      "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": {
       "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 2
@@ -24,7 +24,7 @@
      },
      "distinct": {
       "insufficient_evidence": 51,
-      "distinct": 22,
+      "distinct": 20,
       "same_root:patrol-bench-submit-branches-from-current-head-b33c8bb2b9": 1
      },
      "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": {
@@ -80,10 +80,10 @@
     }
    },
    "decA": {
-    "coverage": 0.1565,
-    "n": 18,
-    "acc_system": 0.8333,
-    "n_system": 18,
+    "coverage": 0.1416,
+    "n": 16,
+    "acc_system": 0.8125,
+    "n_system": 16,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": null,
@@ -92,10 +92,10 @@
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.113,
-    "n": 13,
+    "coverage": 0.0973,
+    "n": 11,
     "acc_system": 1.0,
-    "n_system": 13,
+    "n_system": 11,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": null,
@@ -104,21 +104,21 @@
     "n_gold": 0
    },
    "vs_system_coarse_route": {
-    "n": 115,
-    "accuracy": 0.4783,
-    "kappa": 0.2861
+    "n": 113,
+    "accuracy": 0.469,
+    "kappa": 0.279
    },
    "latency_ms": {
     "p50": 226,
     "p95": 627,
     "max": 1216
    },
-   "cost_usd": 0.250126,
-   "input_tokens": 2519676,
+   "cost_usd": 0.249456,
+   "input_tokens": 2512973,
    "verdict_dist": {
     "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 2,
     "insufficient_evidence": 72,
-    "distinct": 25,
+    "distinct": 23,
     "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 2,
     "same_root:make-tokenbudget-the-single-owner-of-the-launch-c42d96079b94": 1,
     "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": 1,
@@ -136,14 +136,14 @@
    }
   },
   "decomposed": {
-   "rows": 115,
-   "answered": 115,
+   "rows": 113,
+   "answered": 113,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 115,
-    "accuracy": 0.687,
-    "kappa": 0.227,
+    "n": 113,
+    "accuracy": 0.6814,
+    "kappa": 0.2257,
     "confusion(true->pred)": {
      "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": {
       "insufficient_evidence": 1,
@@ -153,7 +153,7 @@
       "distinct": 18
      },
      "distinct": {
-      "distinct": 74
+      "distinct": 72
      },
      "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": {
       "insufficient_evidence": 1,
@@ -209,9 +209,9 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 115,
-    "acc_system": 0.687,
-    "n_system": 115,
+    "n": 113,
+    "acc_system": 0.6814,
+    "n_system": 113,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": null,
@@ -220,7 +220,7 @@
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.087,
+    "coverage": 0.0885,
     "n": 10,
     "acc_system": 0.6,
     "n_system": 10,
@@ -232,20 +232,20 @@
     "n_gold": 0
    },
    "vs_system_coarse_route": {
-    "n": 115,
-    "accuracy": 0.687,
-    "kappa": 0.2114
+    "n": 113,
+    "accuracy": 0.6814,
+    "kappa": 0.2098
    },
    "latency_ms": {
     "p50": 249,
     "p95": 766,
     "max": 3041
    },
-   "cost_usd": 0.188895,
-   "input_tokens": 2548322,
+   "cost_usd": 0.188129,
+   "input_tokens": 2540660,
    "verdict_dist": {
     "insufficient_evidence": 5,
-    "distinct": 105,
+    "distinct": 103,
     "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": 1,
     "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 1,
     "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 1,
@@ -255,19 +255,19 @@
  },
  "dev": {
   "direct": {
-   "rows": 30,
-   "answered": 30,
+   "rows": 27,
+   "answered": 27,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 30,
-    "accuracy": 0.4333,
-    "kappa": 0.2619,
+    "n": 27,
+    "accuracy": 0.3704,
+    "kappa": 0.2247,
     "confusion(true->pred)": {
      "distinct": {
       "insufficient_evidence": 14,
       "same_root:move-the-existing-hive-schemas-module-intact-int-b6e684f228fc": 1,
-      "distinct": 6
+      "distinct": 3
      },
      "insufficient_evidence": {
       "insufficient_evidence": 4
@@ -290,21 +290,9 @@
     }
    },
    "decA": {
-    "coverage": 0.2667,
-    "n": 8,
-    "acc_system": 0.75,
-    "n_system": 8,
-    "acc_outcome": null,
-    "n_outcome": 0,
-    "acc_adjudicated": null,
-    "n_adjudicated": 0,
-    "acc_gold": null,
-    "n_gold": 0
-   },
-   "decB": {
-    "coverage": 0.1667,
+    "coverage": 0.1852,
     "n": 5,
-    "acc_system": 1.0,
+    "acc_system": 0.6,
     "n_system": 5,
     "acc_outcome": null,
     "n_outcome": 0,
@@ -313,39 +301,51 @@
     "acc_gold": null,
     "n_gold": 0
    },
+   "decB": {
+    "coverage": 0.0741,
+    "n": 2,
+    "acc_system": 1.0,
+    "n_system": 2,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
    "vs_system_coarse_route": {
-    "n": 30,
-    "accuracy": 0.4333,
-    "kappa": 0.2433
+    "n": 27,
+    "accuracy": 0.3704,
+    "kappa": 0.2017
    },
    "latency_ms": {
-    "p50": 218,
+    "p50": 234,
     "p95": 412,
     "max": 625
    },
-   "cost_usd": 0.06221,
-   "input_tokens": 622104,
+   "cost_usd": 0.061038,
+   "input_tokens": 610382,
    "verdict_dist": {
     "insufficient_evidence": 20,
     "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": 1,
     "same_root:move-the-existing-hive-schemas-module-intact-int-b6e684f228fc": 1,
     "same_root:patrol-pi-auth-token-file-mode-not-9614b59dd6": 1,
-    "distinct": 6,
+    "distinct": 3,
     "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1
    }
   },
   "decomposed": {
-   "rows": 30,
-   "answered": 30,
+   "rows": 27,
+   "answered": 27,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 30,
-    "accuracy": 0.7,
-    "kappa": 0.0592,
+    "n": 27,
+    "accuracy": 0.6667,
+    "kappa": 0.0545,
     "confusion(true->pred)": {
      "distinct": {
-      "distinct": 21
+      "distinct": 18
      },
      "insufficient_evidence": {
       "distinct": 4
@@ -369,9 +369,9 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 30,
-    "acc_system": 0.7,
-    "n_system": 30,
+    "n": 27,
+    "acc_system": 0.6667,
+    "n_system": 27,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": null,
@@ -380,7 +380,7 @@
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.0667,
+    "coverage": 0.0741,
     "n": 2,
     "acc_system": 0.5,
     "n_system": 2,
@@ -392,19 +392,19 @@
     "n_gold": 0
    },
    "vs_system_coarse_route": {
-    "n": 30,
-    "accuracy": 0.7,
-    "kappa": 0.0592
+    "n": 27,
+    "accuracy": 0.6667,
+    "kappa": 0.0545
    },
    "latency_ms": {
-    "p50": 248,
+    "p50": 254,
     "p95": 671,
     "max": 2767
    },
-   "cost_usd": 0.041681,
-   "input_tokens": 643193,
+   "cost_usd": 0.040479,
+   "input_tokens": 628423,
    "verdict_dist": {
-    "distinct": 29,
+    "distinct": 26,
     "insufficient_evidence": 1
    }
   }

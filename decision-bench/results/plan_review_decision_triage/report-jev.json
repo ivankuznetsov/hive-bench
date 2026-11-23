@@ -1,64 +1,64 @@
 {
  "point": "plan_review_decision_triage",
  "provider": "jev",
- "rows_in_scope": 1486,
+ "rows_in_scope": 1456,
  "gold_for_decisive": "outcome",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 595,
-   "answered": 595,
+   "rows": 580,
+   "answered": 580,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 595,
-    "accuracy": 0.7866,
-    "kappa": 0.4302,
+    "n": 580,
+    "accuracy": 0.7897,
+    "kappa": 0.4365,
     "confusion(true->pred)": {
      "auto_apply": {
-      "auto_apply": 85,
-      "keep_gate": 65
+      "auto_apply": 83,
+      "keep_gate": 62
      },
      "keep_gate": {
-      "keep_gate": 383,
-      "auto_apply": 62
+      "keep_gate": 375,
+      "auto_apply": 60
      }
     }
    },
    "vs_outcome": {
-    "n": 351,
-    "accuracy": 0.4815,
-    "kappa": 0.0226,
+    "n": 343,
+    "accuracy": 0.4723,
+    "kappa": 0.019,
     "confusion(true->pred)": {
      "auto_apply": {
       "keep_gate": 163,
-      "auto_apply": 27
+      "auto_apply": 26
      },
      "keep_gate": {
-      "auto_apply": 19,
-      "keep_gate": 142
+      "auto_apply": 18,
+      "keep_gate": 136
      }
     }
    },
    "decA": {
-    "coverage": 0.5143,
-    "n": 306,
-    "acc_system": 0.902,
-    "n_system": 306,
-    "acc_outcome": 0.5075,
-    "n_outcome": 199,
+    "coverage": 0.519,
+    "n": 301,
+    "acc_system": 0.9136,
+    "n_system": 301,
+    "acc_outcome": 0.5051,
+    "n_outcome": 198,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.3966,
-    "n": 236,
-    "acc_system": 0.9195,
-    "n_system": 236,
-    "acc_outcome": 0.5696,
-    "n_outcome": 158,
+    "coverage": 0.3983,
+    "n": 231,
+    "acc_system": 0.9351,
+    "n_system": 231,
+    "acc_outcome": 0.5669,
+    "n_outcome": 157,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
@@ -69,82 +69,82 @@
     "p95": 228,
     "max": 446
    },
-   "cost_usd": 0.094532,
-   "input_tokens": 2250761,
+   "cost_usd": 0.092721,
+   "input_tokens": 2207652,
    "verdict_dist": {
-    "auto_apply": 147,
-    "keep_gate": 448
+    "auto_apply": 143,
+    "keep_gate": 437
    }
   },
   "decomposed": {
-   "rows": 595,
-   "answered": 595,
+   "rows": 580,
+   "answered": 580,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 595,
-    "accuracy": 0.7983,
-    "kappa": 0.3173,
+    "n": 580,
+    "accuracy": 0.8052,
+    "kappa": 0.3353,
     "confusion(true->pred)": {
      "auto_apply": {
       "auto_apply": 41,
-      "keep_gate": 109
+      "keep_gate": 104
      },
      "keep_gate": {
-      "keep_gate": 434,
-      "auto_apply": 11
+      "keep_gate": 426,
+      "auto_apply": 9
      }
     }
    },
    "vs_outcome": {
-    "n": 351,
-    "accuracy": 0.4587,
-    "kappa": -0.0035,
+    "n": 343,
+    "accuracy": 0.449,
+    "kappa": -0.0032,
     "confusion(true->pred)": {
      "auto_apply": {
       "keep_gate": 186,
-      "auto_apply": 4
+      "auto_apply": 3
      },
      "keep_gate": {
-      "keep_gate": 157,
-      "auto_apply": 4
+      "keep_gate": 151,
+      "auto_apply": 3
      }
     }
    },
    "decA": {
-    "coverage": 0.7916,
-    "n": 471,
-    "acc_system": 0.8365,
-    "n_system": 471,
-    "acc_outcome": 0.458,
-    "n_outcome": 286,
+    "coverage": 0.7897,
+    "n": 458,
+    "acc_system": 0.845,
+    "n_system": 458,
+    "acc_outcome": 0.448,
+    "n_outcome": 279,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "decB": {
-    "coverage": 0.0521,
-    "n": 31,
-    "acc_system": 0.9032,
-    "n_system": 31,
-    "acc_outcome": 0.3889,
-    "n_outcome": 18,
+    "coverage": 0.0483,
+    "n": 28,
+    "acc_system": 0.9643,
+    "n_system": 28,
+    "acc_outcome": 0.4118,
+    "n_outcome": 17,
     "acc_adjudicated": null,
     "n_adjudicated": 0,
     "acc_gold": null,
     "n_gold": 0
    },
    "latency_ms": {
-    "p50": 189,
+    "p50": 190,
     "p95": 238,
     "max": 1222
    },
-   "cost_usd": 0.104378,
-   "input_tokens": 2485191,
+   "cost_usd": 0.102319,
+   "input_tokens": 2436172,
    "verdict_dist": {
-    "auto_apply": 52,
-    "keep_gate": 543
+    "auto_apply": 50,
+    "keep_gate": 530
    }
   }
  },
@@ -295,8 +295,8 @@
   "test": {
    "system": {
     "vs_outcome": {
-     "n": 351,
-     "accuracy": 0.4587,
+     "n": 343,
+     "accuracy": 0.449,
      "kappa": 0.0
     }
    }

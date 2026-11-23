@@ -1,22 +1,22 @@
 {
  "point": "refactor_merge_classifier",
  "provider": "openai",
- "rows_in_scope": 694,
+ "rows_in_scope": 686,
  "gold_for_decisive": "adjudicated",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 278,
-   "answered": 278,
+   "rows": 274,
+   "answered": 274,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 278,
-    "accuracy": 0.7374,
-    "kappa": 0.2804,
+    "n": 274,
+    "accuracy": 0.7336,
+    "kappa": 0.2788,
     "confusion(true->pred)": {
      "skip": {
-      "skip": 183,
+      "skip": 179,
       "feature": 72
      },
      "feature": {
@@ -68,10 +68,10 @@
     }
    },
    "decA": {
-    "coverage": 0.5252,
-    "n": 146,
-    "acc_system": 0.8493,
-    "n_system": 146,
+    "coverage": 0.5182,
+    "n": 142,
+    "acc_system": 0.8451,
+    "n_system": 142,
     "acc_outcome": 0.6842,
     "n_outcome": 19,
     "acc_adjudicated": 0.9459,
@@ -80,10 +80,10 @@
     "n_gold": 35
    },
    "decB": {
-    "coverage": 0.4281,
-    "n": 119,
-    "acc_system": 0.8655,
-    "n_system": 119,
+    "coverage": 0.4197,
+    "n": 115,
+    "acc_system": 0.8609,
+    "n_system": 115,
     "acc_outcome": 0.6667,
     "n_outcome": 18,
     "acc_adjudicated": 0.9412,
@@ -92,29 +92,29 @@
     "n_gold": 32
    },
    "latency_ms": {
-    "p50": 154,
+    "p50": 155,
     "p95": 372,
     "max": 1359
    },
-   "cost_usd": 0.026983,
-   "input_tokens": 269827,
+   "cost_usd": 0.02652,
+   "input_tokens": 265202,
    "verdict_dist": {
-    "skip": 184,
+    "skip": 180,
     "feature": 94
    }
   },
   "decomposed": {
-   "rows": 278,
-   "answered": 278,
+   "rows": 274,
+   "answered": 274,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 278,
-    "accuracy": 0.8993,
-    "kappa": 0.5245,
+    "n": 274,
+    "accuracy": 0.8978,
+    "kappa": 0.5237,
     "confusion(true->pred)": {
      "skip": {
-      "skip": 231,
+      "skip": 227,
       "feature": 24
      },
      "feature": {
@@ -170,9 +170,9 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 278,
-    "acc_system": 0.8993,
-    "n_system": 278,
+    "n": 274,
+    "acc_system": 0.8978,
+    "n_system": 274,
     "acc_outcome": 0.5217,
     "n_outcome": 23,
     "acc_adjudicated": 0.8644,
@@ -181,10 +181,10 @@
     "n_gold": 51
    },
    "decB": {
-    "coverage": 0.6331,
-    "n": 176,
-    "acc_system": 0.9205,
-    "n_system": 176,
+    "coverage": 0.6277,
+    "n": 172,
+    "acc_system": 0.9186,
+    "n_system": 172,
     "acc_outcome": 0.625,
     "n_outcome": 16,
     "acc_adjudicated": 0.8718,
@@ -193,14 +193,14 @@
     "n_gold": 34
    },
    "latency_ms": {
-    "p50": 171,
+    "p50": 170,
     "p95": 438,
     "max": 1439
    },
-   "cost_usd": 0.051014,
-   "input_tokens": 532537,
+   "cost_usd": 0.050289,
+   "input_tokens": 524132,
    "verdict_dist": {
-    "skip": 235,
+    "skip": 231,
     "feature": 43
    }
   }

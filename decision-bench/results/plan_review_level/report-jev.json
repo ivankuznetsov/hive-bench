@@ -1,22 +1,22 @@
 {
  "point": "plan_review_level",
  "provider": "jev",
- "rows_in_scope": 802,
+ "rows_in_scope": 796,
  "gold_for_decisive": "adjudicated",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 326,
-   "answered": 326,
+   "rows": 325,
+   "answered": 325,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 326,
-    "accuracy": 0.8957,
+    "n": 325,
+    "accuracy": 0.8954,
     "kappa": 0.0499,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 291,
+      "mandatory": 290,
       "standard": 34
      },
      "standard": {
@@ -25,13 +25,13 @@
     }
    },
    "vs_outcome": {
-    "n": 248,
-    "accuracy": 0.8266,
-    "kappa": 0.0293,
+    "n": 247,
+    "accuracy": 0.8259,
+    "kappa": 0.0289,
     "confusion(true->pred)": {
      "mandatory": {
       "standard": 19,
-      "mandatory": 202
+      "mandatory": 201
      },
      "standard": {
       "mandatory": 23,
@@ -73,24 +73,24 @@
     }
    },
    "decA": {
-    "coverage": 0.8558,
-    "n": 279,
+    "coverage": 0.8554,
+    "n": 278,
     "acc_system": 0.9892,
-    "n_system": 279,
-    "acc_outcome": 0.8894,
-    "n_outcome": 217,
+    "n_system": 278,
+    "acc_outcome": 0.8889,
+    "n_outcome": 216,
     "acc_adjudicated": 0.7917,
     "n_adjudicated": 24,
     "acc_gold": 0.9048,
     "n_gold": 21
    },
    "decB": {
-    "coverage": 0.7822,
-    "n": 255,
+    "coverage": 0.7815,
+    "n": 254,
     "acc_system": 1.0,
-    "n_system": 255,
-    "acc_outcome": 0.8861,
-    "n_outcome": 202,
+    "n_system": 254,
+    "acc_outcome": 0.8856,
+    "n_outcome": 201,
     "acc_adjudicated": 0.9333,
     "n_adjudicated": 15,
     "acc_gold": 1.0,
@@ -101,25 +101,25 @@
     "p95": 329,
     "max": 1286
    },
-   "cost_usd": 0.147751,
-   "input_tokens": 3517889,
+   "cost_usd": 0.147357,
+   "input_tokens": 3508505,
    "verdict_dist": {
-    "mandatory": 291,
+    "mandatory": 290,
     "standard": 35
    }
   },
   "decomposed": {
-   "rows": 326,
-   "answered": 326,
+   "rows": 325,
+   "answered": 325,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 326,
-    "accuracy": 0.911,
+    "n": 325,
+    "accuracy": 0.9108,
     "kappa": 0.0589,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 296,
+      "mandatory": 295,
       "standard": 29
      },
      "standard": {
@@ -128,12 +128,12 @@
     }
    },
    "vs_outcome": {
-    "n": 248,
-    "accuracy": 0.8226,
-    "kappa": -0.0491,
+    "n": 247,
+    "accuracy": 0.8219,
+    "kappa": -0.0495,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 203,
+      "mandatory": 202,
       "standard": 18
      },
      "standard": {
@@ -175,18 +175,18 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 326,
-    "acc_system": 0.911,
-    "n_system": 326,
-    "acc_outcome": 0.8226,
-    "n_outcome": 248,
+    "n": 325,
+    "acc_system": 0.9108,
+    "n_system": 325,
+    "acc_outcome": 0.8219,
+    "n_outcome": 247,
     "acc_adjudicated": 0.7714,
     "n_adjudicated": 35,
     "acc_gold": 0.8065,
     "n_gold": 31
    },
    "decB": {
-    "coverage": 0.3558,
+    "coverage": 0.3569,
     "n": 116,
     "acc_system": 0.7845,
     "n_system": 116,
@@ -198,31 +198,31 @@
     "n_gold": 18
    },
    "latency_ms": {
-    "p50": 229,
+    "p50": 230,
     "p95": 336,
     "max": 1274
    },
-   "cost_usd": 0.146752,
-   "input_tokens": 3494091,
+   "cost_usd": 0.146361,
+   "input_tokens": 3484780,
    "verdict_dist": {
-    "mandatory": 296,
+    "mandatory": 295,
     "standard": 30
    }
   }
  },
  "dev": {
   "direct": {
-   "rows": 75,
-   "answered": 75,
+   "rows": 73,
+   "answered": 73,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 75,
-    "accuracy": 0.8533,
-    "kappa": 0.2311,
+    "n": 73,
+    "accuracy": 0.8493,
+    "kappa": 0.2301,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 62,
+      "mandatory": 60,
       "standard": 11
      },
      "standard": {
@@ -231,12 +231,12 @@
     }
    },
    "vs_outcome": {
-    "n": 46,
-    "accuracy": 0.7174,
-    "kappa": -0.0067,
+    "n": 44,
+    "accuracy": 0.7045,
+    "kappa": -0.0106,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 33,
+      "mandatory": 31,
       "standard": 9
      },
      "skip": {
@@ -249,9 +249,9 @@
     }
    },
    "vs_adjudicated": {
-    "n": 10,
-    "accuracy": 0.7,
-    "kappa": 0.4,
+    "n": 9,
+    "accuracy": 0.6667,
+    "kappa": 0.3415,
     "confusion(true->pred)": {
      "standard": {
       "mandatory": 2,
@@ -259,18 +259,18 @@
      },
      "mandatory": {
       "standard": 1,
-      "mandatory": 4
+      "mandatory": 3
      }
     }
    },
    "vs_gold": {
-    "n": 8,
-    "accuracy": 0.875,
-    "kappa": 0.75,
+    "n": 7,
+    "accuracy": 0.8571,
+    "kappa": 0.72,
     "confusion(true->pred)": {
      "mandatory": {
       "standard": 1,
-      "mandatory": 4
+      "mandatory": 3
      },
      "standard": {
       "standard": 3
@@ -278,53 +278,53 @@
     }
    },
    "decA": {
-    "coverage": 0.6533,
-    "n": 49,
-    "acc_system": 1.0,
-    "n_system": 49,
-    "acc_outcome": 0.8387,
-    "n_outcome": 31,
-    "acc_adjudicated": 1.0,
-    "n_adjudicated": 6,
-    "acc_gold": 1.0,
-    "n_gold": 6
-   },
-   "decB": {
-    "coverage": 0.6267,
+    "coverage": 0.6438,
     "n": 47,
     "acc_system": 1.0,
     "n_system": 47,
-    "acc_outcome": 0.8667,
-    "n_outcome": 30,
+    "acc_outcome": 0.8276,
+    "n_outcome": 29,
     "acc_adjudicated": 1.0,
     "n_adjudicated": 5,
     "acc_gold": 1.0,
     "n_gold": 5
    },
+   "decB": {
+    "coverage": 0.6164,
+    "n": 45,
+    "acc_system": 1.0,
+    "n_system": 45,
+    "acc_outcome": 0.8571,
+    "n_outcome": 28,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 4,
+    "acc_gold": 1.0,
+    "n_gold": 4
+   },
    "latency_ms": {
-    "p50": 229,
+    "p50": 228,
     "p95": 313,
     "max": 371
    },
-   "cost_usd": 0.032155,
-   "input_tokens": 765598,
+   "cost_usd": 0.031241,
+   "input_tokens": 743846,
    "verdict_dist": {
-    "mandatory": 62,
+    "mandatory": 60,
     "standard": 13
    }
   },
   "decomposed": {
-   "rows": 75,
-   "answered": 75,
+   "rows": 73,
+   "answered": 73,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 75,
-    "accuracy": 0.8,
-    "kappa": -0.0485,
+    "n": 73,
+    "accuracy": 0.7945,
+    "kappa": -0.0499,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 60,
+      "mandatory": 58,
       "standard": 13
      },
      "standard": {
@@ -333,12 +333,12 @@
     }
    },
    "vs_outcome": {
-    "n": 46,
-    "accuracy": 0.6957,
-    "kappa": -0.0842,
+    "n": 44,
+    "accuracy": 0.6818,
+    "kappa": -0.0883,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 32,
+      "mandatory": 30,
       "standard": 10
      },
      "skip": {
@@ -350,26 +350,26 @@
     }
    },
    "vs_adjudicated": {
-    "n": 10,
-    "accuracy": 0.6,
-    "kappa": 0.2,
+    "n": 9,
+    "accuracy": 0.5556,
+    "kappa": 0.1818,
     "confusion(true->pred)": {
      "standard": {
       "mandatory": 4,
       "standard": 1
      },
      "mandatory": {
-      "mandatory": 5
+      "mandatory": 4
      }
     }
    },
    "vs_gold": {
-    "n": 8,
-    "accuracy": 0.75,
-    "kappa": 0.3846,
+    "n": 7,
+    "accuracy": 0.7143,
+    "kappa": 0.3636,
     "confusion(true->pred)": {
      "mandatory": {
-      "mandatory": 5
+      "mandatory": 4
      },
      "standard": {
       "mandatory": 2,
@@ -379,18 +379,18 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 75,
-    "acc_system": 0.8,
-    "n_system": 75,
-    "acc_outcome": 0.6957,
-    "n_outcome": 46,
-    "acc_adjudicated": 0.6,
-    "n_adjudicated": 10,
-    "acc_gold": 0.75,
-    "n_gold": 8
+    "n": 73,
+    "acc_system": 0.7945,
+    "n_system": 73,
+    "acc_outcome": 0.6818,
+    "n_outcome": 44,
+    "acc_adjudicated": 0.5556,
+    "n_adjudicated": 9,
+    "acc_gold": 0.7143,
+    "n_gold": 7
    },
    "decB": {
-    "coverage": 0.3867,
+    "coverage": 0.3973,
     "n": 29,
     "acc_system": 0.5517,
     "n_system": 29,
@@ -402,14 +402,14 @@
     "n_gold": 1
    },
    "latency_ms": {
-    "p50": 230,
+    "p50": 231,
     "p95": 293,
     "max": 410
    },
-   "cost_usd": 0.031925,
-   "input_tokens": 760123,
+   "cost_usd": 0.031018,
+   "input_tokens": 738517,
    "verdict_dist": {
-    "mandatory": 62,
+    "mandatory": 60,
     "standard": 13
    }
   }
@@ -418,8 +418,8 @@
   "test": {
    "system": {
     "vs_outcome": {
-     "n": 248,
-     "accuracy": 0.8911,
+     "n": 247,
+     "accuracy": 0.8907,
      "kappa": 0.0
     },
     "vs_adjudicated": {
@@ -437,19 +437,19 @@
   "dev": {
    "system": {
     "vs_outcome": {
-     "n": 46,
-     "accuracy": 0.8913,
-     "kappa": 0.1353
+     "n": 44,
+     "accuracy": 0.8864,
+     "kappa": 0.1339
     },
     "vs_adjudicated": {
-     "n": 10,
-     "accuracy": 0.7,
-     "kappa": 0.4
+     "n": 9,
+     "accuracy": 0.6667,
+     "kappa": 0.3721
     },
     "vs_gold": {
-     "n": 8,
-     "accuracy": 0.875,
-     "kappa": 0.7143
+     "n": 7,
+     "accuracy": 0.8571,
+     "kappa": 0.6957
     }
    }
   }

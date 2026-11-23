@@ -101,7 +101,6 @@
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:test-suite-test-config-test-rb-5~test-suite-test-config-test-rb-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-brakeman-5~command-bin-thrust-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-brakeman-6~command-bin-rubocop-9#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-bundler-audit-3~command-bin-importmap-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-dev-5~command-bin-setup-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-dev-6~command-bin-rails-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-docker-entrypoint-5~command-bin-rubocop-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
@@ -110,13 +109,11 @@
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-jobs-5~command-bin-ci-9#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-jobs-7~command-bin-importmap-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-kamal-8~command-bin-rubocop-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-mcp-2~command-bin-rubocop-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rails-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rake-3~command-bin-rails-7#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rubocop-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-thrust-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-thrust-4~command-bin-setup-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-app-controllers-part-2-20260829T000712Z-46935448-1~architecture-app-controllers-part-2-20260816T072320Z-2439e6c2-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-app-models-20260907T000439Z-10e744f0-1~architecture-app-models-20260815T122450Z-9959779e-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-restore-production-simple-sh-20260818T115926Z-33098268-1~architecture-restore-production-simple-sh-20260816T065800Z-da0b42ae-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-brakeman-2~command-bin-bundle-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
@@ -125,15 +122,10 @@
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-ci-20260816T070059Z-a545209c-1~command-bin-brakeman-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-brakeman-5~command-bin-rubocop-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-bundle-7~command-bin-kamal-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-dev-5~command-bin-bundle-7#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-docker-entrypoint-3~command-bin-dev-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-importmap-9~command-bin-tapioca-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-jobs-5~command-bin-rails-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-kamal-4~command-bin-jobs-5#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-kamal-5~command-bin-rails-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-rails-6~command-bin-rails-9#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-rails-7~command-bin-rails-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
-{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-setup-7~command-bin-rubocop-5#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-tapioca-8~command-bin-rails-8#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-thrust-3~command-bin-tapioca-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
 {"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:writero:thesis:pr-99-c151a82b93b9dc5f:consolidate-oauth-documentation-ownership~pr-98-626ce68ec93f9d64:centralize-shared-oauth-documentation#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
@@ -178,7 +170,6 @@
 {"point": "plan_review_level", "id": "plan_review_level:screenote:replace-screenote-cli-api-key-260708-545b:3ae9844fb50033c9#direct", "gold_label": "mandatory"}
 {"point": "plan_review_level", "id": "plan_review_level:topgreendeals.co.uk:add-a-public-top-green-260724-cdea:24349a4a76c003a1#direct", "gold_label": "mandatory"}
 {"point": "plan_review_level", "id": "plan_review_level:topgreendeals.co.uk:add-ga4-events-for-key-260923-cd92:d897e4177983442b#direct", "gold_label": "standard"}
-{"point": "plan_review_level", "id": "plan_review_level:writero:replace-the-retired-writero-cli-260910-ebb9:9f36aff25de7c7b5#direct", "gold_label": "mandatory"}
 {"point": "provider_failure_class", "id": "provider_failure_class:architecture:design-first-class-multi-repository-260812-36d9:review:2026-09-07T00:04:20Z#direct", "gold_label": "agent_crashed"}
 {"point": "provider_failure_class", "id": "provider_failure_class:hive-bench-20260921:finish-the-six-deepseek-v4-260923-3a20:generate:2026-09-24T23:54:30Z#direct", "gold_label": "model_unsupported"}
 {"point": "provider_failure_class", "id": "provider_failure_class:hive-bench-20260921:finish-the-six-deepseek-v4-260923-3a20:generate:2026-09-25T13:06:54Z#direct", "gold_label": "model_unsupported"}
@@ -310,7 +301,6 @@
 {"point": "recovery_same_root", "id": "recovery_same_root:screenote:add-image-attachments-to-screenote-260816-6a00:5-open-pr:2026-08-29T03:40:32Z->2026-08-29T03:41:41Z#direct", "gold_label": false}
 {"point": "recovery_same_root", "id": "recovery_same_root:todero:agent-and-app-api-v1-261105-7d3c:4-execute:2026-11-09T03:45:02Z->2026-11-09T04:46:43Z#direct", "gold_label": true}
 {"point": "recovery_same_root", "id": "recovery_same_root:todero:autogrow-input-textarea-swap-moves-the-caret-to-a5006720e147:2-fix:2026-09-02T07:18:10Z->2026-09-02T09:38:14Z#direct", "gold_label": false}
-{"point": "recovery_same_root", "id": "recovery_same_root:todero:format-task-links-marks-unescaped-user-task-titl-50cc5a021f59:2-fix:2026-09-04T01:36:04Z->2026-09-04T11:24:42Z#direct", "gold_label": true}
 {"point": "recovery_same_root", "id": "recovery_same_root:todero:link-preview-cache-key-downcases-full-url-collid-1ae0557a86b2:2-fix:2026-09-01T14:52:53Z->2026-09-01T15:14:35Z#direct", "gold_label": false}
 {"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:ai-quote-check-and-five-261018-98f5:5-open-pr:2026-10-18T21:42:01Z->2026-10-18T21:44:13Z#direct", "gold_label": true}
 {"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:5-open-pr:2026-09-07T22:59:57Z->2026-09-07T23:04:21Z#direct", "gold_label": true}
@@ -476,15 +466,10 @@
 {"point": "visual_capture_need", "id": "visual_capture_need:honeycomb:trust-model-review-process-docs-260709-28a9#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:letterpress-comex:website-change-comex-website-https-261103-aa35#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:prdigest:implement-prdigest-v0-1-0-260715-fe8f#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
-{"point": "visual_capture_need", "id": "visual_capture_need:screenote:add-a-go-cli-for-260708-edec#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:autogrow-input-textarea-swap-moves-the-caret-to-a5006720e147#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
-{"point": "visual_capture_need", "id": "visual_capture_need:todero:confirmation-flow-writes-submitted-email-address-8ff04529cd3d#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
-{"point": "visual_capture_need", "id": "visual_capture_need:todero:confirmationscontroller-create-dereferences-a-ni-ecf43a59e57d#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
-{"point": "visual_capture_need", "id": "visual_capture_need:todero:format-task-links-marks-unescaped-user-task-titl-50cc5a021f59#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:greedy-multiline-p-unwrap-emits-unbalanced-html-9093f7809e3d#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:handle-list-task-raises-nomethoderror-on-bare-me-19456d9f09f0#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:inline-button-callback-data-is-built-from-raw-li-7580b553698e#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
-{"point": "visual_capture_need", "id": "visual_capture_need:todero:link-preview-cache-key-downcases-full-url-collid-1ae0557a86b2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:list-selection-callbacks-pass-switch-inline-quer-8d3629cc22dc#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:make-one-application-scoped-preview-coordinator-84c6d9124195#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
 {"point": "visual_capture_need", "id": "visual_capture_need:todero:notification-preferences-branch-of-userscontroll-2bc3922af116#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}

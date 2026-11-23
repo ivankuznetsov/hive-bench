@@ -1,27 +1,27 @@
 {
  "point": "visual_capture_need",
  "provider": "jev",
- "rows_in_scope": 560,
+ "rows_in_scope": 544,
  "gold_for_decisive": "adjudicated",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 226,
-   "answered": 226,
+   "rows": 218,
+   "answered": 218,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 226,
-    "accuracy": 0.7965,
-    "kappa": 0.558,
+    "n": 218,
+    "accuracy": 0.8028,
+    "kappa": 0.5731,
     "confusion(true->pred)": {
      "needs_capture": {
-      "no_capture": 32,
-      "needs_capture": 57
+      "no_capture": 31,
+      "needs_capture": 56
      },
      "no_capture": {
-      "no_capture": 123,
-      "needs_capture": 14
+      "no_capture": 119,
+      "needs_capture": 12
      }
     }
    },
@@ -40,30 +40,30 @@
     }
    },
    "vs_adjudicated": {
-    "n": 66,
-    "accuracy": 0.9697,
-    "kappa": 0.9262,
+    "n": 61,
+    "accuracy": 0.9672,
+    "kappa": 0.9154,
     "confusion(true->pred)": {
      "no_capture": {
-      "no_capture": 46,
+      "no_capture": 44,
       "needs_capture": 2
      },
      "needs_capture": {
-      "needs_capture": 18
+      "needs_capture": 15
      }
     }
    },
    "vs_gold": {
-    "n": 63,
-    "accuracy": 0.9841,
-    "kappa": 0.9605,
+    "n": 58,
+    "accuracy": 0.9828,
+    "kappa": 0.954,
     "confusion(true->pred)": {
      "no_capture": {
-      "no_capture": 45,
+      "no_capture": 43,
       "needs_capture": 1
      },
      "needs_capture": {
-      "needs_capture": 17
+      "needs_capture": 14
      }
     }
    },
@@ -83,58 +83,58 @@
     }
    },
    "decA": {
-    "coverage": 0.8938,
-    "n": 202,
-    "acc_system": 0.8267,
-    "n_system": 202,
+    "coverage": 0.8945,
+    "n": 195,
+    "acc_system": 0.8359,
+    "n_system": 195,
     "acc_outcome": 0.8333,
     "n_outcome": 6,
-    "acc_adjudicated": 0.9821,
-    "n_adjudicated": 56,
+    "acc_adjudicated": 0.9804,
+    "n_adjudicated": 51,
     "acc_gold": 1.0,
-    "n_gold": 54
+    "n_gold": 49
    },
    "decB": {
-    "coverage": 0.5752,
-    "n": 130,
-    "acc_system": 0.9,
-    "n_system": 130,
+    "coverage": 0.5872,
+    "n": 128,
+    "acc_system": 0.8984,
+    "n_system": 128,
     "acc_outcome": 1.0,
     "n_outcome": 3,
     "acc_adjudicated": 1.0,
-    "n_adjudicated": 24,
+    "n_adjudicated": 23,
     "acc_gold": 1.0,
-    "n_gold": 24
+    "n_gold": 23
    },
    "latency_ms": {
     "p50": 178,
     "p95": 216,
     "max": 316
    },
-   "cost_usd": 0.024884,
-   "input_tokens": 592487,
+   "cost_usd": 0.024357,
+   "input_tokens": 579936,
    "verdict_dist": {
-    "no_capture": 155,
-    "needs_capture": 71
+    "no_capture": 150,
+    "needs_capture": 68
    }
   },
   "decomposed": {
-   "rows": 226,
-   "answered": 226,
+   "rows": 218,
+   "answered": 218,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 226,
-    "accuracy": 0.7743,
-    "kappa": 0.5283,
+    "n": 218,
+    "accuracy": 0.7844,
+    "kappa": 0.5496,
     "confusion(true->pred)": {
      "needs_capture": {
-      "no_capture": 25,
-      "needs_capture": 64
+      "no_capture": 24,
+      "needs_capture": 63
      },
      "no_capture": {
-      "no_capture": 111,
-      "needs_capture": 26
+      "no_capture": 108,
+      "needs_capture": 23
      }
     }
    },
@@ -153,30 +153,30 @@
     }
    },
    "vs_adjudicated": {
-    "n": 66,
-    "accuracy": 0.7879,
-    "kappa": 0.5698,
+    "n": 61,
+    "accuracy": 0.7705,
+    "kappa": 0.5292,
     "confusion(true->pred)": {
      "no_capture": {
-      "no_capture": 34,
+      "no_capture": 32,
       "needs_capture": 14
      },
      "needs_capture": {
-      "needs_capture": 18
+      "needs_capture": 15
      }
     }
    },
    "vs_gold": {
-    "n": 63,
-    "accuracy": 0.8095,
-    "kappa": 0.6046,
+    "n": 58,
+    "accuracy": 0.7931,
+    "kappa": 0.5628,
     "confusion(true->pred)": {
      "no_capture": {
-      "no_capture": 34,
+      "no_capture": 32,
       "needs_capture": 12
      },
      "needs_capture": {
-      "needs_capture": 17
+      "needs_capture": 14
      }
     }
    },
@@ -195,39 +195,39 @@
     }
    },
    "decA": {
-    "coverage": 0.9823,
-    "n": 222,
-    "acc_system": 0.7748,
-    "n_system": 222,
+    "coverage": 0.9817,
+    "n": 214,
+    "acc_system": 0.785,
+    "n_system": 214,
     "acc_outcome": 0.5714,
     "n_outcome": 7,
-    "acc_adjudicated": 0.8254,
-    "n_adjudicated": 63,
-    "acc_gold": 0.85,
-    "n_gold": 60
+    "acc_adjudicated": 0.8103,
+    "n_adjudicated": 58,
+    "acc_gold": 0.8364,
+    "n_gold": 55
    },
    "decB": {
-    "coverage": 0.5044,
-    "n": 114,
-    "acc_system": 0.8246,
-    "n_system": 114,
+    "coverage": 0.5092,
+    "n": 111,
+    "acc_system": 0.8288,
+    "n_system": 111,
     "acc_outcome": 1.0,
     "n_outcome": 2,
-    "acc_adjudicated": 0.9091,
-    "n_adjudicated": 22,
-    "acc_gold": 0.9091,
-    "n_gold": 22
+    "acc_adjudicated": 0.9048,
+    "n_adjudicated": 21,
+    "acc_gold": 0.9048,
+    "n_gold": 21
    },
    "latency_ms": {
     "p50": 178,
-    "p95": 219,
+    "p95": 221,
     "max": 328
    },
-   "cost_usd": 0.030304,
-   "input_tokens": 721533,
+   "cost_usd": 0.029585,
+   "input_tokens": 704414,
    "verdict_dist": {
-    "no_capture": 136,
-    "needs_capture": 90
+    "no_capture": 132,
+    "needs_capture": 86
    }
   }
  },
@@ -462,14 +462,14 @@
      "kappa": -0.25
     },
     "vs_adjudicated": {
-     "n": 66,
-     "accuracy": 0.4697,
-     "kappa": -0.0322
+     "n": 61,
+     "accuracy": 0.4754,
+     "kappa": -0.0072
     },
     "vs_gold": {
-     "n": 63,
-     "accuracy": 0.4762,
-     "kappa": -0.04
+     "n": 58,
+     "accuracy": 0.4828,
+     "kappa": -0.0164
     }
    },
    "llm_inference": {

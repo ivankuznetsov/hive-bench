@@ -1,6 +1,6 @@
 # Claude vs Neon: disagreements for tie-break
 
-Second annotator: Gemini 4 Neon (`opencode/gemini-4-neon#medium`, OpenCode 2.3.2), blind: it saw only each row's `state` and the point's direct question, never `labels`, `meta` or Claude's verdict. Rows: every adjudicated `#direct` row in the sanitized datasets, minus `[PRODUCT]*` projects. 563 rows scored, 499 agree (88.6%), 64 disagree; gold (both agree) = 499 rows in `gold.jsonl`.
+Second annotator: Gemini 4 Neon (`opencode/gemini-4-neon#medium`, OpenCode 2.3.2), blind: it saw only each row's `state` and the point's direct question, never `labels`, `meta` or Claude's verdict. Rows: every adjudicated `#direct` row in the sanitized datasets, minus `[PRODUCT]*` projects and minus 15 rows withheld as security findings in the owner's private products. 548 rows scored, 484 agree (88.3%), 64 disagree; gold (both agree) = 484 rows in `gold.jsonl`.
 
 Label mappings (adjudicated vocabulary → direct question):
 
@@ -16,13 +16,13 @@ Label mappings (adjudicated vocabulary → direct question):
 | point | n | agree | kappa | disagreements | pending |
 |---|---|---|---|---|---|
 | ci_failure_triage | 78 | 75.6% | 0.66 | 19 | 0 |
-| patrol_finding_dedup | 85 | 97.7% | 0.93 | 2 | 0 |
-| plan_review_level | 45 | 86.7% | 0.73 | 6 | 0 |
+| patrol_finding_dedup | 77 | 97.4% | 0.92 | 2 | 0 |
+| plan_review_level | 44 | 86.4% | 0.73 | 6 | 0 |
 | provider_failure_class | 82 | 97.6% | 0.97 | 2 | 0 |
-| recovery_same_root | 64 | 100.0% | 1.00 | 0 | 0 |
+| recovery_same_root | 63 | 100.0% | 1.00 | 0 | 0 |
 | refactor_merge_classifier | 73 | 87.7% | 0.73 | 9 | 0 |
 | task_workflow_routing | 58 | 60.3% | 0.39 | 23 | 0 |
-| visual_capture_need | 78 | 96.2% | 0.90 | 3 | 0 |
+| visual_capture_need | 73 | 95.9% | 0.89 | 3 | 0 |
 
 ## ci_failure_triage
 
@@ -202,7 +202,7 @@ Label mappings (adjudicated vocabulary → direct question):
 
 ## patrol_finding_dedup
 
-2 of 85 disagree; kappa 0.9296. Question `same_issue`.
+2 of 77 disagree; kappa 0.9246. Question `same_issue`.
 
 ### `patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-brakeman-10~command-bin-kamal-7#direct`
 
@@ -223,7 +223,7 @@ Label mappings (adjudicated vocabulary → direct question):
 
 ## plan_review_level
 
-6 of 45 disagree; kappa 0.7343. Question `review_level`.
+6 of 44 disagree; kappa 0.729. Question `review_level`.
 
 ### `plan_review_level:hive:add-a-digest-cli-mode-260702-2eed:fa4f79d516b33b88#direct`
 
@@ -299,7 +299,7 @@ Label mappings (adjudicated vocabulary → direct question):
 
 ## recovery_same_root
 
-0 of 64 disagree; kappa 1.0. Question `same_root`.
+0 of 63 disagree; kappa 1.0. Question `same_root`.
 
 No disagreements.
 
@@ -519,7 +519,7 @@ No disagreements.
 
 ### `task_workflow_routing:topgreendeals.co.uk:add-the-completed-zero-bills-260801-ec79#direct`
 
-- State: Project topgreendeals.co.uk; idea: Add the completed Zero-Bills & Net-Zero New-Build Homes UK article package to the TopGreenDeals website. Source package from completed Hive task 42405: - Final article: /home/user/Dev/topgreendeals/.hive-state/stages/6-done/continue-nationwide-research-and-source-260730-c0fa/article.md - Research/source ledger: /home/user…
+- State: Project topgreendeals.co.uk; idea: Add the completed Zero-Bills & Net-Zero New-Build Homes UK article package to the TopGreenDeals website. Source package from completed Hive task 42405: - Final article: /home/asterio/Dev/topgreendeals/.hive-state/stages/6-done/continue-nationwide-research-and-source-260730-c0fa/article.md - Research/source ledger: /home/asterio…
 - Claude: **express**: Publishing a finished article package; the three brainstorm rounds only confirmed defaults; the pass-2 High was stale visual baselines.
 - Neon: **standard**: Integrating an already completed article package into the existing Rails content model, structured data, internal links, and tests is ordinary work whose details follow from the codebase.
 - Tie-break: 
@@ -548,7 +548,7 @@ No disagreements.
 
 ## visual_capture_need
 
-3 of 78 disagree; kappa 0.9037. Question `needs_visual_capture`.
+3 of 73 disagree; kappa 0.8914. Question `needs_visual_capture`.
 
 ### `visual_capture_need:hive:extend-idempotency-keys-and-durable-260923-ccce#direct`
 

@@ -1,19 +1,19 @@
 {
  "point": "provider_failure_class",
  "provider": "jev",
- "rows_in_scope": 1234,
+ "rows_in_scope": 1228,
  "gold_for_decisive": "adjudicated",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 479,
-   "answered": 479,
+   "rows": 476,
+   "answered": 476,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 479,
-    "accuracy": 0.6451,
-    "kappa": 0.4589,
+    "n": 476,
+    "accuracy": 0.645,
+    "kappa": 0.4597,
     "confusion(true->pred)": {
      "model_unsupported": {
       "model_unsupported": 37
@@ -27,11 +27,11 @@
       "other_or_healthy": 11
      },
      "other_or_healthy": {
-      "other_or_healthy": 185,
+      "other_or_healthy": 183,
       "network_transient": 23,
       "auth_or_credentials": 41,
       "model_unsupported": 12,
-      "agent_crashed": 66,
+      "agent_crashed": 65,
       "quota_or_usage_limit": 8
      }
     }
@@ -98,10 +98,10 @@
     }
    },
    "decA": {
-    "coverage": 0.8392,
-    "n": 402,
-    "acc_system": 0.6517,
-    "n_system": 402,
+    "coverage": 0.8382,
+    "n": 399,
+    "acc_system": 0.6516,
+    "n_system": 399,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": 1.0,
@@ -110,10 +110,10 @@
     "n_gold": 49
    },
    "decB": {
-    "coverage": 0.7432,
-    "n": 356,
-    "acc_system": 0.6517,
-    "n_system": 356,
+    "coverage": 0.7416,
+    "n": 353,
+    "acc_system": 0.6516,
+    "n_system": 353,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": 1.0,
@@ -122,8 +122,8 @@
     "n_gold": 43
    },
    "healthy_run_check": {
-    "n": 100,
-    "pred_other_or_healthy": 0.99,
+    "n": 99,
+    "pred_other_or_healthy": 0.9899,
     "system_other_or_healthy": 1.0
    },
    "pred_x_outcome": {
@@ -147,8 +147,8 @@
      "transient_rate_limit": 2,
      "network_transient": 19,
      "auth_or_credentials": 26,
-     "other_or_healthy": 32,
-     "agent_crashed": 27
+     "other_or_healthy": 31,
+     "agent_crashed": 26
     },
     "no_later_attempt": {
      "model_unsupported": 1,
@@ -166,7 +166,7 @@
      "agent_crashed": 16
     },
     "run_completed_normally": {
-     "other_or_healthy": 99,
+     "other_or_healthy": 98,
      "quota_or_usage_limit": 1
     }
    },
@@ -175,27 +175,27 @@
     "p95": 201,
     "max": 422
    },
-   "cost_usd": 0.049703,
-   "input_tokens": 1183406,
+   "cost_usd": 0.049289,
+   "input_tokens": 1173537,
    "verdict_dist": {
     "model_unsupported": 49,
     "quota_or_usage_limit": 95,
-    "other_or_healthy": 203,
+    "other_or_healthy": 201,
     "transient_rate_limit": 2,
     "network_transient": 23,
     "auth_or_credentials": 41,
-    "agent_crashed": 66
+    "agent_crashed": 65
    }
   },
   "decomposed": {
-   "rows": 479,
-   "answered": 479,
+   "rows": 476,
+   "answered": 476,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 479,
-    "accuracy": 0.6305,
-    "kappa": 0.4435,
+    "n": 476,
+    "accuracy": 0.6324,
+    "kappa": 0.4461,
     "confusion(true->pred)": {
      "model_unsupported": {
       "model_unsupported": 37
@@ -209,12 +209,12 @@
       "other_or_healthy": 11
      },
      "other_or_healthy": {
-      "other_or_healthy": 178,
+      "other_or_healthy": 177,
       "network_transient": 33,
       "auth_or_credentials": 33,
       "model_unsupported": 12,
-      "unsure": 21,
-      "agent_crashed": 43,
+      "unsure": 20,
+      "agent_crashed": 42,
       "quota_or_usage_limit": 13,
       "tool_permission_denied": 2
      }
@@ -284,10 +284,10 @@
     }
    },
    "decA": {
-    "coverage": 0.9562,
-    "n": 458,
-    "acc_system": 0.6594,
-    "n_system": 458,
+    "coverage": 0.958,
+    "n": 456,
+    "acc_system": 0.6601,
+    "n_system": 456,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": 0.95,
@@ -296,10 +296,10 @@
     "n_gold": 59
    },
    "decB": {
-    "coverage": 0.6367,
-    "n": 305,
-    "acc_system": 0.6984,
-    "n_system": 305,
+    "coverage": 0.6366,
+    "n": 303,
+    "acc_system": 0.6997,
+    "n_system": 303,
     "acc_outcome": null,
     "n_outcome": 0,
     "acc_adjudicated": 0.975,
@@ -308,8 +308,8 @@
     "n_gold": 39
    },
    "healthy_run_check": {
-    "n": 100,
-    "pred_other_or_healthy": 0.95,
+    "n": 99,
+    "pred_other_or_healthy": 0.9495,
     "system_other_or_healthy": 1.0
    },
    "pred_x_outcome": {
@@ -337,8 +337,8 @@
      "network_transient": 27,
      "auth_or_credentials": 19,
      "other_or_healthy": 32,
-     "unsure": 7,
-     "agent_crashed": 16,
+     "agent_crashed": 15,
+     "unsure": 6,
      "tool_permission_denied": 1
     },
     "no_later_attempt": {
@@ -358,7 +358,7 @@
      "unsure": 5
     },
     "run_completed_normally": {
-     "other_or_healthy": 95,
+     "other_or_healthy": 94,
      "network_transient": 1,
      "unsure": 2,
      "quota_or_usage_limit": 2
@@ -369,17 +369,17 @@
     "p95": 201,
     "max": 426
    },
-   "cost_usd": 0.055256,
-   "input_tokens": 1315610,
+   "cost_usd": 0.054806,
+   "input_tokens": 1304913,
    "verdict_dist": {
     "model_unsupported": 49,
     "quota_or_usage_limit": 100,
-    "other_or_healthy": 196,
+    "other_or_healthy": 195,
     "transient_rate_limit": 2,
     "network_transient": 33,
     "auth_or_credentials": 33,
-    "unsure": 21,
-    "agent_crashed": 43,
+    "unsure": 20,
+    "agent_crashed": 42,
     "tool_permission_denied": 2
    }
   }

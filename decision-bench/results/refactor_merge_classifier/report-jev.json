@@ -1,22 +1,22 @@
 {
  "point": "refactor_merge_classifier",
  "provider": "jev",
- "rows_in_scope": 694,
+ "rows_in_scope": 686,
  "gold_for_decisive": "adjudicated",
  "scoring": "summarize.py (see its docstring)",
  "test": {
   "direct": {
-   "rows": 278,
-   "answered": 278,
+   "rows": 274,
+   "answered": 274,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 278,
-    "accuracy": 0.8885,
-    "kappa": 0.5331,
+    "n": 274,
+    "accuracy": 0.8869,
+    "kappa": 0.5322,
     "confusion(true->pred)": {
      "skip": {
-      "skip": 225,
+      "skip": 221,
       "feature": 30
      },
      "feature": {
@@ -70,10 +70,10 @@
     }
    },
    "decA": {
-    "coverage": 0.6691,
-    "n": 186,
-    "acc_system": 0.9839,
-    "n_system": 186,
+    "coverage": 0.6642,
+    "n": 182,
+    "acc_system": 0.9835,
+    "n_system": 182,
     "acc_outcome": 0.6667,
     "n_outcome": 12,
     "acc_adjudicated": 1.0,
@@ -82,10 +82,10 @@
     "n_gold": 33
    },
    "decB": {
-    "coverage": 0.5612,
-    "n": 156,
-    "acc_system": 0.9808,
-    "n_system": 156,
+    "coverage": 0.5547,
+    "n": 152,
+    "acc_system": 0.9803,
+    "n_system": 152,
     "acc_outcome": 0.7,
     "n_outcome": 10,
     "acc_adjudicated": 1.0,
@@ -94,29 +94,29 @@
     "n_gold": 30
    },
    "latency_ms": {
-    "p50": 174,
+    "p50": 173,
     "p95": 206,
     "max": 248
    },
-   "cost_usd": 0.016938,
-   "input_tokens": 403275,
+   "cost_usd": 0.016684,
+   "input_tokens": 397247,
    "verdict_dist": {
-    "skip": 226,
+    "skip": 222,
     "feature": 52
    }
   },
   "decomposed": {
-   "rows": 278,
-   "answered": 278,
+   "rows": 274,
+   "answered": 274,
    "errors": 0,
    "not_run": 0,
    "vs_system": {
-    "n": 278,
-    "accuracy": 0.8921,
-    "kappa": 0.5179,
+    "n": 274,
+    "accuracy": 0.8905,
+    "kappa": 0.517,
     "confusion(true->pred)": {
      "skip": {
-      "skip": 228,
+      "skip": 224,
       "feature": 27
      },
      "feature": {
@@ -172,9 +172,9 @@
    },
    "decA": {
     "coverage": 1.0,
-    "n": 278,
-    "acc_system": 0.8921,
-    "n_system": 278,
+    "n": 274,
+    "acc_system": 0.8905,
+    "n_system": 274,
     "acc_outcome": 0.6522,
     "n_outcome": 23,
     "acc_adjudicated": 0.9153,
@@ -183,10 +183,10 @@
     "n_gold": 51
    },
    "decB": {
-    "coverage": 0.4137,
-    "n": 115,
-    "acc_system": 0.9304,
-    "n_system": 115,
+    "coverage": 0.4124,
+    "n": 113,
+    "acc_system": 0.9292,
+    "n_system": 113,
     "acc_outcome": 0.6667,
     "n_outcome": 9,
     "acc_adjudicated": 0.8929,
@@ -199,10 +199,10 @@
     "p95": 223,
     "max": 333
    },
-   "cost_usd": 0.022063,
-   "input_tokens": 525317,
+   "cost_usd": 0.021736,
+   "input_tokens": 517533,
    "verdict_dist": {
-    "skip": 231,
+    "skip": 227,
     "feature": 47
    }
   }
