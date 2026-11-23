@@ -235,3 +235,33 @@ Every one of these was needed to make real hive run headlessly with `/ce-plan`:
 
 These are mirrored in the code comments and [[findings]] (the Bash-tool bug). The fully
 worked-out recipe also lives in the project memory `hive-bench-v2-real-hive.md`.
+
+## Direct v1 credential policy
+
+`harness/run_all.rb` and `harness/pipeline_run.rb` use `IsolationExec`, whose
+profile policy declares one of OpenRouter, Anthropic or OpenAI's API variable
+names from Pi's explicit provider prefix, or exactly one configured Claude/Codex
+OAuth path. Both inherited OAuth path controls are removed before selecting one.
+Unknown/bare Pi routes and missing OAuth configuration refuse before spawning.
+The v2 `hive_run.rb` → `HiveDriver` path is separate and unchanged.
+
+The direct `hb_isolated gen` wrapper enforces that declaration before Docker.
+An unset/invalid `HB_API_KEYS` refuses with exit 70; an explicitly empty value
+requires exactly one regular OAuth file. Gate ignores these controls, supplies
+no credentials and uses `--network none`. Refusal exceptions retain phase/status
+without embedding untrusted stderr. Optional arrays use Bash 3.2 nounset guards.
+
+`bundle exec rake test:bench_isolation_proof` runs the expensive interpreter and
+real-container matrices outside the default suite. CI requires macos-15's
+actual /bin/bash 3.2 and ubuntu-24.04's current Bash. Docker unavailability
+remains distinct from a failing pinned-image probe setup.
+The real Docker probes override the shared fixture's eight-CPU request with
+one CPU so they fit hosted daemons with four CPUs. Fake-Docker resource
+forwarding checks still exercise eight CPUs; production defaults are unchanged.
+
+Operator contract, exact accepted declarations, pinned stock-image protocol,
+Slate/preflight consequences and installed-project refresh/revert commands
+are documented in `harness/CREDENTIAL_ISOLATION.md` and
+`harness/profiles/README.md`. Hive's install regression provisions the actual
+pre-change runtime, refreshes it through the CLI, then reverts the isolated
+hive/state commit and verifies prior bytes and unrelated state.

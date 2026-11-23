@@ -2,6 +2,26 @@
 
 What's NOT done or NOT yet known. See `HANDOFF.md` for the run/build commands.
 
+## Direct v1 isolation delivery (2026-11-02)
+
+Canonical baseline `432e730ea7812246496726fcc9153e98be58eb30` and Hive baseline
+`966211001e76d53da50879a582668b5b2e381607` already differ in 37 harness files
+outside the identical isolation boundary. This fix preserves those differences.
+The original dirty canonical checkout remains untouched. The delivery branch
+`fix/profile-credential-isolation-delivery` ports only the credential changes
+onto upstream `243ef7bb7e2cb3f6ecbe2d5fe3f3ab9c83cff326`; it excludes the
+original local branch's unpublished benchmark-results commits. Hosted
+macos-15 proof is pending despite passing local actual GNU Bash 3.2.57/5.3.20
+and Docker probes. The required CI lane asserts `/bin/bash` 3.2. Both bare Pi
+labels remain unresolved; see `harness/profiles/README.md` for the explicit
+default-pass failure consequence and future migration surfaces.
+
+The real Docker proof now requests one CPU, matching Hive's hosted-runner fix.
+A local four-CPU rejection shim reproduced the original exit 125, then the
+corrected gate passed with actual Bash 3.2.57/5.3.20 and real Docker probes
+(3 tests/40 assertions, zero skips). Hosted Ubuntu confirmation remains pending;
+this local simulation does not establish a hosted CI result.
+
 ## Candidate matrix (opus, codex, and the mixed candidate PROVEN 2026-07-02)
 
 - ~~codex container posture~~ — SOLVED: tmpfs `~/.codex` (root-owned bind-parent
