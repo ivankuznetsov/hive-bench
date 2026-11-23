@@ -1,0 +1,7 @@
+__pycache__/
+.venv/
+runs/
+# decompressed copies of dataset.jsonl.xz
+*/dataset.jsonl
+# run_decisions.py report output
+results/*/runner-report-*.json

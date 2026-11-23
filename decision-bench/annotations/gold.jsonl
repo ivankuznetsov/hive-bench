@@ -1,0 +1,499 @@
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:add-a-daemon-quiescence-command-260923-b4d3:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:add-a-daemon-quiescence-command-260923-b4d3:f49d2090ffa4#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:add-a-sanctioned-per-task-261029-4bc5:ci-blocked.md#direct", "gold_label": "merge_conflict"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:add-repository-aware-answer-suggestions-260826-528d:0064b2e01fb2#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:add-repository-aware-answer-suggestions-260826-528d:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:every-generator-receives-every-ambient-pro-coding-dabd811e:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:extend-idempotency-keys-and-durable-260923-ccce:25d11038d918#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:extend-idempotency-keys-and-durable-260923-ccce:41367ef241e7#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:extend-idempotency-keys-and-durable-260923-ccce:4f8d6faea9a2#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:extend-idempotency-keys-and-durable-260923-ccce:f60c7c7e0b25#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:hive-status-crashes-with-an-261027-611d:ci-blocked.md#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:let-the-native-hive-cli-260923-01dd:b2c87e213a06#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:make-doctor-s-injected-environment-authori-coding-8c28a0b4:4a1d9413bd25#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:make-hive-act-workflow-retry-260925-8c91:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:make-hive-config-defaults-the-sole-owner-o-coding-581fe78a:1f1cf8ef3598#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:make-wiki-commands-md-authoritative-for-co-coding-5d38a704:98bf63363313#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-classify-reasons-for-order-stale-li-coding-f48b62bf:81c424bdd1c3#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-hive-e2e-run-scenarios-swallows-une-coding-6ea02fac:a6801aa64013#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-idea-preview-drops-wide-character-b-coding-e7f00c36:ci-blocked.md#direct", "gold_label": "flaky_or_infra"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-no-tests-for-abbreviated-exec-seam-coding-195fd35a:ci-blocked.md#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-no-tests-for-abbreviated-exec-seam-coding-195fd35a:fd4224aeb72d#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-no-tests-for-abbreviated-exec-seam-coding-195fd35a:fdbf281c99db#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-replay-symlink-executability-checks-coding-9bd28415:6deeb2996029#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-replay-symlink-executability-checks-coding-9bd28415:7c1fee92e90c#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-replay-symlink-executability-checks-coding-9bd28415:a14a7a06b097#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-replay-symlink-executability-checks-coding-9bd28415:b1d938e5f5ac#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-replay-symlink-executability-checks-coding-9bd28415:ci-blocked.md#direct", "gold_label": "flaky_or_infra"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-terminate-process-escalates-to-sigk-coding-c041e9bd:3fc58c379a66#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-user-manager-units-reference-system-coding-7507e121:4374f26cf70f#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-user-manager-units-reference-system-coding-7507e121:b1c6890e9e08#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:patrol-user-manager-units-reference-system-coding-7507e121:ci-blocked.md#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:stop-runtime-database-lock-contention-260925-b323:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:track-skill-and-workflow-proposal-260829-f948:67dd04c5f54d#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hive:track-skill-and-workflow-proposal-260829-f948:ci-blocked.md#direct", "gold_label": "merge_conflict"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hivedev:c2-add-the-workspace-model-260923-e794:ci-blocked.md#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hivedev:f2-follow-up-fix-the-261030-6527:ci-blocked.md#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hivedev:f2-follow-up-hardening-deferred-261102-7d36:ci-blocked.md#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hivedev:f4-run-the-hosting-proof-260923-7bae:ci-blocked.md#direct", "gold_label": "flaky_or_infra"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:hivedev:f4-run-the-hosting-proof-260923-7bae:ci-error-01.md#direct", "gold_label": "unknown"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:screenote:add-image-attachments-to-screenote-260816-6a00:2fa5af2d2c68#direct", "gold_label": "defect_from_diff"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-56:fa3184b6ad3b#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-58:b34caae1f6f8#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-61:f78596f995e1#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-64:4b14410a4da5#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-65:0123c6f45397#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-66:e89a348a01af#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-67:5aab8273d8b1#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-68:42a181256c14#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-69:5669e7d4b1f7#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-70:ec4aa61bb13c#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-71:80b68d216474#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-72:4e91a37f3dfd#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-73:fb72862b2af9#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-78:93634883d88f#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-79:0171f4cc93d9#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-82:79a65b85ef25#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:pr-83:321c38f1cf6f#direct", "gold_label": "environment_or_billing"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:todero:shopping-lists-quantities-units-and-261105-54f2:ci-blocked.md#direct", "gold_label": "merge_conflict"}
+{"point": "ci_failure_triage", "id": "ci_failure_triage:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:ci-blocked.md#direct", "gold_label": "unknown"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-bench:ordinary:test-suite-test-agent-limit-test-rb-1~package-gemfile-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-bench:ordinary:test-suite-test-agent-limit-test-rb-5~test-suite-test-agent-limit-test-rb-2#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-bench:ordinary:test-suite-test-agent-limit-test-rb-7~test-suite-test-agent-limit-test-rb-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:architecture-assets-js-20260811T080133Z-2a44510f-1~architecture-assets-js-20260801T210616Z-69c2b527-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:architecture-box-ps1-20260803T174604Z-8cafbd7d-1~architecture-box-ps1-20260725T174058Z-d02da9c0-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:architecture-layouts-20260728T212652Z-5f3739e0-1~package-gemfile-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:architecture-lib-honeycomb-catalog-sync-rb-20260807T040919Z-29d657b5-1~architecture-lib-honeycomb-catalog-sync-rb-20260729T025152Z-824418c5-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:package-gemfile-5~package-gemfile-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive-site:ordinary:package-package-json-2~package-package-json-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-examples-systemd-20260718T135348Z-01ab93e8-1~command-bin-hive-babysitter-stub-gh-8#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-examples-systemd-20260719T132216Z-fad9ce63-1~architecture-examples-systemd-20260718T135348Z-01ab93e8-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-attempts-part-5-20260720T013718Z-6835c1cf-1~architecture-lib-hive-attempts-part-5-20260720T005632Z-d5641550-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-attempts-part-5-20260720T025540Z-cb5ed8a6-1~architecture-lib-hive-attempts-part-5-20260720T011207Z-6635651e-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-daemon-part-4-20260815T062311Z-66f039b1-1~architecture-lib-hive-babysitter-part-2-20260811T000051Z-7ddd5ed5-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-part-14-20260815T145242Z-43887106-1~architecture-lib-hive-part-12-20260724T001128Z-372f75a1-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-part-6-20260815T165036Z-01271902-1~architecture-lib-hive-part-6-20260724T021730Z-7ac4965f-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:architecture-lib-hive-workflow-package-part-2-20260817T041045Z-10918f80-1~architecture-lib-hive-workflow-package-part-2-20260816T173007Z-bb636e3e-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-1~command-bin-hive-8#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-4~command-bin-hv-5#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-5~command-bin-hive-babysitter-stub-gh-8#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-6~command-bin-hv-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-8~command-bin-hive-babysitter-skip-log-rb-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-babysitter-stub-gh-3~command-bin-hv-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-babysitter-stub-git-1~command-bin-hv-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:ordinary:command-bin-hive-e2e-7~command-bin-hv-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1134-52d217d0b56125e2:consolidate-daemon-atomic-state-writes~pr-1113-300dbd75b27d0024:centralize-daemon-atomic-state-writes#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1148-29a3b5c29236f8c9:centralize-agent-stream-event-interpretation~pr-1136-3b1a6a591951f483:centralize-agent-stream-event-interpretation#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1148-29a3b5c29236f8c9:unify-module-status-schema-ownership~pr-994-7d7d0822cb02955e:centralize-base-error-envelope-authoring#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1161-f401d7e25c393492:centralize-plan-review-result-contract~pr-1136-3b1a6a591951f483:centralize-plan-review-result-contract#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1178-0757748b245cf979:centralize-migration-restart-coordination~pr-1113-300dbd75b27d0024:centralize-migration-lifecycle-policy#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1347-f4b12c802fffce76:centralize-accepted-finding-parsing~pr-1136-3b1a6a591951f483:centralize-accepted-findings-interpretation#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1375-a94e22e36a5bb31f:make-stage-migration-aliases-owned-by-stages~pr-1179-0d8625645bf0f27e:make-stage-identity-authoritative-for-migrations#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1389-81cd5c6f82388553:centralize-attempt-health-classification~pr-1375-a94e22e36a5bb31f:centralize-attempt-health-classification#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1389-81cd5c6f82388553:centralize-hive-new-output-contract~pr-1113-300dbd75b27d0024:establish-single-cli-documentation-authority#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-1389-81cd5c6f82388553:replace-private-bubbletea-event-loop-fork~pr-1113-300dbd75b27d0024:replace-private-bubbletea-runner-fork-with-supported-input-seam#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:hive:thesis:pr-994-7d7d0822cb02955e:make-config-defaults-single-source~pr-1113-300dbd75b27d0024:derive-config-default-reference-from-runtime-owner#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:openclaw-shopping:thesis:pr-2-ce8429005fa42264:centralize-chosen-candidate-policy~pr-1-d761d66ae355d6c1:typed-sqlite-unavailable-error#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:command-bin-prdigest-4~command-bin-prdigest-2#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:command-exe-prdigest-2~command-bin-prdigest-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:command-exe-prdigest-4~command-bin-prdigest-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:package-gemfile-7~command-exe-prdigest-2#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:prdigest:ordinary:test-suite-test-config-test-rb-5~test-suite-test-config-test-rb-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-brakeman-5~command-bin-thrust-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-brakeman-6~command-bin-rubocop-9#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-bundler-audit-3~command-bin-importmap-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-dev-5~command-bin-setup-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-dev-6~command-bin-rails-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-docker-entrypoint-5~command-bin-rubocop-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-docker-entrypoint-7~command-bin-rails-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-importmap-3~command-bin-jobs-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-jobs-5~command-bin-ci-9#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-jobs-7~command-bin-importmap-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-kamal-8~command-bin-rubocop-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-mcp-2~command-bin-rubocop-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rails-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rake-3~command-bin-rails-7#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-rubocop-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-thrust-1~command-bin-jobs-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:screenote:ordinary:command-bin-thrust-4~command-bin-setup-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-app-controllers-part-2-20260829T000712Z-46935448-1~architecture-app-controllers-part-2-20260816T072320Z-2439e6c2-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-app-models-20260907T000439Z-10e744f0-1~architecture-app-models-20260815T122450Z-9959779e-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:architecture-restore-production-simple-sh-20260818T115926Z-33098268-1~architecture-restore-production-simple-sh-20260816T065800Z-da0b42ae-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-brakeman-2~command-bin-bundle-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-bundle-1~command-bin-brakeman-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-bundle-20260816T070001Z-d715d5be-1~command-bin-bundle-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:todero:ordinary:command-bin-ci-20260816T070059Z-a545209c-1~command-bin-brakeman-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-brakeman-5~command-bin-rubocop-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-bundle-7~command-bin-kamal-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-dev-5~command-bin-bundle-7#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-docker-entrypoint-3~command-bin-dev-4#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-importmap-9~command-bin-tapioca-6#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-jobs-5~command-bin-rails-3#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-kamal-4~command-bin-jobs-5#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-kamal-5~command-bin-rails-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-rails-6~command-bin-rails-9#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-rails-7~command-bin-rails-10#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-setup-7~command-bin-rubocop-5#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-tapioca-8~command-bin-rails-8#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:topgreendeals.co.uk:ordinary:command-bin-thrust-3~command-bin-tapioca-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:writero:thesis:pr-99-c151a82b93b9dc5f:consolidate-oauth-documentation-ownership~pr-98-626ce68ec93f9d64:centralize-shared-oauth-documentation#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:writing:ordinary:architecture-llm-wiki-20260804T000237Z-c76ec825-2~architecture-llm-wiki-20260727T132432Z-d47a4154-2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:writing:ordinary:architecture-llm-wiki-20260809T191711Z-95efd142-1~architecture-llm-wiki-20260804T121636Z-9fa4640e-1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "same"}
+{"point": "patrol_finding_dedup", "id": "patrol_finding_dedup:xbookmark:ordinary:package-gemfile-4~package-gemfile-1#direct", "gold_label": false, "gold_label_adjudicated_vocab": "different"}
+{"point": "plan_review_level", "id": "plan_review_level:agent-plugins:migrate-every-agent-plugin-to-260709-3082:c8edaf01e571a932#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive-bench:v3-bench-as-hive-workflow-260709-b3nc:b7668ccc838df59b#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive-site:add-a-competitive-comparison-page-260812-c0e7:be0214fae65d1d01#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive-site:add-clear-user-facing-explanations-260719-c9da:e89bb04c491d2063#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:add-subscription-usage-visibility-to-260831-cf61:491eb452c095b5f6#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:add-subscription-usage-visibility-to-260831-cf61:791bc4504bc0f219#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:build-a-patrol-native-self-260829-cc36:e00c23f57bd880c9#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:edit-resume-wedge-a-needs-261029-7b52:182274073438fc67#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:extend-idempotency-keys-and-durable-260923-ccce:6fa54531038e8de5#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:extend-idempotency-keys-and-durable-260923-ccce:7fecf9f1e6852926#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:fix-hive-configuration-validation-so-260717-c74d:50581b7207af7200#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:fix-review-stage-claude-stop-260629-26ed:398ed75b65130d6d#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:have-router-attach-its-chosen-candidate-to-coding-ac3901b4:3b9088854c3311c4#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:have-router-attach-its-chosen-candidate-to-coding-ac3901b4:b8bf7bacedb960ed#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:make-doctor-s-injected-environment-authori-coding-8c28a0b4:2ab67fc48fa21fb9#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:make-doctor-s-injected-environment-authori-coding-8c28a0b4:d4511e5a2c44ccad#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:make-hive-config-defaults-the-sole-owner-o-coding-581fe78a:0e418f2d367746db#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:make-hive-config-defaults-the-sole-owner-o-coding-581fe78a:d8180cb45bb8a5ac#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:make-one-release-version-source-authoritat-coding-44811677:406249bd4611c415#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:patrol-classify-reasons-for-order-stale-li-coding-f48b62bf:5721476341590e17#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:patrol-hive-e2e-run-scenarios-swallows-une-coding-6ea02fac:3e1457a57ce3a3ce#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:patrol-hive-e2e-run-scenarios-swallows-une-coding-6ea02fac:8c67699568921128#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:patrol-secretpatterns-match-skips-utf-8-no-coding-70a10317:7cac7bd7863a38ee#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:prevent-evaluator-leakage-from-the-260829-9aca:c32f37a66a445718#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:support-multiple-dependencies-per-task-260928-b4f8:413dc50d141d36ef#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:update-the-openclaw-hive-skill-260630-b0d3:3fa470134268a125#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hive:update-the-openclaw-hive-skill-260702-9370:9872f5de367d01d2#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:hivedev:c4-implement-durable-command-operations-260923-9817:1ef2e46a51b370e5#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hivedev:f2-follow-up-fix-the-261030-6527:f8da18cb46df8610#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hivedev:f2-follow-up-hardening-deferred-261102-7d36:ef130263d0fe2a0d#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:hivedev:f3-follow-up-hardening-deferred-261103-0d9f:6f52b643896ebdad#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:openclaw-shopping:user-requested-price-watches-with-261105-d3da:30b7f532704a13be#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:prdigest:implement-prdigest-v0-1-0-260715-fe8f:85303a2818e122ff#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:screenote:add-a-go-cli-for-260708-edec:95b12e1a5b0fe94b#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:screenote:add-image-attachments-to-screenote-260816-6a00:715c19097afcd4ce#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:screenote:replace-screenote-cli-api-key-260708-545b:3ae9844fb50033c9#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:topgreendeals.co.uk:add-a-public-top-green-260724-cdea:24349a4a76c003a1#direct", "gold_label": "mandatory"}
+{"point": "plan_review_level", "id": "plan_review_level:topgreendeals.co.uk:add-ga4-events-for-key-260923-cd92:d897e4177983442b#direct", "gold_label": "standard"}
+{"point": "plan_review_level", "id": "plan_review_level:writero:replace-the-retired-writero-cli-260910-ebb9:9f36aff25de7c7b5#direct", "gold_label": "mandatory"}
+{"point": "provider_failure_class", "id": "provider_failure_class:architecture:design-first-class-multi-repository-260812-36d9:review:2026-09-07T00:04:20Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-bench-20260921:finish-the-six-deepseek-v4-260923-3a20:generate:2026-09-24T23:54:30Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-bench-20260921:finish-the-six-deepseek-v4-260923-3a20:generate:2026-09-25T13:06:54Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-bench-20260921:finish-the-six-deepseek-v4-260923-3a20:generate:2026-09-25T14:07:46Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-bench:rerun-ox-alpha-as-a-260821-eaba:generate:2026-08-22T14:23:16Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-bench:v2-ce-campaign-260709-cee1:generate:2026-07-10T11:59:03Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-site:add-a-competitive-comparison-page-260812-c0e7:plan-review-primary:2026-09-10T17:36:49Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-site:add-a-fair-evidence-linked-260812-18a9:finalize:2026-09-07T10:47:54Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-site:add-a-fair-evidence-linked-260812-18a9:review-grok-ce-code-review-pass01-retry1:2026-08-12T17:24:30Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive-site:add-clear-user-facing-explanations-260719-c9da:review-grok-ce-code-review-pass01:2026-07-21T22:58:25Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-oauth-2-0-device-260817-0780:plan-review-primary:2026-09-09T16:41:13Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-provider-health-and-route-260722-765f:review-claude-opus-5-ce-code-review-pass01:2026-08-11T04:17:48Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-repository-aware-answer-suggestions-260826-528d:execute-impl:2026-09-06T22:18:01Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-repository-aware-answer-suggestions-260826-528d:execute-impl:2026-09-07T20:26:48Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-repository-aware-answer-suggestions-260826-528d:rebase_conflict:2026-09-06T18:40:22Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:add-repository-aware-answer-suggestions-260826-528d:review-claude-opus-5-ce-code-review-pass02-retry1:2026-08-30T22:43:58Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:aur-package-embeds-native-gems-but-is-publ-coding-3db62243:plan-review-primary:2026-09-09T16:42:07Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:create-and-ship-a-first-260719-7fa2:execute-impl:2026-07-22T10:10:33Z#direct", "gold_label": "network_transient"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:default-claude-judging-cannot-run-on-stock-macos-b4a32cffb59c:patrol-fix-fix:2026-09-11T00:29:06Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:design-the-product-and-technical-260801-4211:review-operations:2026-08-09T05:35:19Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:detect-when-the-daemon-resolves-260925-cc17:brainstorm:2026-10-14T07:13:09Z#direct", "gold_label": "transient_rate_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:detect-when-the-daemon-resolves-260925-cc17:execute-impl:2026-11-03T07:46:04Z#direct", "gold_label": "network_transient"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:extend-idempotency-keys-and-durable-260923-ccce:review-ci-fix-attempt01:2026-09-27T05:24:20Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:failed-and-timed-out-agent-runs-are-included-in-ae14031f071f:patrol-fix-fix:2026-09-11T02:28:13Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:fix-and-ship-github-merged-260719-0878:execute-impl:2026-07-22T13:52:23Z#direct", "gold_label": "network_transient"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-each-command-boundary-authoritative-for-its-5c961537c138:patrol-fix-review:2026-09-02T12:26:27Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-first-class-visual-evidence-260812-ee43:plan-review-primary:2026-09-09T16:34:42Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-first-class-visual-evidence-260812-ee43:plan-review-primary:2026-09-10T05:19:38Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc:patrol-fix-fix:2026-08-26T01:18:24Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-hive-status-operational-work-261001-7e85:review-codex-ce-code-review-pass01:2026-10-04T09:54:26Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-hive-status-operational-work-261001-7e85:review-codex-ce-code-review-pass01:2026-10-05T20:32:32Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-hive-worktree-s-internal-lifecycle-ap-coding-933dd40d:plan-review-decision_triage:2026-09-22T17:04:19Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-one-internal-prompt-rendering-boundary-auth-9ff6fbe7e493:patrol-fix-fix:2026-08-25T16:52:59Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-patrol-fix-authoritative-for-deciding-cohor-56126ab41087:patrol-fix-fix:2026-08-31T19:59:43Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-project-expose-one-authoritative-oper-coding-030cd635:review-codex-ce-code-review-pass01:2026-10-12T14:55:59Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-project-expose-one-authoritative-operation-351c16a1a42a:patrol-fix-fix:2026-08-31T02:32:01Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:make-the-attempts-repository-expose-one-authorit-9ceebcd4d81b:patrol-fix-fix:2026-08-31T19:49:53Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:move-the-lifecycle-and-target-revision-sem-coding-d8e7d378:plan-review-adversarial:2026-09-22T12:02:04Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-github-tls-handshake-failures-escap-coding-5ce6df66:plan-review-adversarial:2026-09-22T11:43:19Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-github-tls-handshake-failures-escape-network-fc533e04b5:patrol-fix-fix:2026-08-26T11:46:56Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-hive-prune-text-output-crashes-on-2398a0ff52:patrol-fix-fix:2026-08-27T13:06:30Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-streamlog-append-after-a-torn-tail-coding-3fc93742:review-triage-pass01:2026-10-14T17:53:59Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-terminate-process-escalates-to-sigk-coding-c041e9bd:review-codex-ce-code-review-pass01-retry1:2026-09-02T01:49:50Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-text-sanitize-raises-argumenterror-on-invali-74496c8b42:patrol-fix-fix:2026-08-26T08:28:33Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:patrol-user-manager-units-reference-system-coding-7507e121:plan-review-revision:2026-08-30T09:51:26Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:per-stage-claude-model-config-260709-35f7:finalize:2026-07-14T22:18:23Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:pr-branch-names-are-injected-into-executable-she-197960508b90:patrol-fix-inbox:2026-09-10T01:47:48Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hive:runner-entrypoint-discards-multi-argument-comman-0578f7a1ef93:patrol-fix-fix:2026-09-10T04:33:24Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:add-muse-meta-s-coding-261119-f214:plan:2026-11-19T18:24:32Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:add-muse-meta-s-coding-261119-f214:plan:2026-11-20T07:42:34Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:add-the-grok-build-cli-261120-d111:open-pr-author:2026-11-21T01:29:31Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:c1-create-the-hive-cloud-260923-c7ab:plan-review-primary:2026-09-26T00:04:28Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:c1-create-the-hive-cloud-260923-c7ab:plan:2026-09-25T23:24:15Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:c4-follow-up-fix-the-261029-dfec:review-ci-fix-attempt01:2026-11-01T11:09:33Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:c5-build-the-workspace-command-260923-9c24:plan-review-adversarial:2026-11-03T12:23:50Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:f1-set-up-the-ruby-260923-c4ce:open-pr-author:2026-09-24T21:19:42Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:f1-set-up-the-ruby-260923-c4ce:open-pr-author:2026-09-25T15:18:07Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:f2-follow-up-fix-the-261030-6527:plan-review-verification:2026-10-30T12:26:10Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:hivedev:f3-write-the-persistent-root-260923-2b70:execute-impl:2026-11-01T12:12:47Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:openclaw-shopping:purchase-assistance-through-the-shopify-261105-f2c0:plan-review-primary:2026-11-14T10:21:07Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:screenote:add-complete-light-and-dark-260816-5829:plan-review-primary:2026-08-21T11:21:15Z#direct", "gold_label": "model_unsupported"}
+{"point": "provider_failure_class", "id": "provider_failure_class:screenote:add-complete-light-and-dark-260816-5829:plan-review-revision:2026-08-30T09:52:03Z#direct", "gold_label": "agent_crashed"}
+{"point": "provider_failure_class", "id": "provider_failure_class:screenote:add-image-attachments-to-screenote-260816-6a00:rebase_conflict:2026-08-31T23:50:19Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:screenote:add-image-attachments-to-screenote-260816-6a00:review-fix-pass04:2026-08-30T22:46:32Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:choose-the-intended-hostname-label-behavior-extr-61c162462937:patrol-fix-review:2026-09-22T04:52:44Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:handle-list-task-raises-nomethoderror-on-bare-me-19456d9f09f0:patrol-fix-fix:2026-08-29T01:42:16Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:make-one-internal-normalized-telegram-attachment-083bc34a23be:patrol-fix-fix:2026-09-21T17:48:19Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:shopping-lists-quantities-units-and-261105-54f2:execute-impl:2026-11-09T02:40:36Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:to-do-lists-reminders-and-261105-cedb:review-claude-opus-5-ce-code-review-pass01:2026-11-14T10:17:52Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:todero:toggle-focus-enforces-the-focus-cap-against-the-4a5443017f23:patrol-fix-fix:2026-09-02T09:43:18Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:add-ga4-events-for-key-260923-cd92:brainstorm:2026-09-23T19:53:42Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:fix-and-comprehensively-audit-incorrect-260720-f202:execute-impl:2026-07-20T18:46:25Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:review-codex-ce-code-review-pass01:2026-08-17T09:15:20Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:prepare-the-fresh-uk-wide-260811-e92c:package:2026-08-11T14:14:44Z#direct", "gold_label": "other_or_healthy"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:topgreendeals-company-news-preview-for-260929-929c:draft:2026-09-29T10:21:08Z#direct", "gold_label": "network_transient"}
+{"point": "provider_failure_class", "id": "provider_failure_class:topgreendeals.co.uk:topgreendeals-company-news-preview-only-260922-c4ac:draft:2026-09-22T10:58:27Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "provider_failure_class", "id": "provider_failure_class:writero:make-one-internal-rewrite-context-renderer-autho-4708756a1041:patrol-fix-inbox:2026-11-20T19:55:03Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:writero:transient-stripe-outages-permanently-disab-coding-cd9338fe:plan-review-adversarial:2026-09-10T20:23:12Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:writing:draft-a-publication-ready-article-260812-2a6b:draft:2026-08-14T14:57:32Z#direct", "gold_label": "quota_or_usage_limit"}
+{"point": "provider_failure_class", "id": "provider_failure_class:writing:review-and-finalize-the-evidence-260728-10ca:editorial-adversarial-editor:2026-07-28T17:06:02Z#direct", "gold_label": "auth_or_credentials"}
+{"point": "recovery_same_root", "id": "recovery_same_root:agent-plugins:migrate-every-agent-plugin-to-260709-3082:3-plan:2026-07-10T01:59:22Z->2026-07-10T07:26:22Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive-bench:benchmark-generation-lane-all-opus-260709-a261:2-generate:2026-07-10T14:17:59Z->2026-07-10T14:24:05Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive-bench:benchmark-generation-lane-opus-plan-260709-d0a1:2-generate:2026-07-10T01:59:53Z->2026-07-10T11:58:57Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive-bench:benchmark-generation-lane-opus-plan-260709-d0a1:2-generate:2026-07-10T11:58:57Z->2026-07-10T14:11:30Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive-bench:v2-ce-campaign-260709-cee1:3-generate:2026-07-09T15:51:44Z->2026-07-09T16:36:22Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive-site:add-a-fair-evidence-linked-260812-18a9:7-artifacts:2026-08-30T00:01:57Z->2026-08-30T00:32:44Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-a-daemon-quiescence-command-260923-b4d3:6-review:2026-09-25T23:44:19Z->2026-09-26T00:49:28Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-fail-closed-dependency-and-260716-ee95:5-open-pr:2026-07-16T16:48:06Z->2026-07-16T16:49:30Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-fail-closed-dependency-and-260716-ee95:8-finalize:2026-07-16T22:25:18Z->2026-07-16T22:27:42Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:4-execute:2026-09-07T17:46:32Z->2026-09-07T18:48:36Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:6-review:2026-09-09T13:09:34Z->2026-09-09T13:33:13Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:6-review:2026-09-09T14:40:22Z->2026-09-09T14:55:19Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:6-review:2026-09-10T12:46:39Z->2026-09-10T12:51:40Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:7-artifacts:2026-08-31T09:09:27Z->2026-08-31T10:38:28Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:add-repository-aware-answer-suggestions-260826-528d:7-artifacts:2026-09-06T21:11:39Z->2026-09-11T10:09:26Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:bundle-provision-agent-skills-at-260709-79d9:2-brainstorm:2026-07-09T22:23:48Z->2026-07-10T01:58:56Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:design-the-product-and-technical-260801-4211:4-review:2026-08-10T18:31:35Z->2026-08-10T19:45:16Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:design-the-simplest-first-version-260826-9c0c:2-repo-research:2026-08-26T23:11:28Z->2026-08-26T23:12:12Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:detect-when-the-daemon-resolves-260925-cc17:2-brainstorm:2026-10-11T13:06:21Z->2026-10-11T14:07:50Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:extend-idempotency-keys-and-durable-260923-ccce:7-artifacts:2026-09-27T23:40:02Z->2026-09-28T04:55:22Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:extend-the-existing-hive-e2e-260716-986b:5-open-pr:2026-07-16T20:59:25Z->2026-07-16T21:04:34Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:make-doctor-s-injected-environment-authoritative-732e1bd95ac0:4-review:2026-09-10T14:16:31Z->2026-09-10T15:18:24Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:make-one-repository-internal-conformance-suite-a-6d967b3261e9:2-fix:2026-08-25T14:36:14Z->2026-08-25T16:40:58Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:patrol-id-backfiller-can-resurrect-a-dropp-coding-c6a9d445:6-review:2026-10-14T14:40:12Z->2026-10-14T15:45:17Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:patrol-idea-preview-drops-wide-character-b-coding-e7f00c36:6-review:2026-11-09T06:53:53Z->2026-11-09T07:31:18Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:patrol-inputname-blocks-ld-preload-but-not-1f7f3abe34:4-review:2026-08-26T18:48:44Z->2026-08-26T18:54:28Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:patrol-tripwire-binaries-double-as-hive-babysitter-0c128b8896:1-inbox:2026-08-22T16:37:03Z->2026-08-24T21:48:52Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:replace-the-two-digest-implementations-260720-2c6a:8-finalize:2026-07-22T01:05:57Z->2026-07-22T01:07:09Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:stop-runtime-database-lock-contention-260925-b323:6-review:2026-11-09T19:06:46Z->2026-11-10T01:04:15Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hive:track-skill-and-workflow-proposal-260829-f948:6-review:2026-09-08T17:52:11Z->2026-09-08T21:22:09Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:adr-0004-rollout-step-3-261115-9cdb:6-review:2026-11-21T00:43:49Z->2026-11-21T02:01:00Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c1-create-the-hive-cloud-260923-c7ab:3-plan:2026-09-25T23:14:39Z->2026-09-25T23:15:55Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c2-add-the-workspace-model-260923-e794:5-open-pr:2026-10-02T18:56:06Z->2026-10-02T19:12:27Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c2-add-the-workspace-model-260923-e794:6-review:2026-10-02T02:16:41Z->2026-10-02T02:18:23Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c2-add-the-workspace-model-260923-e794:7-artifacts:2026-10-02T13:21:38Z->2026-10-02T15:13:01Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c4-follow-up-fix-the-261029-dfec:6-review:2026-11-01T09:43:32Z->2026-11-01T10:55:09Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c4-implement-durable-command-operations-260923-9817:6-review:2026-10-29T13:26:26Z->2026-10-29T15:41:03Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c5-build-the-workspace-command-260923-9c24:6-review:2026-11-04T23:29:37Z->2026-11-05T13:26:14Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:c6-implement-cached-observations-that-260923-0061:5-open-pr:2026-11-05T22:33:11Z->2026-11-05T22:35:24Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:f2-follow-up-fix-the-261030-6527:4-execute:2026-11-01T11:52:46Z->2026-11-01T20:15:56Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:f2-follow-up-hardening-deferred-261102-7d36:6-review:2026-11-03T16:42:49Z->2026-11-03T19:53:10Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:f2-follow-up-hardening-deferred-261102-7d36:6-review:2026-11-03T19:53:10Z->2026-11-03T20:56:28Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:f3-write-the-persistent-root-260923-2b70:6-review:2026-11-03T05:01:07Z->2026-11-03T06:11:19Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:hivedev:f4-run-the-hosting-proof-260923-7bae:6-review:2026-11-11T13:14:46Z->2026-11-20T16:25:06Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:openclaw-shopping:local-shopping-store-cli-and-261105-856c:5-open-pr:2026-11-06T17:57:39Z->2026-11-06T18:14:53Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:openclaw-shopping:purchase-assistance-through-the-shopify-261105-f2c0:3-plan:2026-11-10T23:20:56Z->2026-11-11T00:36:20Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:prdigest:implement-prdigest-v0-1-0-260715-fe8f:8-finalize:2026-07-16T23:35:55Z->2026-07-16T23:41:03Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:screenote:add-image-attachments-to-screenote-260816-6a00:4-execute:2026-08-30T15:25:18Z->2026-08-30T16:06:15Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:screenote:add-image-attachments-to-screenote-260816-6a00:5-open-pr:2026-08-29T03:40:32Z->2026-08-29T03:41:41Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:todero:agent-and-app-api-v1-261105-7d3c:4-execute:2026-11-09T03:45:02Z->2026-11-09T04:46:43Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:todero:autogrow-input-textarea-swap-moves-the-caret-to-a5006720e147:2-fix:2026-09-02T07:18:10Z->2026-09-02T09:38:14Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:todero:format-task-links-marks-unescaped-user-task-titl-50cc5a021f59:2-fix:2026-09-04T01:36:04Z->2026-09-04T11:24:42Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:todero:link-preview-cache-key-downcases-full-url-collid-1ae0557a86b2:2-fix:2026-09-01T14:52:53Z->2026-09-01T15:14:35Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:ai-quote-check-and-five-261018-98f5:5-open-pr:2026-10-18T21:42:01Z->2026-10-18T21:44:13Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:5-open-pr:2026-09-07T22:59:57Z->2026-09-07T23:04:21Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:6-review:2026-08-15T11:08:48Z->2026-08-15T12:09:31Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:6-review:2026-08-21T15:37:20Z->2026-08-25T08:43:26Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:6-review:2026-09-01T09:45:15Z->2026-09-01T09:50:15Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:fix-and-comprehensively-verify-the-260814-91b0:6-review:2026-09-06T16:07:36Z->2026-09-06T16:23:30Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:improve-the-essex-solar-installer-260923-396b:6-review:2026-09-25T17:35:24Z->2026-09-25T17:38:33Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:topgreendeals.co.uk:make-topgreendeals-openclaw-first-managed-260709-3936:5-open-pr:2026-07-10T12:04:34Z->2026-07-10T18:43:12Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:writero:daily-balance-bucket-key-suppresses-legiti-coding-3b19a077:5-open-pr:2026-11-16T16:01:04Z->2026-11-16T16:04:56Z#direct", "gold_label": true}
+{"point": "recovery_same_root", "id": "recovery_same_root:writing:canary-write-a-concise-internal-260726-82c1:6-editorial:2026-07-26T20:44:57Z->2026-07-26T21:48:27Z#direct", "gold_label": false}
+{"point": "recovery_same_root", "id": "recovery_same_root:writing:write-a-supporting-launch-article-260721-2a40:4-draft:2026-07-24T18:18:12Z->2026-07-24T20:01:09Z#direct", "gold_label": true}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1169:ccacff67d645#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1171:c681e4c1034d#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1180:cd8418ce7aa9#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1193:0c21f71b3d1d#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1195:b4db9eaf659e#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1199:2d25b3931570#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1203:496d47f70c91#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1208:6634db88495f#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1243:fd841cd688ad#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1265:2941f71ddede#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1282:bdbdabc3acb3#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1295:a60b6354fa73#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1302:fd78f4120b6b#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1303:96bfad2261b3#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1306:f475da2ca6e7#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1310:adb09cbe5ddd#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1317:1abb62c5a2bd#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1346:a3b28b713f6f#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1351:3db5e547af88#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1372:74e7f21920aa#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1382:0d6e36633cff#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1391:dc9bc5e27125#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1397:41f95bc8a451#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1403:fb4cfa3ad106#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1414:8012921cb6cb#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1416:40dccfa8ed48#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1422:a62532a7cb9a#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1423:2f9bcfa26c43#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1429:29b0345c01cf#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1431:02919d8a8ac2#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1438:0de82fb922ee#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1440:79e3ac16d2de#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1441:ebbf970ea652#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1443:443d2f8cb8ea#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1450:7e28df58388d#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1451:07c4919e28be#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1452:f76c759be88c#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1454:d0ee9967d674#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1463:e980d92c9127#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1470:c3480d4202ef#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1487:88a9cf395c3b#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1488:5b09439eda19#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1504:25e22a4567c8#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1518:08b879424ef7#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1524:c304461ac9d4#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1533:880d2a2b2644#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1535:83bab1553c17#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1540:9c636af9da9b#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1544:523c4be20e15#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1545:b92c232b6f8f#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1557:a7966b828a60#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1560:39aa58e31f7c#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1561:fa436a0c77f9#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1562:7d2fa321f2be#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1564:08ea506e83d9#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1569:125ceaee392c#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1576:60e0df60bf54#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1577:3e13a37bb977#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:hive:pr-1581:bb2be3b48fde#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:todero:pr-91:8c3934a146fe#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:writero:pr-104:8d96d57a4e0c#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:writero:pr-106:836c7fbfc98b#direct", "gold_label": "feature"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:writero:pr-107:4ca019ac2d8f#direct", "gold_label": "skip"}
+{"point": "refactor_merge_classifier", "id": "refactor_merge_classifier:writero:pr-109:ad24f25deb83#direct", "gold_label": "skip"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive-bench:v3-bench-as-hive-workflow-260709-b3nc#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:add-a-digest-cli-mode-260702-2eed#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:add-a-refactor-patrol-architecture-260702-9048#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:add-local-hive-web-install-260629-f4ca#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:add-scheduler-proofs-to-existing-260716-5ec8#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:document-hive-daemon-auto-advance-260701-8f03#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:every-generator-receives-every-ambient-pro-coding-dabd811e#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:extend-the-existing-hive-e2e-260716-986b#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:fix-and-ship-github-merged-260719-0878#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:fix-hive-configuration-validation-so-260717-c74d#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:fix-review-stage-claude-stop-260629-26ed#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:hive-workflow-install-list-update-260709-af5e#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:implement-post-merge-architecture-patrol-260706-2c14#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:implement-the-kanban-board-for-260718-5c3b#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:integrate-hive-finalize-with-the-260716-8396#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:make-revoked-or-expired-codex-260716-982a#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:patrol-id-backfiller-can-resurrect-a-dropp-coding-c6a9d445#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:unify-hive-workflow-publish-with-260720-52ff#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260630-01bf#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260630-021d#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260630-8881#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260630-b0d3#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260630-d1c7#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hive:update-the-openclaw-hive-skill-260702-9370#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hivedev:agent-run-isolation-spike-phase-261104-7201#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hivedev:c20-build-the-central-log-261105-8b36#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hivedev:c5-build-the-workspace-command-260923-9c24#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:hivedev:raise-the-hive-compatibility-pin-261030-01f0#direct", "gold_label": "express"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:honeycomb:security-lint-ci-for-package-260709-dcee#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:honeycomb:trust-model-review-process-docs-260709-28a9#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:openclaw-shopping:product-research-and-comparison-with-261105-f7fb#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:prdigest:implement-prdigest-v0-1-0-260715-fe8f#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:todero:typed-lists-foundation-to-do-261105-4e88#direct", "gold_label": "full"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:topgreendeals.co.uk:add-real-automated-accessibility-testing-260720-8295#direct", "gold_label": "standard"}
+{"point": "task_workflow_routing", "id": "task_workflow_routing:topgreendeals.co.uk:improve-the-essex-solar-installer-260923-396b#direct", "gold_label": "standard"}
+{"point": "visual_capture_need", "id": "visual_capture_need:agent-plugins:migrate-every-agent-plugin-to-260709-3082#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive-site:add-a-fair-evidence-linked-260812-18a9#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive-site:add-clear-user-facing-explanations-260719-c9da#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive-site:dotted-container-names-collide-as-regular-expres-397c8de2db02#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive-site:http-error-pages-are-copied-as-successful-markdo-329a2f380481#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-a-daemon-quiescence-command-260923-b4d3#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-a-digest-cli-mode-260702-2eed#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-a-sanctioned-per-task-261029-4bc5#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-a-supported-way-to-261002-06d4#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-durable-agent-attempt-ownership-260716-f871#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-first-class-opencode-support-260812-bc06#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:add-provider-health-and-route-260722-765f#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:agent-reviewers-diff-branch-tips-instead-of-bran-e144f2a93225#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:build-a-hive-owned-daily-260812-fa7d#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:define-one-authoritative-internal-status-feed-co-2a46237416ac#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:define-one-internal-guarded-archive-protocol-own-c9ec11b5acde#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:fix-review-stage-claude-stop-260629-26ed#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:github-device-flow-slow-down-leaves-the-polling-6497d1295389#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:hive-status-crashes-with-an-261027-611d#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:improve-hive-web-task-detail-260812-19e1#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:introduce-generation-scoped-task-conditions-260716-2f14#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:introduce-one-internal-new-idea-project-re-coding-a87964bf#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:introduce-one-internal-status-projection-boundar-db8ee0f0f08a#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:let-an-external-scheduler-drive-260923-5213#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:let-the-native-hive-cli-260923-01dd#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:make-doctor-s-injected-environment-authori-coding-8c28a0b4#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:make-each-existing-domain-wiki-page-author-coding-773efe52#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:make-hive-act-workflow-retry-260925-8c91#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:make-wiki-commands-md-authoritative-for-co-coding-5d38a704#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-archive-refresher-swaps-process-global-stdou-7a90a407af#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-archivepane-renders-slug-and-project-name-0c912a6bbe#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-fix-guardrail-file-path-patterns-are-e040e31379#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-hive-e2e-run-scenarios-swallows-une-coding-6ea02fac#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-id-backfiller-can-resurrect-a-dropp-coding-c6a9d445#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-new-idea-project-picker-truncates-already-6736a6f84e#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-security-diagnostic-line-column-computed-by-f7c4b1fc60#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-text-sanitize-raises-argumenterror-on-invali-74496c8b42#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-timeout-kill-escalation-keyed-on-shell-468b5688ab#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-unmapped-escape-sequences-decode-as-a-c8977f12da#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:patrol-zero-padded-numeric-target-is-parsed-f56929987f#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:pr-branch-names-are-injected-into-executable-she-197960508b90#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:rebuild-per-stage-model-and-260720-7d8b#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:replace-the-two-digest-implementations-260720-2c6a#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:represent-needs-project-selection-as-an-internal-edfd08489ffa#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hive:stop-runtime-database-lock-contention-260925-b323#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:add-the-grok-build-cli-261120-d111#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:c15-connect-the-native-hive-260923-42d8#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:c20-build-the-central-log-261105-8b36#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:c4-follow-up-fix-the-261029-dfec#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:c6-implement-cached-observations-that-260923-0061#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:hivedev:raise-the-hive-compatibility-pin-261027-ee20#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:honeycomb:trust-model-review-process-docs-260709-28a9#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:letterpress-comex:website-change-comex-website-https-261103-aa35#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:prdigest:implement-prdigest-v0-1-0-260715-fe8f#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:screenote:add-a-go-cli-for-260708-edec#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:autogrow-input-textarea-swap-moves-the-caret-to-a5006720e147#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:confirmation-flow-writes-submitted-email-address-8ff04529cd3d#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:confirmationscontroller-create-dereferences-a-ni-ecf43a59e57d#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:format-task-links-marks-unescaped-user-task-titl-50cc5a021f59#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:greedy-multiline-p-unwrap-emits-unbalanced-html-9093f7809e3d#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:handle-list-task-raises-nomethoderror-on-bare-me-19456d9f09f0#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:inline-button-callback-data-is-built-from-raw-li-7580b553698e#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:link-preview-cache-key-downcases-full-url-collid-1ae0557a86b2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:list-selection-callbacks-pass-switch-inline-quer-8d3629cc22dc#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:make-one-application-scoped-preview-coordinator-84c6d9124195#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:notification-preferences-branch-of-userscontroll-2bc3922af116#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:shopping-lists-quantities-units-and-261105-54f2#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:telegram-disconnect-permanently-fails-when-the-n-f9cb5b6a0539#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:toggle-focus-enforces-the-focus-cap-against-the-4a5443017f23#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:todero:use-a-shared-scanner-safe-261114-b058#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:topgreendeals.co.uk:add-ga4-events-for-key-260923-cd92#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:topgreendeals.co.uk:add-the-completed-zero-bills-260801-ec79#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:topgreendeals.co.uk:improve-the-kent-solar-installer-260923-1cea#direct", "gold_label": true, "gold_label_adjudicated_vocab": "needs_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:writero:post-charge-credit-failures-are-marked-successfu-a28d361a6805#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}
+{"point": "visual_capture_need", "id": "visual_capture_need:writero:stripe-lookup-failures-bypass-duplicate-subscrip-b82ecf39cad0#direct", "gold_label": false, "gold_label_adjudicated_vocab": "no_capture"}

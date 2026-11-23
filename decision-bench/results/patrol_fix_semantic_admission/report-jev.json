@@ -1,0 +1,436 @@
+{
+ "point": "patrol_fix_semantic_admission",
+ "provider": "jev",
+ "rows_in_scope": 290,
+ "gold_for_decisive": null,
+ "scoring": "summarize.py (see its docstring)",
+ "test": {
+  "direct": {
+   "rows": 115,
+   "answered": 115,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 115,
+    "accuracy": 0.7478,
+    "kappa": 0.5359,
+    "confusion(true->pred)": {
+     "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": {
+      "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 2
+     },
+     "insufficient_evidence": {
+      "distinct": 16,
+      "same_root:make-one-internal-modulestatus-schema-source-aut-d75839901c4b": 1,
+      "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": 1
+     },
+     "distinct": {
+      "distinct": 64,
+      "same_root:make-the-agent-profile-runtime-boundary-authorit-16e9380626fa": 1,
+      "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": 3,
+      "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1,
+      "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": 1,
+      "same_root:make-hive-worktree-s-internal-lifecycle-api-auth-8182ca374e74": 1,
+      "same_root:patrol-hive-bench-submit-stacks-prior-submission-f34db0d994": 1,
+      "same_root:patrol-bin-hive-eval-s-report-path-fb3e5e1064": 1,
+      "same_root:processing-state-jobs-bypass-the-atomic-executio-b1c52a80d75f": 1
+     },
+     "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": {
+      "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 2
+     },
+     "same_root:make-hive-atomicfile-authoritative-for-temporary-9aec707d2db5": {
+      "same_root:make-hive-atomicfile-authoritative-for-temporary-9aec707d2db5": 2
+     },
+     "same_root:make-the-agent-profile-runtime-boundary-authorit-16e9380626fa": {
+      "distinct": 1
+     },
+     "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": {
+      "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": 2
+     },
+     "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": {
+      "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": 2
+     },
+     "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": {
+      "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": 1
+     },
+     "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": {
+      "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1
+     },
+     "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": {
+      "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": 1
+     },
+     "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": {
+      "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": 1
+     },
+     "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": {
+      "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": 1
+     },
+     "same_root:dispatch-v1-schema-does-not-enforce-its-executab-6fbd1d716108": {
+      "same_root:dispatch-v1-schema-does-not-enforce-its-executab-6fbd1d716108": 1
+     },
+     "same_root:make-one-internal-prompt-rendering-boundary-auth-9ff6fbe7e493": {
+      "same_root:make-one-internal-prompt-rendering-boundary-auth-9ff6fbe7e493": 1
+     },
+     "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": {
+      "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1
+     },
+     "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": {
+      "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": 1
+     },
+     "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": {
+      "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": 2
+     },
+     "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": {
+      "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.3478,
+    "n": 40,
+    "acc_system": 0.875,
+    "n_system": 40,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "decB": {
+    "coverage": 0.2174,
+    "n": 25,
+    "acc_system": 0.96,
+    "n_system": 25,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "vs_system_coarse_route": {
+    "n": 115,
+    "accuracy": 0.7478,
+    "kappa": 0.4829
+   },
+   "latency_ms": {
+    "p50": 383,
+    "p95": 459,
+    "max": 489
+   },
+   "cost_usd": 0.14131,
+   "input_tokens": 3364524,
+   "verdict_dist": {
+    "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 2,
+    "distinct": 81,
+    "same_root:make-the-agent-profile-runtime-boundary-authorit-16e9380626fa": 1,
+    "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 2,
+    "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": 6,
+    "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 2,
+    "same_root:make-hive-atomicfile-authoritative-for-temporary-9aec707d2db5": 2,
+    "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": 2,
+    "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": 1,
+    "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": 2,
+    "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": 1,
+    "same_root:make-one-internal-modulestatus-schema-source-aut-d75839901c4b": 1,
+    "same_root:make-hive-worktree-s-internal-lifecycle-api-auth-8182ca374e74": 1,
+    "same_root:patrol-hive-bench-submit-stacks-prior-submission-f34db0d994": 1,
+    "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": 1,
+    "same_root:dispatch-v1-schema-does-not-enforce-its-executab-6fbd1d716108": 1,
+    "same_root:make-one-internal-prompt-rendering-boundary-auth-9ff6fbe7e493": 1,
+    "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1,
+    "same_root:patrol-bin-hive-eval-s-report-path-fb3e5e1064": 1,
+    "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": 1,
+    "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": 2,
+    "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": 1,
+    "same_root:processing-state-jobs-bypass-the-atomic-executio-b1c52a80d75f": 1
+   }
+  },
+  "decomposed": {
+   "rows": 115,
+   "answered": 115,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 115,
+    "accuracy": 0.7043,
+    "kappa": 0.4086,
+    "confusion(true->pred)": {
+     "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": {
+      "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 1,
+      "insufficient_evidence": 1
+     },
+     "insufficient_evidence": {
+      "distinct": 17,
+      "insufficient_evidence": 1
+     },
+     "distinct": {
+      "insufficient_evidence": 7,
+      "distinct": 67
+     },
+     "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": {
+      "insufficient_evidence": 1,
+      "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 1
+     },
+     "same_root:make-hive-atomicfile-authoritative-for-temporary-9aec707d2db5": {
+      "insufficient_evidence": 2
+     },
+     "same_root:make-the-agent-profile-runtime-boundary-authorit-16e9380626fa": {
+      "insufficient_evidence": 1
+     },
+     "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": {
+      "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": 1,
+      "insufficient_evidence": 1
+     },
+     "same_root:restore-one-owner-per-documented-decision-keep-i-4e5dc447aa0c": {
+      "insufficient_evidence": 2
+     },
+     "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": {
+      "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": 1
+     },
+     "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": {
+      "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1
+     },
+     "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": {
+      "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": 1
+     },
+     "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": {
+      "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": 1
+     },
+     "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": {
+      "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": 1
+     },
+     "same_root:dispatch-v1-schema-does-not-enforce-its-executab-6fbd1d716108": {
+      "insufficient_evidence": 1
+     },
+     "same_root:make-one-internal-prompt-rendering-boundary-auth-9ff6fbe7e493": {
+      "distinct": 1
+     },
+     "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": {
+      "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1
+     },
+     "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": {
+      "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": 1
+     },
+     "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": {
+      "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": 2
+     },
+     "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": {
+      "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 115,
+    "acc_system": 0.7043,
+    "n_system": 115,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "decB": {
+    "coverage": 0.2,
+    "n": 23,
+    "acc_system": 0.913,
+    "n_system": 23,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "vs_system_coarse_route": {
+    "n": 115,
+    "accuracy": 0.7043,
+    "kappa": 0.3823
+   },
+   "latency_ms": {
+    "p50": 396,
+    "p95": 454,
+    "max": 1357
+   },
+   "cost_usd": 0.151088,
+   "input_tokens": 3597331,
+   "verdict_dist": {
+    "same_root:make-one-internal-agenthealthy-observation-polic-4ff7719ce231": 1,
+    "distinct": 85,
+    "insufficient_evidence": 17,
+    "same_root:make-hive-taskresolver-authoritative-for-candida-6352012590b7": 1,
+    "same_root:make-one-profile-level-billing-evidence-contract-f7a0c3957f70": 1,
+    "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1,
+    "same_root:make-each-command-boundary-authoritative-for-its-5c961537c138": 1,
+    "same_root:introduce-one-internal-new-idea-project-resoluti-9a86a5fb7606": 1,
+    "same_root:make-hive-config-defaults-the-sole-owner-of-defa-24c61356b0dc": 1,
+    "same_root:patrol-disabling-the-telegram-bot-via-sighup-166e84a982": 1,
+    "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1,
+    "same_root:make-one-internal-decision-policy-module-authori-ae70d6916460": 1,
+    "same_root:make-each-command-registry-entry-carry-its-handl-aca480ba9948": 2,
+    "same_root:make-one-internal-by-id-lookup-in-src-resolve-mj-0c0ff3bda277": 1
+   }
+  }
+ },
+ "dev": {
+  "direct": {
+   "rows": 30,
+   "answered": 30,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 30,
+    "accuracy": 0.8667,
+    "kappa": 0.6757,
+    "confusion(true->pred)": {
+     "distinct": {
+      "distinct": 21
+     },
+     "insufficient_evidence": {
+      "distinct": 4
+     },
+     "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": {
+      "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": 1
+     },
+     "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": {
+      "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1
+     },
+     "same_root:patrol-manifest-publish-crashes-after-success-on-bf87c20a8a": {
+      "same_root:patrol-manifest-publish-crashes-after-success-on-bf87c20a8a": 1
+     },
+     "same_root:patrol-pi-auth-token-file-mode-not-9614b59dd6": {
+      "same_root:patrol-pi-auth-token-file-mode-not-9614b59dd6": 1
+     },
+     "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": {
+      "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.3667,
+    "n": 11,
+    "acc_system": 1.0,
+    "n_system": 11,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "decB": {
+    "coverage": 0.2333,
+    "n": 7,
+    "acc_system": 1.0,
+    "n_system": 7,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "vs_system_coarse_route": {
+    "n": 30,
+    "accuracy": 0.8667,
+    "kappa": 0.6571
+   },
+   "latency_ms": {
+    "p50": 373,
+    "p95": 415,
+    "max": 418
+   },
+   "cost_usd": 0.034763,
+   "input_tokens": 827681,
+   "verdict_dist": {
+    "distinct": 25,
+    "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": 1,
+    "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": 1,
+    "same_root:patrol-manifest-publish-crashes-after-success-on-bf87c20a8a": 1,
+    "same_root:patrol-pi-auth-token-file-mode-not-9614b59dd6": 1,
+    "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": 1
+   }
+  },
+  "decomposed": {
+   "rows": 30,
+   "answered": 30,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 30,
+    "accuracy": 0.7333,
+    "kappa": 0.3296,
+    "confusion(true->pred)": {
+     "distinct": {
+      "distinct": 21
+     },
+     "insufficient_evidence": {
+      "distinct": 4
+     },
+     "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": {
+      "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": 1
+     },
+     "same_root:make-docs-cli-md-authoritative-for-public-cli-be-ebe9842a252d": {
+      "insufficient_evidence": 1
+     },
+     "same_root:patrol-manifest-publish-crashes-after-success-on-bf87c20a8a": {
+      "insufficient_evidence": 1
+     },
+     "same_root:patrol-pi-auth-token-file-mode-not-9614b59dd6": {
+      "insufficient_evidence": 1
+     },
+     "same_root:generated-global-config-corrupts-yaml-sensitive-9b5bdb2b3e1a": {
+      "insufficient_evidence": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 30,
+    "acc_system": 0.7333,
+    "n_system": 30,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "decB": {
+    "coverage": 0.1333,
+    "n": 4,
+    "acc_system": 1.0,
+    "n_system": 4,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": null,
+    "n_adjudicated": 0,
+    "acc_gold": null,
+    "n_gold": 0
+   },
+   "vs_system_coarse_route": {
+    "n": 30,
+    "accuracy": 0.7333,
+    "kappa": 0.322
+   },
+   "latency_ms": {
+    "p50": 383,
+    "p95": 445,
+    "max": 532
+   },
+   "cost_usd": 0.037446,
+   "input_tokens": 891560,
+   "verdict_dist": {
+    "distinct": 25,
+    "same_root:make-wiki-modules-patrol-md-the-single-documente-02750319dfda": 1,
+    "insufficient_evidence": 4
+   }
+  }
+ },
+ "incumbent": {
+  "test": {},
+  "dev": {}
+ }
+}

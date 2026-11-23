@@ -1,0 +1,12 @@
+{
+ "openai": {
+  "billed": 4.216033,
+  "excluded_billed": 0.079753,
+  "excluded_rows": 76
+ },
+ "jev": {
+  "billed": 2.144923,
+  "excluded_billed": 0.045452,
+  "excluded_rows": 76
+ }
+}

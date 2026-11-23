@@ -1,0 +1,457 @@
+{
+ "point": "plan_review_level",
+ "provider": "jev",
+ "rows_in_scope": 802,
+ "gold_for_decisive": "adjudicated",
+ "scoring": "summarize.py (see its docstring)",
+ "test": {
+  "direct": {
+   "rows": 326,
+   "answered": 326,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 326,
+    "accuracy": 0.8957,
+    "kappa": 0.0499,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 291,
+      "standard": 34
+     },
+     "standard": {
+      "standard": 1
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 248,
+    "accuracy": 0.8266,
+    "kappa": 0.0293,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "standard": 19,
+      "mandatory": 202
+     },
+     "standard": {
+      "mandatory": 23,
+      "standard": 3
+     },
+     "skip": {
+      "mandatory": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 35,
+    "accuracy": 0.8286,
+    "kappa": 0.6591,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 16,
+      "standard": 1
+     },
+     "standard": {
+      "standard": 13,
+      "mandatory": 5
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 31,
+    "accuracy": 0.9032,
+    "kappa": 0.8058,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 15,
+      "standard": 1
+     },
+     "standard": {
+      "standard": 13,
+      "mandatory": 2
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.8558,
+    "n": 279,
+    "acc_system": 0.9892,
+    "n_system": 279,
+    "acc_outcome": 0.8894,
+    "n_outcome": 217,
+    "acc_adjudicated": 0.7917,
+    "n_adjudicated": 24,
+    "acc_gold": 0.9048,
+    "n_gold": 21
+   },
+   "decB": {
+    "coverage": 0.7822,
+    "n": 255,
+    "acc_system": 1.0,
+    "n_system": 255,
+    "acc_outcome": 0.8861,
+    "n_outcome": 202,
+    "acc_adjudicated": 0.9333,
+    "n_adjudicated": 15,
+    "acc_gold": 1.0,
+    "n_gold": 14
+   },
+   "latency_ms": {
+    "p50": 232,
+    "p95": 329,
+    "max": 1286
+   },
+   "cost_usd": 0.147751,
+   "input_tokens": 3517889,
+   "verdict_dist": {
+    "mandatory": 291,
+    "standard": 35
+   }
+  },
+  "decomposed": {
+   "rows": 326,
+   "answered": 326,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 326,
+    "accuracy": 0.911,
+    "kappa": 0.0589,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 296,
+      "standard": 29
+     },
+     "standard": {
+      "standard": 1
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 248,
+    "accuracy": 0.8226,
+    "kappa": -0.0491,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 203,
+      "standard": 18
+     },
+     "standard": {
+      "mandatory": 25,
+      "standard": 1
+     },
+     "skip": {
+      "mandatory": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 35,
+    "accuracy": 0.7714,
+    "kappa": 0.5484,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 17
+     },
+     "standard": {
+      "mandatory": 8,
+      "standard": 10
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 31,
+    "accuracy": 0.8065,
+    "kappa": 0.6076,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 16
+     },
+     "standard": {
+      "mandatory": 6,
+      "standard": 9
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 326,
+    "acc_system": 0.911,
+    "n_system": 326,
+    "acc_outcome": 0.8226,
+    "n_outcome": 248,
+    "acc_adjudicated": 0.7714,
+    "n_adjudicated": 35,
+    "acc_gold": 0.8065,
+    "n_gold": 31
+   },
+   "decB": {
+    "coverage": 0.3558,
+    "n": 116,
+    "acc_system": 0.7845,
+    "n_system": 116,
+    "acc_outcome": 0.7284,
+    "n_outcome": 81,
+    "acc_adjudicated": 0.9474,
+    "n_adjudicated": 19,
+    "acc_gold": 1.0,
+    "n_gold": 18
+   },
+   "latency_ms": {
+    "p50": 229,
+    "p95": 336,
+    "max": 1274
+   },
+   "cost_usd": 0.146752,
+   "input_tokens": 3494091,
+   "verdict_dist": {
+    "mandatory": 296,
+    "standard": 30
+   }
+  }
+ },
+ "dev": {
+  "direct": {
+   "rows": 75,
+   "answered": 75,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 75,
+    "accuracy": 0.8533,
+    "kappa": 0.2311,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 62,
+      "standard": 11
+     },
+     "standard": {
+      "standard": 2
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 46,
+    "accuracy": 0.7174,
+    "kappa": -0.0067,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 33,
+      "standard": 9
+     },
+     "skip": {
+      "standard": 1,
+      "mandatory": 2
+     },
+     "standard": {
+      "mandatory": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 10,
+    "accuracy": 0.7,
+    "kappa": 0.4,
+    "confusion(true->pred)": {
+     "standard": {
+      "mandatory": 2,
+      "standard": 3
+     },
+     "mandatory": {
+      "standard": 1,
+      "mandatory": 4
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 8,
+    "accuracy": 0.875,
+    "kappa": 0.75,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "standard": 1,
+      "mandatory": 4
+     },
+     "standard": {
+      "standard": 3
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.6533,
+    "n": 49,
+    "acc_system": 1.0,
+    "n_system": 49,
+    "acc_outcome": 0.8387,
+    "n_outcome": 31,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 6,
+    "acc_gold": 1.0,
+    "n_gold": 6
+   },
+   "decB": {
+    "coverage": 0.6267,
+    "n": 47,
+    "acc_system": 1.0,
+    "n_system": 47,
+    "acc_outcome": 0.8667,
+    "n_outcome": 30,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 5,
+    "acc_gold": 1.0,
+    "n_gold": 5
+   },
+   "latency_ms": {
+    "p50": 229,
+    "p95": 313,
+    "max": 371
+   },
+   "cost_usd": 0.032155,
+   "input_tokens": 765598,
+   "verdict_dist": {
+    "mandatory": 62,
+    "standard": 13
+   }
+  },
+  "decomposed": {
+   "rows": 75,
+   "answered": 75,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 75,
+    "accuracy": 0.8,
+    "kappa": -0.0485,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 60,
+      "standard": 13
+     },
+     "standard": {
+      "mandatory": 2
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 46,
+    "accuracy": 0.6957,
+    "kappa": -0.0842,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 32,
+      "standard": 10
+     },
+     "skip": {
+      "mandatory": 3
+     },
+     "standard": {
+      "mandatory": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 10,
+    "accuracy": 0.6,
+    "kappa": 0.2,
+    "confusion(true->pred)": {
+     "standard": {
+      "mandatory": 4,
+      "standard": 1
+     },
+     "mandatory": {
+      "mandatory": 5
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 8,
+    "accuracy": 0.75,
+    "kappa": 0.3846,
+    "confusion(true->pred)": {
+     "mandatory": {
+      "mandatory": 5
+     },
+     "standard": {
+      "mandatory": 2,
+      "standard": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 75,
+    "acc_system": 0.8,
+    "n_system": 75,
+    "acc_outcome": 0.6957,
+    "n_outcome": 46,
+    "acc_adjudicated": 0.6,
+    "n_adjudicated": 10,
+    "acc_gold": 0.75,
+    "n_gold": 8
+   },
+   "decB": {
+    "coverage": 0.3867,
+    "n": 29,
+    "acc_system": 0.5517,
+    "n_system": 29,
+    "acc_outcome": 0.4762,
+    "n_outcome": 21,
+    "acc_adjudicated": 0.5,
+    "n_adjudicated": 2,
+    "acc_gold": 1.0,
+    "n_gold": 1
+   },
+   "latency_ms": {
+    "p50": 230,
+    "p95": 293,
+    "max": 410
+   },
+   "cost_usd": 0.031925,
+   "input_tokens": 760123,
+   "verdict_dist": {
+    "mandatory": 62,
+    "standard": 13
+   }
+  }
+ },
+ "incumbent": {
+  "test": {
+   "system": {
+    "vs_outcome": {
+     "n": 248,
+     "accuracy": 0.8911,
+     "kappa": 0.0
+    },
+    "vs_adjudicated": {
+     "n": 35,
+     "accuracy": 0.5143,
+     "kappa": 0.0541
+    },
+    "vs_gold": {
+     "n": 31,
+     "accuracy": 0.5484,
+     "kappa": 0.0687
+    }
+   }
+  },
+  "dev": {
+   "system": {
+    "vs_outcome": {
+     "n": 46,
+     "accuracy": 0.8913,
+     "kappa": 0.1353
+    },
+    "vs_adjudicated": {
+     "n": 10,
+     "accuracy": 0.7,
+     "kappa": 0.4
+    },
+    "vs_gold": {
+     "n": 8,
+     "accuracy": 0.875,
+     "kappa": 0.7143
+    }
+   }
+  }
+ }
+}

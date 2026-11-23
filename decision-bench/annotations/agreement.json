@@ -1,0 +1,464 @@
+{
+ "annotators": {
+  "claude": "labels.adjudicated (claude-adjudicated, first pass)",
+  "neon": "opencode/gemini-4-neon#medium via OpenCode 2.3.2 `run --standalone`, blind (state + direct question only), batches of <=10 rows"
+ },
+ "selection": "every #direct row with labels.adjudicated in sanitized/decision-eval/*/dataset.jsonl, minus meta.project starting with '[PRODUCT]' (owner: product never released). No README names a gold set outside labels.adjudicated (patrol_fix_semantic_admission, plan_review_decision_triage and review_finding_triage state they have none).",
+ "excluded_[PRODUCT]_rows": 19,
+ "status": "complete",
+ "label_mappings": {
+  "patrol_finding_dedup": "direct question is the noul `same_issue`; adjudicated `same` -> true, `different` -> false",
+  "visual_capture_need": "direct question is the noul `needs_visual_capture`; adjudicated `needs_capture` -> true, `no_capture` -> false",
+  "recovery_same_root": "noul `same_root`; adjudicated true/false used as is",
+  "plan_review_level": "direct rows carry `review_level` plus 5 category nouls; only `review_level` (skip/standard/mandatory) was asked. Claude's level was derived by rule.decide from Claude's per-category labels plus code facts, never `skip`",
+  "ci_failure_triage": "choice `ci_cause`; same vocabulary",
+  "provider_failure_class": "choice `failure_class`; same vocabulary",
+  "refactor_merge_classifier": "choice `verdict` (feature/skip); same vocabulary",
+  "task_workflow_routing": "choice `workflow_profile` (express/standard/full); same vocabulary"
+ },
+ "confusion_matrix_orientation": "rows = Claude label, columns = Neon label",
+ "points": {
+  "ci_failure_triage": {
+   "question": "ci_cause",
+   "n_selected": 78,
+   "n_pending": 0,
+   "n": 78,
+   "n_neon_error": 0,
+   "agree": 59,
+   "disagree": 19,
+   "raw_agreement": 0.7564,
+   "cohens_kappa": 0.6639,
+   "labels": [
+    "defect_from_diff",
+    "flaky_or_infra",
+    "environment_or_billing",
+    "merge_conflict",
+    "unknown"
+   ],
+   "confusion_matrix": [
+    [
+     19,
+     3,
+     1,
+     0,
+     1
+    ],
+    [
+     0,
+     3,
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     26,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     3,
+     0
+    ],
+    [
+     10,
+     2,
+     1,
+     0,
+     8
+    ]
+   ],
+   "claude_marginals": {
+    "defect_from_diff": 24,
+    "flaky_or_infra": 4,
+    "environment_or_billing": 26,
+    "merge_conflict": 3,
+    "unknown": 21
+   },
+   "neon_marginals": {
+    "defect_from_diff": 29,
+    "flaky_or_infra": 8,
+    "environment_or_billing": 28,
+    "merge_conflict": 3,
+    "unknown": 10
+   }
+  },
+  "patrol_finding_dedup": {
+   "question": "same_issue",
+   "n_selected": 85,
+   "n_pending": 0,
+   "n": 85,
+   "n_neon_error": 0,
+   "agree": 83,
+   "disagree": 2,
+   "raw_agreement": 0.9765,
+   "cohens_kappa": 0.9296,
+   "labels": [
+    "true",
+    "false"
+   ],
+   "confusion_matrix": [
+    [
+     66,
+     0
+    ],
+    [
+     2,
+     17
+    ]
+   ],
+   "claude_marginals": {
+    "true": 66,
+    "false": 19
+   },
+   "neon_marginals": {
+    "true": 68,
+    "false": 17
+   }
+  },
+  "plan_review_level": {
+   "question": "review_level",
+   "n_selected": 45,
+   "n_pending": 0,
+   "n": 45,
+   "n_neon_error": 0,
+   "agree": 39,
+   "disagree": 6,
+   "raw_agreement": 0.8667,
+   "cohens_kappa": 0.7343,
+   "labels": [
+    "skip",
+    "standard",
+    "mandatory"
+   ],
+   "confusion_matrix": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     18,
+     5
+    ],
+    [
+     0,
+     1,
+     21
+    ]
+   ],
+   "claude_marginals": {
+    "skip": 0,
+    "standard": 23,
+    "mandatory": 22
+   },
+   "neon_marginals": {
+    "skip": 0,
+    "standard": 19,
+    "mandatory": 26
+   }
+  },
+  "provider_failure_class": {
+   "question": "failure_class",
+   "n_selected": 82,
+   "n_pending": 0,
+   "n": 82,
+   "n_neon_error": 0,
+   "agree": 80,
+   "disagree": 2,
+   "raw_agreement": 0.9756,
+   "cohens_kappa": 0.9663,
+   "labels": [
+    "quota_or_usage_limit",
+    "transient_rate_limit",
+    "model_unsupported",
+    "auth_or_credentials",
+    "network_transient",
+    "merge_conflict",
+    "tool_permission_denied",
+    "agent_crashed",
+    "other_or_healthy"
+   ],
+   "confusion_matrix": [
+    [
+     12,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     8,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     6,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     4,
+     0,
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     12,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     1,
+     0,
+     0,
+     0,
+     37
+    ]
+   ],
+   "claude_marginals": {
+    "quota_or_usage_limit": 12,
+    "transient_rate_limit": 1,
+    "model_unsupported": 8,
+    "auth_or_credentials": 6,
+    "network_transient": 5,
+    "merge_conflict": 0,
+    "tool_permission_denied": 0,
+    "agent_crashed": 12,
+    "other_or_healthy": 38
+   },
+   "neon_marginals": {
+    "quota_or_usage_limit": 12,
+    "transient_rate_limit": 1,
+    "model_unsupported": 8,
+    "auth_or_credentials": 6,
+    "network_transient": 5,
+    "merge_conflict": 0,
+    "tool_permission_denied": 0,
+    "agent_crashed": 12,
+    "other_or_healthy": 38
+   }
+  },
+  "recovery_same_root": {
+   "question": "same_root",
+   "n_selected": 64,
+   "n_pending": 0,
+   "n": 64,
+   "n_neon_error": 0,
+   "agree": 64,
+   "disagree": 0,
+   "raw_agreement": 1.0,
+   "cohens_kappa": 1.0,
+   "labels": [
+    "true",
+    "false"
+   ],
+   "confusion_matrix": [
+    [
+     31,
+     0
+    ],
+    [
+     0,
+     33
+    ]
+   ],
+   "claude_marginals": {
+    "true": 31,
+    "false": 33
+   },
+   "neon_marginals": {
+    "true": 31,
+    "false": 33
+   }
+  },
+  "refactor_merge_classifier": {
+   "question": "verdict",
+   "n_selected": 73,
+   "n_pending": 0,
+   "n": 73,
+   "n_neon_error": 0,
+   "agree": 64,
+   "disagree": 9,
+   "raw_agreement": 0.8767,
+   "cohens_kappa": 0.7264,
+   "labels": [
+    "feature",
+    "skip"
+   ],
+   "confusion_matrix": [
+    [
+     20,
+     1
+    ],
+    [
+     8,
+     44
+    ]
+   ],
+   "claude_marginals": {
+    "feature": 21,
+    "skip": 52
+   },
+   "neon_marginals": {
+    "feature": 28,
+    "skip": 45
+   }
+  },
+  "task_workflow_routing": {
+   "question": "workflow_profile",
+   "n_selected": 58,
+   "n_pending": 0,
+   "n": 58,
+   "n_neon_error": 0,
+   "agree": 35,
+   "disagree": 23,
+   "raw_agreement": 0.6034,
+   "cohens_kappa": 0.3855,
+   "labels": [
+    "express",
+    "standard",
+    "full"
+   ],
+   "confusion_matrix": [
+    [
+     8,
+     5,
+     2
+    ],
+    [
+     0,
+     12,
+     10
+    ],
+    [
+     0,
+     6,
+     15
+    ]
+   ],
+   "claude_marginals": {
+    "express": 15,
+    "standard": 22,
+    "full": 21
+   },
+   "neon_marginals": {
+    "express": 8,
+    "standard": 23,
+    "full": 27
+   }
+  },
+  "visual_capture_need": {
+   "question": "needs_visual_capture",
+   "n_selected": 78,
+   "n_pending": 0,
+   "n": 78,
+   "n_neon_error": 0,
+   "agree": 75,
+   "disagree": 3,
+   "raw_agreement": 0.9615,
+   "cohens_kappa": 0.9037,
+   "labels": [
+    "true",
+    "false"
+   ],
+   "confusion_matrix": [
+    [
+     20,
+     1
+    ],
+    [
+     2,
+     55
+    ]
+   ],
+   "claude_marginals": {
+    "true": 21,
+    "false": 57
+   },
+   "neon_marginals": {
+    "true": 22,
+    "false": 56
+   }
+  }
+ },
+ "overall": {
+  "n": 563,
+  "agree": 499,
+  "raw_agreement": 0.8863,
+  "mean_kappa_across_points": 0.7887,
+  "gold_rows": 499,
+  "n_neon_error": 0,
+  "n_pending": 0,
+  "note": "kappa is per point (label spaces differ); the overall figure is an unweighted mean of point kappas"
+ }
+}

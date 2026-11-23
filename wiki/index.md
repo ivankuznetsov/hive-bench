@@ -22,6 +22,7 @@ It is the implementer-side sibling of `agent-reviewer-eval` (which benchmarks re
 - [[findings]] — everything learned across v1 and v2 (the headline results + gotchas)
 - [[decisions]] — methodology decisions and why
 - [[gaps]] — what's unverified / left to build
+- [[decision-bench]] — separate benchmark: decision-model APIs on Hive's own past decisions
 - [[log]] — work log
 
 ## Status (2026-08-25)

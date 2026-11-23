@@ -1,0 +1,748 @@
+{
+ "point": "provider_failure_class",
+ "provider": "jev",
+ "rows_in_scope": 1234,
+ "gold_for_decisive": "adjudicated",
+ "scoring": "summarize.py (see its docstring)",
+ "test": {
+  "direct": {
+   "rows": 479,
+   "answered": 479,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 479,
+    "accuracy": 0.6451,
+    "kappa": 0.4589,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 37
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 87,
+      "transient_rate_limit": 2,
+      "other_or_healthy": 7
+     },
+     "transient_rate_limit": {
+      "other_or_healthy": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 185,
+      "network_transient": 23,
+      "auth_or_credentials": 41,
+      "model_unsupported": 12,
+      "agent_crashed": 66,
+      "quota_or_usage_limit": 8
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 65,
+    "accuracy": 0.9385,
+    "kappa": 0.9138,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 5
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 30,
+      "agent_crashed": 1
+     },
+     "transient_rate_limit": {
+      "transient_rate_limit": 1
+     },
+     "network_transient": {
+      "network_transient": 4,
+      "other_or_healthy": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 4
+     },
+     "agent_crashed": {
+      "agent_crashed": 6,
+      "auth_or_credentials": 2
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 64,
+    "accuracy": 0.9531,
+    "kappa": 0.9343,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 5
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 30,
+      "agent_crashed": 1
+     },
+     "transient_rate_limit": {
+      "transient_rate_limit": 1
+     },
+     "network_transient": {
+      "network_transient": 4
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 4
+     },
+     "agent_crashed": {
+      "agent_crashed": 6,
+      "auth_or_credentials": 2
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.8392,
+    "n": 402,
+    "acc_system": 0.6517,
+    "n_system": 402,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 49,
+    "acc_gold": 1.0,
+    "n_gold": 49
+   },
+   "decB": {
+    "coverage": 0.7432,
+    "n": 356,
+    "acc_system": 0.6517,
+    "n_system": 356,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 43,
+    "acc_gold": 1.0,
+    "n_gold": 43
+   },
+   "healthy_run_check": {
+    "n": 100,
+    "pred_other_or_healthy": 0.99,
+    "system_other_or_healthy": 1.0
+   },
+   "pred_x_outcome": {
+    "persisted_without_success": {
+     "model_unsupported": 7,
+     "quota_or_usage_limit": 18,
+     "other_or_healthy": 8,
+     "agent_crashed": 2
+    },
+    "resolved_by_retry_same_config": {
+     "model_unsupported": 5,
+     "quota_or_usage_limit": 26,
+     "other_or_healthy": 43,
+     "auth_or_credentials": 10,
+     "network_transient": 2,
+     "agent_crashed": 20
+    },
+    "resolved_by_retry_same_cli_model_unverified": {
+     "model_unsupported": 30,
+     "quota_or_usage_limit": 29,
+     "transient_rate_limit": 2,
+     "network_transient": 19,
+     "auth_or_credentials": 26,
+     "other_or_healthy": 32,
+     "agent_crashed": 27
+    },
+    "no_later_attempt": {
+     "model_unsupported": 1,
+     "quota_or_usage_limit": 8,
+     "other_or_healthy": 14,
+     "network_transient": 2,
+     "auth_or_credentials": 2,
+     "agent_crashed": 1
+    },
+    "resolved_after_provider_or_model_change": {
+     "quota_or_usage_limit": 13,
+     "other_or_healthy": 7,
+     "model_unsupported": 6,
+     "auth_or_credentials": 3,
+     "agent_crashed": 16
+    },
+    "run_completed_normally": {
+     "other_or_healthy": 99,
+     "quota_or_usage_limit": 1
+    }
+   },
+   "latency_ms": {
+    "p50": 173,
+    "p95": 201,
+    "max": 422
+   },
+   "cost_usd": 0.049703,
+   "input_tokens": 1183406,
+   "verdict_dist": {
+    "model_unsupported": 49,
+    "quota_or_usage_limit": 95,
+    "other_or_healthy": 203,
+    "transient_rate_limit": 2,
+    "network_transient": 23,
+    "auth_or_credentials": 41,
+    "agent_crashed": 66
+   }
+  },
+  "decomposed": {
+   "rows": 479,
+   "answered": 479,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 479,
+    "accuracy": 0.6305,
+    "kappa": 0.4435,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 37
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 87,
+      "transient_rate_limit": 2,
+      "other_or_healthy": 7
+     },
+     "transient_rate_limit": {
+      "other_or_healthy": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 178,
+      "network_transient": 33,
+      "auth_or_credentials": 33,
+      "model_unsupported": 12,
+      "unsure": 21,
+      "agent_crashed": 43,
+      "quota_or_usage_limit": 13,
+      "tool_permission_denied": 2
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 65,
+    "accuracy": 0.8769,
+    "kappa": 0.8323,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 5
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 28,
+      "unsure": 3
+     },
+     "transient_rate_limit": {
+      "transient_rate_limit": 1
+     },
+     "network_transient": {
+      "network_transient": 4,
+      "other_or_healthy": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 4
+     },
+     "agent_crashed": {
+      "agent_crashed": 4,
+      "unsure": 2,
+      "network_transient": 2
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 64,
+    "accuracy": 0.8906,
+    "kappa": 0.8511,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 5
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 11
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 28,
+      "unsure": 3
+     },
+     "transient_rate_limit": {
+      "transient_rate_limit": 1
+     },
+     "network_transient": {
+      "network_transient": 4
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 4
+     },
+     "agent_crashed": {
+      "agent_crashed": 4,
+      "unsure": 2,
+      "network_transient": 2
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9562,
+    "n": 458,
+    "acc_system": 0.6594,
+    "n_system": 458,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.95,
+    "n_adjudicated": 60,
+    "acc_gold": 0.9661,
+    "n_gold": 59
+   },
+   "decB": {
+    "coverage": 0.6367,
+    "n": 305,
+    "acc_system": 0.6984,
+    "n_system": 305,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.975,
+    "n_adjudicated": 40,
+    "acc_gold": 1.0,
+    "n_gold": 39
+   },
+   "healthy_run_check": {
+    "n": 100,
+    "pred_other_or_healthy": 0.95,
+    "system_other_or_healthy": 1.0
+   },
+   "pred_x_outcome": {
+    "persisted_without_success": {
+     "model_unsupported": 7,
+     "quota_or_usage_limit": 18,
+     "other_or_healthy": 8,
+     "unsure": 1,
+     "agent_crashed": 1
+    },
+    "resolved_by_retry_same_config": {
+     "model_unsupported": 5,
+     "quota_or_usage_limit": 26,
+     "other_or_healthy": 41,
+     "auth_or_credentials": 10,
+     "unsure": 5,
+     "network_transient": 2,
+     "agent_crashed": 16,
+     "tool_permission_denied": 1
+    },
+    "resolved_by_retry_same_cli_model_unverified": {
+     "model_unsupported": 30,
+     "quota_or_usage_limit": 31,
+     "transient_rate_limit": 2,
+     "network_transient": 27,
+     "auth_or_credentials": 19,
+     "other_or_healthy": 32,
+     "unsure": 7,
+     "agent_crashed": 16,
+     "tool_permission_denied": 1
+    },
+    "no_later_attempt": {
+     "model_unsupported": 1,
+     "quota_or_usage_limit": 10,
+     "other_or_healthy": 12,
+     "network_transient": 3,
+     "auth_or_credentials": 1,
+     "unsure": 1
+    },
+    "resolved_after_provider_or_model_change": {
+     "quota_or_usage_limit": 13,
+     "other_or_healthy": 8,
+     "model_unsupported": 6,
+     "auth_or_credentials": 3,
+     "agent_crashed": 10,
+     "unsure": 5
+    },
+    "run_completed_normally": {
+     "other_or_healthy": 95,
+     "network_transient": 1,
+     "unsure": 2,
+     "quota_or_usage_limit": 2
+    }
+   },
+   "latency_ms": {
+    "p50": 173,
+    "p95": 201,
+    "max": 426
+   },
+   "cost_usd": 0.055256,
+   "input_tokens": 1315610,
+   "verdict_dist": {
+    "model_unsupported": 49,
+    "quota_or_usage_limit": 100,
+    "other_or_healthy": 196,
+    "transient_rate_limit": 2,
+    "network_transient": 33,
+    "auth_or_credentials": 33,
+    "unsure": 21,
+    "agent_crashed": 43,
+    "tool_permission_denied": 2
+   }
+  }
+ },
+ "dev": {
+  "direct": {
+   "rows": 138,
+   "answered": 138,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 138,
+    "accuracy": 0.6884,
+    "kappa": 0.5114,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 12
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 26,
+      "transient_rate_limit": 1,
+      "other_or_healthy": 2
+     },
+     "transient_rate_limit": {
+      "other_or_healthy": 3
+     },
+     "other_or_healthy": {
+      "auth_or_credentials": 9,
+      "model_unsupported": 2,
+      "other_or_healthy": 57,
+      "network_transient": 6,
+      "agent_crashed": 15,
+      "quota_or_usage_limit": 5
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 17,
+    "accuracy": 1.0,
+    "kappa": 1.0,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 3
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 2
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 7
+     },
+     "agent_crashed": {
+      "agent_crashed": 4
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 16,
+    "accuracy": 1.0,
+    "kappa": 1.0,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 3
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 2
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 6
+     },
+     "agent_crashed": {
+      "agent_crashed": 4
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.8623,
+    "n": 119,
+    "acc_system": 0.6807,
+    "n_system": 119,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 15,
+    "acc_gold": 1.0,
+    "n_gold": 14
+   },
+   "decB": {
+    "coverage": 0.7101,
+    "n": 98,
+    "acc_system": 0.6837,
+    "n_system": 98,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 13,
+    "acc_gold": 1.0,
+    "n_gold": 13
+   },
+   "healthy_run_check": {
+    "n": 30,
+    "pred_other_or_healthy": 1.0,
+    "system_other_or_healthy": 1.0
+   },
+   "pred_x_outcome": {
+    "resolved_by_retry_same_cli_model_unverified": {
+     "model_unsupported": 8,
+     "quota_or_usage_limit": 10,
+     "transient_rate_limit": 1,
+     "auth_or_credentials": 6,
+     "other_or_healthy": 11,
+     "network_transient": 3,
+     "agent_crashed": 6
+    },
+    "persisted_without_success": {
+     "model_unsupported": 4,
+     "quota_or_usage_limit": 3,
+     "other_or_healthy": 2,
+     "agent_crashed": 1
+    },
+    "resolved_by_retry_same_config": {
+     "quota_or_usage_limit": 9,
+     "other_or_healthy": 10,
+     "auth_or_credentials": 3,
+     "agent_crashed": 7,
+     "network_transient": 1
+    },
+    "no_later_attempt": {
+     "quota_or_usage_limit": 3,
+     "other_or_healthy": 5,
+     "network_transient": 2
+    },
+    "resolved_after_provider_or_model_change": {
+     "quota_or_usage_limit": 6,
+     "model_unsupported": 2,
+     "other_or_healthy": 4,
+     "agent_crashed": 1
+    },
+    "run_completed_normally": {
+     "other_or_healthy": 30
+    }
+   },
+   "latency_ms": {
+    "p50": 171,
+    "p95": 197,
+    "max": 216
+   },
+   "cost_usd": 0.014519,
+   "input_tokens": 345689,
+   "verdict_dist": {
+    "model_unsupported": 14,
+    "quota_or_usage_limit": 31,
+    "other_or_healthy": 62,
+    "transient_rate_limit": 1,
+    "auth_or_credentials": 9,
+    "network_transient": 6,
+    "agent_crashed": 15
+   }
+  },
+  "decomposed": {
+   "rows": 138,
+   "answered": 138,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 138,
+    "accuracy": 0.6304,
+    "kappa": 0.4543,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 12
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 26,
+      "transient_rate_limit": 1,
+      "other_or_healthy": 2
+     },
+     "transient_rate_limit": {
+      "other_or_healthy": 3
+     },
+     "other_or_healthy": {
+      "auth_or_credentials": 8,
+      "model_unsupported": 2,
+      "other_or_healthy": 49,
+      "unsure": 7,
+      "network_transient": 8,
+      "agent_crashed": 14,
+      "quota_or_usage_limit": 5,
+      "tool_permission_denied": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 17,
+    "accuracy": 0.9412,
+    "kappa": 0.9217,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 3
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 2
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 6,
+      "unsure": 1
+     },
+     "agent_crashed": {
+      "agent_crashed": 4
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 16,
+    "accuracy": 0.9375,
+    "kappa": 0.9184,
+    "confusion(true->pred)": {
+     "model_unsupported": {
+      "model_unsupported": 3
+     },
+     "quota_or_usage_limit": {
+      "quota_or_usage_limit": 1
+     },
+     "auth_or_credentials": {
+      "auth_or_credentials": 2
+     },
+     "other_or_healthy": {
+      "other_or_healthy": 5,
+      "unsure": 1
+     },
+     "agent_crashed": {
+      "agent_crashed": 4
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9493,
+    "n": 131,
+    "acc_system": 0.6641,
+    "n_system": 131,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 16,
+    "acc_gold": 1.0,
+    "n_gold": 15
+   },
+   "decB": {
+    "coverage": 0.6739,
+    "n": 93,
+    "acc_system": 0.6452,
+    "n_system": 93,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 11,
+    "acc_gold": 1.0,
+    "n_gold": 11
+   },
+   "healthy_run_check": {
+    "n": 30,
+    "pred_other_or_healthy": 0.8667,
+    "system_other_or_healthy": 1.0
+   },
+   "pred_x_outcome": {
+    "resolved_by_retry_same_cli_model_unverified": {
+     "model_unsupported": 8,
+     "quota_or_usage_limit": 11,
+     "transient_rate_limit": 1,
+     "auth_or_credentials": 5,
+     "unsure": 1,
+     "network_transient": 5,
+     "other_or_healthy": 8,
+     "agent_crashed": 5,
+     "tool_permission_denied": 1
+    },
+    "persisted_without_success": {
+     "model_unsupported": 4,
+     "quota_or_usage_limit": 3,
+     "other_or_healthy": 2,
+     "agent_crashed": 1
+    },
+    "resolved_by_retry_same_config": {
+     "quota_or_usage_limit": 8,
+     "other_or_healthy": 10,
+     "auth_or_credentials": 3,
+     "agent_crashed": 7,
+     "unsure": 1,
+     "network_transient": 1
+    },
+    "no_later_attempt": {
+     "quota_or_usage_limit": 3,
+     "other_or_healthy": 4,
+     "network_transient": 2,
+     "unsure": 1
+    },
+    "resolved_after_provider_or_model_change": {
+     "quota_or_usage_limit": 6,
+     "model_unsupported": 2,
+     "other_or_healthy": 4,
+     "agent_crashed": 1
+    },
+    "run_completed_normally": {
+     "other_or_healthy": 26,
+     "unsure": 4
+    }
+   },
+   "latency_ms": {
+    "p50": 174,
+    "p95": 211,
+    "max": 332
+   },
+   "cost_usd": 0.016119,
+   "input_tokens": 383777,
+   "verdict_dist": {
+    "model_unsupported": 14,
+    "quota_or_usage_limit": 31,
+    "other_or_healthy": 54,
+    "transient_rate_limit": 1,
+    "auth_or_credentials": 8,
+    "unsure": 7,
+    "network_transient": 8,
+    "agent_crashed": 14,
+    "tool_permission_denied": 1
+   }
+  }
+ },
+ "incumbent": {
+  "test": {
+   "system": {
+    "vs_adjudicated": {
+     "n": 65,
+     "accuracy": 0.6462,
+     "kappa": 0.4246
+    },
+    "vs_gold": {
+     "n": 64,
+     "accuracy": 0.6562,
+     "kappa": 0.4368
+    }
+   }
+  },
+  "dev": {
+   "system": {
+    "vs_adjudicated": {
+     "n": 17,
+     "accuracy": 0.5882,
+     "kappa": 0.3533
+    },
+    "vs_gold": {
+     "n": 16,
+     "accuracy": 0.5625,
+     "kappa": 0.345
+    }
+   }
+  }
+ }
+}

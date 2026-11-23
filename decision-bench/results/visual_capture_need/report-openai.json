@@ -1,0 +1,531 @@
+{
+ "point": "visual_capture_need",
+ "provider": "openai",
+ "rows_in_scope": 560,
+ "gold_for_decisive": "adjudicated",
+ "scoring": "summarize.py (see its docstring)",
+ "test": {
+  "direct": {
+   "rows": 226,
+   "answered": 226,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 226,
+    "accuracy": 0.8363,
+    "kappa": 0.6423,
+    "confusion(true->pred)": {
+     "needs_capture": {
+      "no_capture": 29,
+      "needs_capture": 60
+     },
+     "no_capture": {
+      "no_capture": 129,
+      "needs_capture": 8
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 8,
+    "accuracy": 0.75,
+    "kappa": 0.3846,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "needs_capture": 2,
+      "no_capture": 5
+     },
+     "needs_capture": {
+      "needs_capture": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 66,
+    "accuracy": 0.9394,
+    "kappa": 0.8523,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 45,
+      "needs_capture": 3
+     },
+     "needs_capture": {
+      "needs_capture": 17,
+      "no_capture": 1
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 63,
+    "accuracy": 0.9683,
+    "kappa": 0.9194,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 45,
+      "needs_capture": 1
+     },
+     "needs_capture": {
+      "needs_capture": 16,
+      "no_capture": 1
+     }
+    }
+   },
+   "vs_llm_inference": {
+    "n": 51,
+    "accuracy": 0.9412,
+    "kappa": 0.8781,
+    "confusion(true->pred)": {
+     "needs_capture": {
+      "needs_capture": 19
+     },
+     "no_capture": {
+      "no_capture": 29,
+      "needs_capture": 3
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9956,
+    "n": 225,
+    "acc_system": 0.8356,
+    "n_system": 225,
+    "acc_outcome": 0.75,
+    "n_outcome": 8,
+    "acc_adjudicated": 0.9538,
+    "n_adjudicated": 65,
+    "acc_gold": 0.9839,
+    "n_gold": 62
+   },
+   "decB": {
+    "coverage": 0.9159,
+    "n": 207,
+    "acc_system": 0.8551,
+    "n_system": 207,
+    "acc_outcome": 0.8571,
+    "n_outcome": 7,
+    "acc_adjudicated": 0.9821,
+    "n_adjudicated": 56,
+    "acc_gold": 0.9818,
+    "n_gold": 55
+   },
+   "latency_ms": {
+    "p50": 160,
+    "p95": 354,
+    "max": 1731
+   },
+   "cost_usd": 0.040059,
+   "input_tokens": 400593,
+   "verdict_dist": {
+    "no_capture": 158,
+    "needs_capture": 68
+   }
+  },
+  "decomposed": {
+   "rows": 226,
+   "answered": 226,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 226,
+    "accuracy": 0.6239,
+    "kappa": 0.3064,
+    "confusion(true->pred)": {
+     "needs_capture": {
+      "no_capture": 8,
+      "needs_capture": 81
+     },
+     "no_capture": {
+      "needs_capture": 77,
+      "no_capture": 60
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 8,
+    "accuracy": 0.125,
+    "kappa": 0.0,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "needs_capture": 7
+     },
+     "needs_capture": {
+      "needs_capture": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 66,
+    "accuracy": 0.6061,
+    "kappa": 0.3158,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 22,
+      "needs_capture": 26
+     },
+     "needs_capture": {
+      "needs_capture": 18
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 63,
+    "accuracy": 0.619,
+    "kappa": 0.331,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 22,
+      "needs_capture": 24
+     },
+     "needs_capture": {
+      "needs_capture": 17
+     }
+    }
+   },
+   "vs_llm_inference": {
+    "n": 51,
+    "accuracy": 0.5294,
+    "kappa": 0.199,
+    "confusion(true->pred)": {
+     "needs_capture": {
+      "needs_capture": 19
+     },
+     "no_capture": {
+      "needs_capture": 24,
+      "no_capture": 8
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9956,
+    "n": 225,
+    "acc_system": 0.6222,
+    "n_system": 225,
+    "acc_outcome": 0.125,
+    "n_outcome": 8,
+    "acc_adjudicated": 0.6154,
+    "n_adjudicated": 65,
+    "acc_gold": 0.629,
+    "n_gold": 62
+   },
+   "decB": {
+    "coverage": 0.6903,
+    "n": 156,
+    "acc_system": 0.6026,
+    "n_system": 156,
+    "acc_outcome": 0.2,
+    "n_outcome": 5,
+    "acc_adjudicated": 0.5227,
+    "n_adjudicated": 44,
+    "acc_gold": 0.5238,
+    "n_gold": 42
+   },
+   "latency_ms": {
+    "p50": 193,
+    "p95": 523,
+    "max": 1973
+   },
+   "cost_usd": 0.064619,
+   "input_tokens": 699591,
+   "verdict_dist": {
+    "no_capture": 68,
+    "needs_capture": 158
+   }
+  }
+ },
+ "dev": {
+  "direct": {
+   "rows": 54,
+   "answered": 54,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 54,
+    "accuracy": 0.8333,
+    "kappa": 0.6494,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 29,
+      "needs_capture": 2
+     },
+     "needs_capture": {
+      "no_capture": 7,
+      "needs_capture": 16
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 2,
+    "accuracy": 1.0,
+    "kappa": 1.0,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 1
+     },
+     "needs_capture": {
+      "needs_capture": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 12,
+    "accuracy": 0.8333,
+    "kappa": 0.6364,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 7,
+      "needs_capture": 2
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 12,
+    "accuracy": 0.8333,
+    "kappa": 0.6364,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 7,
+      "needs_capture": 2
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "vs_llm_inference": {
+    "n": 8,
+    "accuracy": 1.0,
+    "kappa": 1.0,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 5
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9259,
+    "n": 50,
+    "acc_system": 0.86,
+    "n_system": 50,
+    "acc_outcome": 1.0,
+    "n_outcome": 2,
+    "acc_adjudicated": 0.9,
+    "n_adjudicated": 10,
+    "acc_gold": 0.9,
+    "n_gold": 10
+   },
+   "decB": {
+    "coverage": 0.9074,
+    "n": 49,
+    "acc_system": 0.8571,
+    "n_system": 49,
+    "acc_outcome": 1.0,
+    "n_outcome": 2,
+    "acc_adjudicated": 0.9,
+    "n_adjudicated": 10,
+    "acc_gold": 0.9,
+    "n_gold": 10
+   },
+   "latency_ms": {
+    "p50": 154,
+    "p95": 402,
+    "max": 535
+   },
+   "cost_usd": 0.009113,
+   "input_tokens": 91132,
+   "verdict_dist": {
+    "no_capture": 36,
+    "needs_capture": 18
+   }
+  },
+  "decomposed": {
+   "rows": 54,
+   "answered": 54,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 54,
+    "accuracy": 0.6667,
+    "kappa": 0.368,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "needs_capture": 16,
+      "no_capture": 15
+     },
+     "needs_capture": {
+      "needs_capture": 21,
+      "no_capture": 2
+     }
+    }
+   },
+   "vs_outcome": {
+    "n": 2,
+    "accuracy": 0.5,
+    "kappa": 0.0,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "needs_capture": 1
+     },
+     "needs_capture": {
+      "needs_capture": 1
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 12,
+    "accuracy": 0.5833,
+    "kappa": 0.2857,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 4,
+      "needs_capture": 5
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 12,
+    "accuracy": 0.5833,
+    "kappa": 0.2857,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "no_capture": 4,
+      "needs_capture": 5
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "vs_llm_inference": {
+    "n": 8,
+    "accuracy": 0.5,
+    "kappa": 0.1579,
+    "confusion(true->pred)": {
+     "no_capture": {
+      "needs_capture": 4,
+      "no_capture": 1
+     },
+     "needs_capture": {
+      "needs_capture": 3
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9815,
+    "n": 53,
+    "acc_system": 0.6604,
+    "n_system": 53,
+    "acc_outcome": 0.5,
+    "n_outcome": 2,
+    "acc_adjudicated": 0.5833,
+    "n_adjudicated": 12,
+    "acc_gold": 0.5833,
+    "n_gold": 12
+   },
+   "decB": {
+    "coverage": 0.6481,
+    "n": 35,
+    "acc_system": 0.6286,
+    "n_system": 35,
+    "acc_outcome": 0.0,
+    "n_outcome": 1,
+    "acc_adjudicated": 0.5,
+    "n_adjudicated": 8,
+    "acc_gold": 0.5,
+    "n_gold": 8
+   },
+   "latency_ms": {
+    "p50": 171,
+    "p95": 427,
+    "max": 544
+   },
+   "cost_usd": 0.015443,
+   "input_tokens": 162574,
+   "verdict_dist": {
+    "needs_capture": 37,
+    "no_capture": 17
+   }
+  }
+ },
+ "incumbent": {
+  "test": {
+   "system": {
+    "vs_outcome": {
+     "n": 8,
+     "accuracy": 0.375,
+     "kappa": -0.25
+    },
+    "vs_adjudicated": {
+     "n": 66,
+     "accuracy": 0.4697,
+     "kappa": -0.0322
+    },
+    "vs_gold": {
+     "n": 63,
+     "accuracy": 0.4762,
+     "kappa": -0.04
+    }
+   },
+   "llm_inference": {
+    "vs_outcome": {
+     "n": 8,
+     "accuracy": 1.0,
+     "kappa": 1.0
+    },
+    "vs_adjudicated": {
+     "n": 21,
+     "accuracy": 0.8571,
+     "kappa": 0.6667
+    },
+    "vs_gold": {
+     "n": 19,
+     "accuracy": 0.9474,
+     "kappa": 0.8725
+    }
+   }
+  },
+  "dev": {
+   "system": {
+    "vs_outcome": {
+     "n": 2,
+     "accuracy": 1.0,
+     "kappa": 1.0
+    },
+    "vs_adjudicated": {
+     "n": 12,
+     "accuracy": 0.5,
+     "kappa": 0.2
+    },
+    "vs_gold": {
+     "n": 12,
+     "accuracy": 0.5,
+     "kappa": 0.2
+    }
+   },
+   "llm_inference": {
+    "vs_outcome": {
+     "n": 2,
+     "accuracy": 1.0,
+     "kappa": 1.0
+    },
+    "vs_adjudicated": {
+     "n": 1,
+     "accuracy": 1.0,
+     "kappa": null
+    },
+    "vs_gold": {
+     "n": 1,
+     "accuracy": 1.0,
+     "kappa": null
+    }
+   }
+  }
+ }
+}
