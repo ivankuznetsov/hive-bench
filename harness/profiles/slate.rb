@@ -5,8 +5,9 @@ require "lib/profile"
 module HiveBench
   # The v1 benchmark slate: 6 cells = harness@model. hive pins a model for
   # claude only, so each cell here bakes its own model flag into the headless
-  # argv (`claude --model`, `codex -m`, `pi --model`). Min versions match hive's
-  # AgentProfile floors; auth paths match hive's logged-in? checks.
+  # argv (`claude --model`, `codex -m`, `pi --model`). Min versions come from
+  # agent-cli-runtime; auth paths match hive's logged-in? checks and container
+  # mount contract.
   #
   # Open-model feasibility (the origin's flagged risk) is RESOLVED: `pi --model
   # <pattern>` exists and "supports provider/id and optional :<thinking>", so the
@@ -66,7 +67,7 @@ module HiveBench
     def claude_opus47
       Profile.new(
         id: "claude@opus-4.7", harness: "claude", model: "claude-opus-4-7", bin: "claude",
-        min_version: "2.1.118", auth_path: CLAUDE_AUTH,
+        auth_path: CLAUDE_AUTH,
         headless_argv: lambda do |prompt:|
           ["claude", "-p", "--model", "claude-opus-4-7", "--dangerously-skip-permissions", prompt]
         end
@@ -76,7 +77,7 @@ module HiveBench
     def claude_opus
       Profile.new(
         id: "claude@opus-4.8", harness: "claude", model: "claude-opus-4-8", bin: "claude",
-        min_version: "2.1.118", auth_path: CLAUDE_AUTH,
+        auth_path: CLAUDE_AUTH,
         headless_argv: lambda do |prompt:|
           ["claude", "-p", "--model", "claude-opus-4-8", "--dangerously-skip-permissions", prompt]
         end
@@ -88,7 +89,7 @@ module HiveBench
       # model with -m and the effort via a -c config override.
       Profile.new(
         id: "codex@gpt-5.5-xhigh", harness: "codex", model: "gpt-5.5", bin: "codex",
-        min_version: "0.125.0", auth_path: CODEX_AUTH,
+        auth_path: CODEX_AUTH,
         headless_argv: lambda do |prompt:|
           ["codex", "exec", "-m", "gpt-5.5", "-c", 'model_reasoning_effort="xhigh"',
            "--dangerously-bypass-approvals-and-sandbox", prompt]
@@ -119,7 +120,7 @@ module HiveBench
       PI_MODELS.map do |label, pattern|
         Profile.new(
           id: "pi@#{label}", harness: "pi", model: pattern, bin: "pi",
-          min_version: "0.70.2", auth_path: PI_AUTH,
+          auth_path: PI_AUTH,
           headless_argv: lambda do |prompt:|
             ["pi", "-p", "--model", pattern, prompt]
           end

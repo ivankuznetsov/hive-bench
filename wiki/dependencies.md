@@ -1,5 +1,20 @@
 # Dependencies
 
+## Agent CLI runtime
+
+The bundle includes `agent-cli-runtime ~> 0.1.0`, published from Hive's
+monorepo. `HiveBench::Profile#preflight` delegates deterministic local
+prerequisite discovery to it: executable presence, bounded version probing,
+the package-owned minimum version, and recognized authentication
+configuration for Claude, Codex, Pi, and Grok.
+
+This is deliberately not a live provider-health check. A configured credential
+may still be expired, rate-limited, or unable to reach the provider. Keep the
+paid Claude probe below and HiveBench's benchmark-specific Grok credential
+validation before campaigns. HiveBench also retains ownership of model and
+effort pins, container mounts, network policy, retries, and result
+classification.
+
 ## Claude authentication
 
 Fable judging and every Opus candidate use the host Claude Code session. Do

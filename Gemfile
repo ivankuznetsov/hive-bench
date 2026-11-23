@@ -4,12 +4,15 @@ source "https://rubygems.org"
 
 ruby "~> 3.4"
 
+gem "agent-cli-runtime", "~> 0.1.0"
+
 # Hive persists structured agent usage in SQLite. The benchmark reads that
 # canonical store when a harness (notably OpenCode) redacts raw stream events.
 gem "sqlite3", "~> 2.0"
 
 # Stdlib-first by design — the harness shells out to git/agent CLIs and uses
-# YAML/JSON from the standard library. Dev/test tooling only.
+# YAML/JSON from the standard library. Agent CLI prerequisite probing is shared
+# with Hive through agent-cli-runtime. Dev/test tooling only below.
 group :development, :test do
   gem "minitest", "~> 5.25"
   gem "rake", "~> 13.2"
