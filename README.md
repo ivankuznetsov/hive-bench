@@ -97,6 +97,7 @@ limit windows, budget caps, or an exclusion I made and named.
     harness/verify_models.rb  model-claim verification from stream logs
     harness/merge_results.rb  merge/union split results.json files
     validator/              corpus-entry acceptance (leaks, secrets, reproducibility)
+    decision-bench/         separate benchmark: decision-model APIs on Hive's own past decisions (its own README)
     runs/                   artifacts + canonical merged results (gitignored)
 
 ## Running a pass

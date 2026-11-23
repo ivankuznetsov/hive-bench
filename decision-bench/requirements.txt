@@ -1,0 +1,2 @@
+# OpenAI Decisions SDK (client.decisions.create); tested with 3.57.0. Jev uses the standard library.
+openai>=3.26

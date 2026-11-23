@@ -1,0 +1,379 @@
+{
+ "point": "patrol_finding_dedup",
+ "provider": "openai",
+ "rows_in_scope": 1378,
+ "gold_for_decisive": "adjudicated",
+ "scoring": "summarize.py (see its docstring)",
+ "test": {
+  "direct": {
+   "rows": 553,
+   "answered": 553,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 553,
+    "accuracy": 0.7848,
+    "kappa": 0.563,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 277,
+      "same": 109
+     },
+     "same": {
+      "same": 157,
+      "different": 10
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 65,
+    "accuracy": 0.9538,
+    "kappa": 0.8782,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 15,
+      "same": 2
+     },
+     "same": {
+      "same": 47,
+      "different": 1
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 63,
+    "accuracy": 0.9683,
+    "kappa": 0.9125,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 14,
+      "same": 1
+     },
+     "same": {
+      "same": 47,
+      "different": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9747,
+    "n": 539,
+    "acc_system": 0.7922,
+    "n_system": 539,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.9839,
+    "n_adjudicated": 62,
+    "acc_gold": 0.9836,
+    "n_gold": 61
+   },
+   "decB": {
+    "coverage": 0.9114,
+    "n": 504,
+    "acc_system": 0.8155,
+    "n_system": 504,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 54,
+    "acc_gold": 1.0,
+    "n_gold": 54
+   },
+   "latency_ms": {
+    "p50": 150,
+    "p95": 372,
+    "max": 1112
+   },
+   "cost_usd": 0.052662,
+   "input_tokens": 527607,
+   "verdict_dist": {
+    "different": 287,
+    "same": 266
+   }
+  },
+  "decomposed": {
+   "rows": 553,
+   "answered": 553,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 553,
+    "accuracy": 0.7866,
+    "kappa": 0.5544,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 287,
+      "same": 99
+     },
+     "same": {
+      "same": 148,
+      "different": 19
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 65,
+    "accuracy": 0.9385,
+    "kappa": 0.8519,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 17
+     },
+     "same": {
+      "same": 44,
+      "different": 4
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 63,
+    "accuracy": 0.9365,
+    "kappa": 0.8397,
+    "confusion(true->pred)": {
+     "different": {
+      "different": 15
+     },
+     "same": {
+      "same": 44,
+      "different": 4
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 553,
+    "acc_system": 0.7866,
+    "n_system": 553,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.9385,
+    "n_adjudicated": 65,
+    "acc_gold": 0.9365,
+    "n_gold": 63
+   },
+   "decB": {
+    "coverage": 0.8807,
+    "n": 487,
+    "acc_system": 0.807,
+    "n_system": 487,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.9811,
+    "n_adjudicated": 53,
+    "acc_gold": 0.9811,
+    "n_gold": 53
+   },
+   "latency_ms": {
+    "p50": 176,
+    "p95": 406,
+    "max": 934
+   },
+   "cost_usd": 0.084709,
+   "input_tokens": 875444,
+   "verdict_dist": {
+    "different": 306,
+    "same": 247
+   }
+  }
+ },
+ "dev": {
+  "direct": {
+   "rows": 136,
+   "answered": 136,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 136,
+    "accuracy": 0.7574,
+    "kappa": 0.5172,
+    "confusion(true->pred)": {
+     "different": {
+      "same": 29,
+      "different": 63
+     },
+     "same": {
+      "different": 4,
+      "same": 40
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 12,
+    "accuracy": 0.9167,
+    "kappa": 0.625,
+    "confusion(true->pred)": {
+     "same": {
+      "different": 1,
+      "same": 10
+     },
+     "different": {
+      "different": 1
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 12,
+    "accuracy": 0.9167,
+    "kappa": 0.625,
+    "confusion(true->pred)": {
+     "same": {
+      "different": 1,
+      "same": 10
+     },
+     "different": {
+      "different": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 0.9853,
+    "n": 134,
+    "acc_system": 0.7612,
+    "n_system": 134,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.9167,
+    "n_adjudicated": 12,
+    "acc_gold": 0.9167,
+    "n_gold": 12
+   },
+   "decB": {
+    "coverage": 0.8897,
+    "n": 121,
+    "acc_system": 0.7934,
+    "n_system": 121,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 9,
+    "acc_gold": 1.0,
+    "n_gold": 9
+   },
+   "latency_ms": {
+    "p50": 153,
+    "p95": 382,
+    "max": 649
+   },
+   "cost_usd": 0.01305,
+   "input_tokens": 130500,
+   "verdict_dist": {
+    "same": 69,
+    "different": 67
+   }
+  },
+  "decomposed": {
+   "rows": 136,
+   "answered": 136,
+   "errors": 0,
+   "not_run": 0,
+   "vs_system": {
+    "n": 136,
+    "accuracy": 0.75,
+    "kappa": 0.4839,
+    "confusion(true->pred)": {
+     "different": {
+      "same": 26,
+      "different": 66
+     },
+     "same": {
+      "same": 36,
+      "different": 8
+     }
+    }
+   },
+   "vs_adjudicated": {
+    "n": 12,
+    "accuracy": 0.9167,
+    "kappa": 0.625,
+    "confusion(true->pred)": {
+     "same": {
+      "same": 10,
+      "different": 1
+     },
+     "different": {
+      "different": 1
+     }
+    }
+   },
+   "vs_gold": {
+    "n": 12,
+    "accuracy": 0.9167,
+    "kappa": 0.625,
+    "confusion(true->pred)": {
+     "same": {
+      "same": 10,
+      "different": 1
+     },
+     "different": {
+      "different": 1
+     }
+    }
+   },
+   "decA": {
+    "coverage": 1.0,
+    "n": 136,
+    "acc_system": 0.75,
+    "n_system": 136,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 0.9167,
+    "n_adjudicated": 12,
+    "acc_gold": 0.9167,
+    "n_gold": 12
+   },
+   "decB": {
+    "coverage": 0.8603,
+    "n": 117,
+    "acc_system": 0.7692,
+    "n_system": 117,
+    "acc_outcome": null,
+    "n_outcome": 0,
+    "acc_adjudicated": 1.0,
+    "n_adjudicated": 9,
+    "acc_gold": 1.0,
+    "n_gold": 9
+   },
+   "latency_ms": {
+    "p50": 173,
+    "p95": 472,
+    "max": 740
+   },
+   "cost_usd": 0.020536,
+   "input_tokens": 216044,
+   "verdict_dist": {
+    "same": 62,
+    "different": 74
+   }
+  }
+ },
+ "incumbent": {
+  "test": {
+   "system": {
+    "vs_adjudicated": {
+     "n": 65,
+     "accuracy": 0.7231,
+     "kappa": 0.4502
+    },
+    "vs_gold": {
+     "n": 63,
+     "accuracy": 0.7143,
+     "kappa": 0.4238
+    }
+   }
+  },
+  "dev": {
+   "system": {
+    "vs_adjudicated": {
+     "n": 12,
+     "accuracy": 0.6667,
+     "kappa": 0.2258
+    },
+    "vs_gold": {
+     "n": 12,
+     "accuracy": 0.6667,
+     "kappa": 0.2258
+    }
+   }
+  }
+ }
+}
